@@ -1,0 +1,104 @@
+name: Main
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: slate-main-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+          cache: true
+          cache-dependency-path: '**/*.csproj'
+      - name: Restore
+        run: dotnet restore slate.lib.sln
+      - name: Build
+        run: dotnet build slate.lib.sln --no-restore
+      - name: Test
+        run: dotnet test tests/Slate.Lib.Tests/Slate.Lib.Tests.csproj --no-build --no-restore
+      - name: Render Kubernetes manifests
+        shell: pwsh
+        run: kubectl kustomize deploy/k3s | Out-File -Encoding utf8 $env:RUNNER_TEMP/slate.yaml
+
+  publish-and-deploy:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select immutable image names
+        shell: bash
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          echo "IMAGE=ghcr.io/$repository:$GITHUB_SHA" >> "$GITHUB_ENV"
+          echo "BACKUP_IMAGE=ghcr.io/$repository-backup:$GITHUB_SHA" >> "$GITHUB_ENV"
+          echo "MAIN_IMAGE=ghcr.io/$repository:main" >> "$GITHUB_ENV"
+          echo "BACKUP_MAIN_IMAGE=ghcr.io/$repository-backup:main" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}
+            ${{ env.MAIN_IMAGE }}
+          build-args: |
+            SOURCE_REVISION_ID=${{ github.sha }}
+      - name: Build and publish backup runner
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/backup/Dockerfile
+          push: true
+          tags: |
+            ${{ env.BACKUP_IMAGE }}
+            ${{ env.BACKUP_MAIN_IMAGE }}
+      - name: Render deployment bundle with exact images
+        shell: bash
+        run: |
+          sed -i "s|ghcr.io/owner/slate.lib:replace-me|$IMAGE|" deploy/k3s/deployment.yaml
+          sed -i "s|ghcr.io/owner/slate.lib-backup:replace-me|$BACKUP_IMAGE|" deploy/k3s/backup-cronjob.yaml
+          tar -czf "$RUNNER_TEMP/slate-k3s.tgz" deploy/k3s
+      - uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.HOME_SERVER_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.HOME_SERVER_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Deploy exact images
+        env:
+          DEPLOY_HOST: ${{ secrets.HOME_SERVER_HOST }}
+          DEPLOY_USER: ${{ secrets.HOME_SERVER_USER }}
+        run: |
+          scp "$RUNNER_TEMP/slate-k3s.tgz" "$DEPLOY_USER@$DEPLOY_HOST:/tmp/slate-k3s.tgz"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "rm -rf /tmp/slate-deploy && mkdir -p /tmp/slate-deploy && tar -xzf /tmp/slate-k3s.tgz -C /tmp/slate-deploy && sudo k3s kubectl apply -k /tmp/slate-deploy/deploy/k3s && sudo k3s kubectl -n slate rollout status deployment/slate --timeout=180s && rm -rf /tmp/slate-deploy /tmp/slate-k3s.tgz"

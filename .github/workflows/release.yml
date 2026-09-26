@@ -1,0 +1,100 @@
+name: Release clients
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+concurrency:
+  group: slate-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      SLATE_WINDOWS_PFX_PASSWORD: ${{ secrets.WINDOWS_PFX_PASSWORD }}
+      SLATE_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      SLATE_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      SLATE_ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+          cache: true
+          cache-dependency-path: '**/*.csproj'
+      - name: Restore workloads and packages
+        run: |
+          dotnet workload restore src/Slate.Lib.App/Slate.Lib.App.csproj
+          dotnet restore slate.lib.sln
+      - name: Test release source
+        run: |
+          dotnet build slate.lib.sln --no-restore
+          dotnet test tests/Slate.Lib.Tests/Slate.Lib.Tests.csproj --no-build --no-restore
+      - name: Materialize signing keys
+        shell: pwsh
+        env:
+          WINDOWS_PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          $keyDir = Join-Path $env:RUNNER_TEMP 'slate-signing'
+          New-Item -ItemType Directory -Force $keyDir | Out-Null
+          [IO.File]::WriteAllBytes((Join-Path $keyDir 'windows.pfx'), [Convert]::FromBase64String($env:WINDOWS_PFX_BASE64))
+          [IO.File]::WriteAllBytes((Join-Path $keyDir 'android.jks'), [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64))
+          "SLATE_WINDOWS_PFX=$(Join-Path $keyDir 'windows.pfx')" | Out-File $env:GITHUB_ENV -Append
+          "SLATE_ANDROID_KEYSTORE=$(Join-Path $keyDir 'android.jks')" | Out-File $env:GITHUB_ENV -Append
+      - name: Build signed Windows MSIX
+        run: dotnet publish src/Slate.Lib.App/Slate.Lib.App.csproj -f net10.0-windows10.0.19041.0 -c Release -p:RuntimeIdentifierOverride=win-x64
+      - name: Build signed Android APK
+        run: dotnet publish src/Slate.Lib.App/Slate.Lib.App.csproj -f net10.0-android -c Release --no-restore
+      - name: Prepare checksums and update metadata
+        shell: pwsh
+        run: ./scripts/Prepare-Release.ps1 -WindowsInput ./src/Slate.Lib.App/AppPackages -AndroidInput ./src/Slate.Lib.App/bin/Release/net10.0-android -Output ./artifacts/release -ReleaseNotes "See the GitHub release for Slate $env:GITHUB_REF_NAME."
+      - name: Export public Windows certificate
+        shell: pwsh
+        run: |
+          $flags = [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+          $certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new($env:SLATE_WINDOWS_PFX, $env:SLATE_WINDOWS_PFX_PASSWORD, $flags)
+          $name = "Slate-$($env:GITHUB_REF_NAME.TrimStart('v')).cer"
+          $path = Join-Path ./artifacts/release $name
+          [IO.File]::WriteAllBytes($path, $certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+          $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+          Add-Content ./artifacts/release/SHA256SUMS.txt "$hash  $name" -Encoding ascii
+      - name: Publish immutable GitHub release
+        shell: pwsh
+        run: |
+          $assets = Get-ChildItem ./artifacts/release -File | ForEach-Object FullName
+          gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes --title "Slate $env:GITHUB_REF_NAME"
+      - uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+      - name: Mirror release to private Slate server
+        shell: pwsh
+        env:
+          DEPLOY_HOST: ${{ secrets.HOME_SERVER_HOST }}
+          DEPLOY_USER: ${{ secrets.HOME_SERVER_USER }}
+          SSH_KEY: ${{ secrets.HOME_SERVER_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.HOME_SERVER_KNOWN_HOSTS }}
+        run: |
+          New-Item -ItemType Directory -Force ~/.ssh | Out-Null
+          Set-Content ~/.ssh/id_ed25519 $env:SSH_KEY -NoNewline
+          Set-Content ~/.ssh/known_hosts $env:SSH_KNOWN_HOSTS
+          icacls ~/.ssh/id_ed25519 /inheritance:r /grant:r "${env:USERNAME}:(R)" | Out-Null
+          ssh "$env:DEPLOY_USER@$env:DEPLOY_HOST" "rm -rf /tmp/slate-release && mkdir -p /tmp/slate-release"
+          Get-ChildItem ./artifacts/release -File | ForEach-Object {
+            scp $_.FullName "$env:DEPLOY_USER@$env:DEPLOY_HOST`:/tmp/slate-release/"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to copy $($_.Name)." }
+          }
+          ssh "$env:DEPLOY_USER@$env:DEPLOY_HOST" "sudo install -d -o 1654 -g 1654 /srv/slate/data/releases && sudo install -o 1654 -g 1654 -m 0644 /tmp/slate-release/* /srv/slate/data/releases/ && rm -rf /tmp/slate-release"
+      - name: Remove signing material
+        if: always()
+        shell: pwsh
+        run: Remove-Item -Recurse -Force (Join-Path $env:RUNNER_TEMP 'slate-signing') -ErrorAction SilentlyContinue

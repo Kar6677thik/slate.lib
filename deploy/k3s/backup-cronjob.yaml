@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: slate-backup
+  namespace: slate
+spec:
+  schedule: "17 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 604800
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: slate-backup
+          imagePullSecrets:
+            - name: slate-registry
+          containers:
+            - name: backup
+              image: ghcr.io/owner/slate.lib-backup:replace-me
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: SLATE_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+              envFrom:
+                - secretRef:
+                    name: slate-backup
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: slate-data

@@ -1,0 +1,56 @@
+# .NET build output
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+coverage/
+coverage.*
+*.trx
+*.nupkg
+*.snupkg
+
+# MAUI packaging output
+**/AppPackages/
+**/BundleArtifacts/
+*.apk
+*.aab
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle
+*.appinstaller
+
+# Local Slate runtime, smoke-test, and restore data
+.local/
+
+# IDE and user-specific files
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local configuration and environment overrides
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+deploy/k3s/secrets.yaml
+deploy/k3s/secrets.local.yaml
+
+# Signing keys and certificates
+*.pfx
+*.p12
+*.jks
+*.keystore
+*.pem
+*.key
+*.cer
+
+# Logs and operating-system metadata
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,14 @@
+.git
+.github
+.local
+.vs
+**/bin
+**/obj
+artifacts
+docs
+samples
+tests
+*.pfx
+*.p12
+*.jks
+*.keystore

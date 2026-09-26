@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:Slate.Lib.App"
+             xmlns:core="clr-namespace:Slate.Lib.Core;assembly=Slate.Lib.Core"
+             x:Class="Slate.Lib.App.MainPage"
+             HandlerChanged="PageHandlerChanged"
+             BackgroundColor="{AppThemeBinding Light=White, Dark=#1C232B}">
+  <Grid RowDefinitions="Auto,Auto,*">
+    <Grid Padding="20,12" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+      <Label Text="slate.lib" FontSize="23" FontAttributes="Bold" VerticalOptions="Center" Margin="0,0,12,0" />
+      <Button Grid.Column="1" Text="+ Note" Clicked="NewNoteClicked" />
+      <Button Grid.Column="2" Text="+ Folder" Clicked="NewFolderClicked" />
+      <Button Grid.Column="3" Text="Quick Thought" Clicked="QuickThoughtClicked" />
+      <Button Grid.Column="4" Text="Inbox" Clicked="InboxClicked" />
+      <Button Grid.Column="5" Text="Recent" Clicked="RecentClicked" />
+      <Entry x:Name="SearchEntry" Grid.Column="6" Placeholder="Search library…  Ctrl+Shift+F" TextChanged="SearchTextChanged" />
+      <Button Grid.Column="7" Text="Search" Clicked="SearchClicked" />
+      <Button Grid.Column="8" Text="Sync" Clicked="SyncClicked" />
+      <Button Grid.Column="9" Text="Refresh" Clicked="ConnectClicked" />
+      <Button Grid.Column="10" Text="Connect" Clicked="ConnectClicked" />
+    </Grid>
+    <Grid Grid.Row="1" Padding="20,0,20,12" ColumnDefinitions="*,*,Auto,Auto" ColumnSpacing="12">
+      <Entry x:Name="ServerEntry" Placeholder="Server URL" Text="http://localhost:5188" SemanticProperties.Description="Server URL" />
+      <Entry x:Name="TokenEntry" Grid.Column="1" Placeholder="Device token" IsPassword="True" SemanticProperties.Description="Device token" />
+      <Label x:Name="ClipboardStatus" Grid.Column="2" FontSize="12" VerticalOptions="Center" Opacity="0.7" />
+      <Label x:Name="SyncState" Grid.Column="3" Text="Git not initialized" FontSize="12" VerticalOptions="Center" Opacity="0.7" />
+    </Grid>
+    <Grid Grid.Row="2" ColumnDefinitions="310,1,*">
+      <Grid RowDefinitions="Auto,*,Auto" BackgroundColor="{AppThemeBinding Light=#F4F6F8, Dark=#222C35}">
+        <Label Text="Folders &amp; notes" FontSize="13" FontAttributes="Bold" Margin="20,16,16,10" />
+        <CollectionView x:Name="Tree" Grid.Row="1" SelectionMode="Single" SelectionChanged="SelectionChanged" HandlerChanged="TreeHandlerChanged">
+          <CollectionView.EmptyView><Label Text="Connect to browse your library." Margin="20" Opacity="0.65" /></CollectionView.EmptyView>
+          <CollectionView.ItemTemplate>
+            <DataTemplate x:DataType="local:TreeRow">
+              <Grid Padding="0,9,10,9" Margin="0,1" ColumnDefinitions="*,Auto">
+                <VisualStateManager.VisualStateGroups>
+                  <VisualStateGroup Name="CommonStates">
+                    <VisualState Name="Normal"><VisualState.Setters><Setter Property="BackgroundColor" Value="Transparent" /></VisualState.Setters></VisualState>
+                    <VisualState Name="Selected"><VisualState.Setters><Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#D6E9EC, Dark=#305460}" /></VisualState.Setters></VisualState>
+                  </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                <Grid ColumnDefinitions="25,*" Margin="{Binding Indent}">
+                  <Label Text="{Binding Glyph}" FontSize="14" VerticalOptions="Center" />
+                  <Label Grid.Column="1" Text="{Binding Name}" FontSize="14" LineBreakMode="TailTruncation" VerticalOptions="Center" />
+                </Grid>
+                <Label Grid.Column="1" Text="⋯" FontSize="17" VerticalOptions="Center" Opacity="0.65" />
+                <FlyoutBase.ContextFlyout>
+                  <MenuFlyout>
+                    <MenuFlyoutItem Text="Open" Clicked="ContextOpen" CommandParameter="{Binding .}" />
+                    <MenuFlyoutSeparator />
+                    <MenuFlyoutItem Text="New note here" Clicked="ContextNewNote" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="New folder here" Clicked="ContextNewFolder" CommandParameter="{Binding .}" />
+                    <MenuFlyoutSeparator />
+                    <MenuFlyoutItem Text="Rename" Clicked="ContextRename" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="Cut" Clicked="ContextCut" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="Copy" Clicked="ContextCopy" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="Paste here" Clicked="ContextPaste" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="Duplicate" Clicked="ContextDuplicate" CommandParameter="{Binding .}" />
+                    <MenuFlyoutSeparator />
+                    <MenuFlyoutItem Text="Delete…" Clicked="ContextDelete" CommandParameter="{Binding .}" />
+                  </MenuFlyout>
+                </FlyoutBase.ContextFlyout>
+              </Grid>
+            </DataTemplate>
+          </CollectionView.ItemTemplate>
+        </CollectionView>
+        <Grid Grid.Row="2" Padding="16,11" ColumnDefinitions="Auto,*" ColumnSpacing="10">
+          <ActivityIndicator x:Name="Busy" WidthRequest="18" HeightRequest="18" Color="#246575" />
+          <Label x:Name="Status" Grid.Column="1" Text="Not connected" FontSize="12" LineBreakMode="WordWrap" />
+        </Grid>
+      </Grid>
+      <BoxView Grid.Column="1" Color="{AppThemeBinding Light=#DCE3E8, Dark=#3B4855}" />
+      <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*">
+        <Grid Padding="24,12,20,8" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+          <VerticalStackLayout Spacing="2">
+            <Label x:Name="NoteTitle" Text="Your library, one note at a time" FontSize="17" FontAttributes="Bold" />
+            <Label x:Name="Breadcrumb" Text="Choose a note from the folders on the left." FontSize="12" Opacity="0.65" />
+          </VerticalStackLayout>
+          <Label x:Name="DocumentState" Grid.Column="1" Text="" VerticalOptions="Center" FontSize="12" />
+          <Button x:Name="AttachImageButton" Grid.Column="2" Text="Image" Clicked="AttachImageClicked" IsEnabled="False" />
+          <Button x:Name="AttachFileButton" Grid.Column="3" Text="File" Clicked="AttachFileClicked" IsEnabled="False" />
+          <Button x:Name="InsertLinkButton" Grid.Column="4" Text="Wiki link" Clicked="InsertLinkClicked" IsEnabled="False" />
+          <Button x:Name="HistoryButton" Grid.Column="5" Text="History" Clicked="HistoryClicked" IsEnabled="False" />
+          <Button x:Name="WriteButton" Grid.Column="6" Text="Write" Clicked="WriteClicked" IsEnabled="False" />
+          <Button x:Name="PreviewButton" Grid.Column="7" Text="Preview" Clicked="PreviewClicked" IsEnabled="False" />
+          <Button x:Name="SplitButton" Grid.Column="8" Text="Split" Clicked="SplitClicked" IsEnabled="False" />
+          <Button x:Name="SaveButton" Grid.Column="9" Text="Save" Clicked="SaveClicked" IsEnabled="False" />
+        </Grid>
+        <Grid Grid.Row="1" Padding="24,0,20,8" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+          <Button x:Name="CloseNoteButton" Text="Close note" Clicked="CloseNoteClicked" IsVisible="False" />
+          <Label Grid.Column="1" Text="Right-click an explorer item for file actions. Ctrl+N / Ctrl+Shift+N create; F2 renames; Delete removes." FontSize="11" VerticalOptions="Center" Opacity="0.55" />
+        </Grid>
+        <Grid x:Name="WorkArea" Grid.Row="2" ColumnDefinitions="*,*">
+          <Border x:Name="EditorPane" Grid.Column="0" Margin="20,4,10,20" Stroke="{AppThemeBinding Light=#DCE3E8, Dark=#3B4855}" StrokeThickness="1" IsVisible="False">
+            <Editor x:Name="MarkdownEditor" TextChanged="EditorTextChanged" HandlerChanged="EditorHandlerChanged" FontFamily="Consolas" FontSize="15" AutoSize="Disabled" Placeholder="Write Markdown…" Margin="10" />
+          </Border>
+          <WebView x:Name="Reader" Grid.Column="1" Margin="10,4,10,10" IsVisible="False" Navigating="ReaderNavigating" HandlerChanged="ReaderHandlerChanged" />
+          <VerticalStackLayout x:Name="MessagePanel" Grid.ColumnSpan="2" HorizontalOptions="Center" VerticalOptions="Center" MaximumWidthRequest="480" Padding="30" Spacing="12">
+            <Label x:Name="MessageTitle" Text="A quiet place for your notes" FontSize="24" HorizontalTextAlignment="Center" />
+            <Label x:Name="MessageDetail" Text="Connect to your server, expand a folder, and open a Markdown note." FontSize="15" HorizontalTextAlignment="Center" Opacity="0.7" />
+          </VerticalStackLayout>
+          <Grid x:Name="SearchPanel" Grid.ColumnSpan="2" IsVisible="False" BackgroundColor="{AppThemeBinding Light=White, Dark=#1C232B}" RowDefinitions="Auto,*" Padding="24,12,24,20">
+            <Grid ColumnDefinitions="*,Auto">
+              <Label x:Name="SearchSummary" Text="Search" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" />
+              <Button Grid.Column="1" Text="Close search" Clicked="CloseSearchClicked" />
+            </Grid>
+            <CollectionView x:Name="SearchResults" Grid.Row="1" SelectionMode="Single" SelectionChanged="SearchResultSelected" Margin="0,12,0,0">
+              <CollectionView.EmptyView><Label x:Name="SearchEmpty" Text="Type a query to search the Library." Margin="8,20" Opacity="0.7" /></CollectionView.EmptyView>
+              <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="core:SearchHit">
+                  <Grid Padding="12" RowDefinitions="Auto,Auto,Auto" BackgroundColor="{AppThemeBinding Light=#F4F6F8, Dark=#222C35}" Margin="0,0,0,8">
+                    <Label Text="{Binding Title}" FontSize="16" FontAttributes="Bold" />
+                    <Label Grid.Row="1" Text="{Binding Path}" FontSize="12" Opacity="0.65" />
+                    <Label Grid.Row="2" Text="{Binding Snippet}" FontSize="13" Margin="0,6,0,0" LineBreakMode="TailTruncation" MaxLines="2" />
+                  </Grid>
+                </DataTemplate>
+              </CollectionView.ItemTemplate>
+            </CollectionView>
+          </Grid>
+          <Grid x:Name="HistoryPanel" Grid.ColumnSpan="2" IsVisible="False" BackgroundColor="{AppThemeBinding Light=White, Dark=#1C232B}" RowDefinitions="Auto,*" ColumnDefinitions="300,*" Padding="24,12,24,20">
+            <Grid Grid.ColumnSpan="2" ColumnDefinitions="*,Auto">
+              <Label x:Name="HistoryTitle" Text="History" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" />
+              <Button Grid.Column="1" Text="Back to current" Clicked="CloseHistoryClicked" />
+            </Grid>
+            <CollectionView x:Name="HistoryList" Grid.Row="1" SelectionMode="Single" SelectionChanged="HistorySelected" Margin="0,12,12,0">
+              <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="core:NoteHistoryEntry">
+                  <VerticalStackLayout Padding="10" Spacing="3">
+                    <Label Text="{Binding Message}" FontAttributes="Bold" LineBreakMode="TailTruncation" />
+                    <Label Text="{Binding Timestamp}" FontSize="11" Opacity="0.65" />
+                    <Label Text="{Binding Commit}" FontSize="10" Opacity="0.55" LineBreakMode="TailTruncation" />
+                  </VerticalStackLayout>
+                </DataTemplate>
+              </CollectionView.ItemTemplate>
+            </CollectionView>
+            <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,*" Margin="12,12,0,0">
+              <Label x:Name="HistoricalLabel" Text="Choose a version. Historical Markdown is read-only." FontSize="12" Opacity="0.7" />
+              <Editor x:Name="HistoricalEditor" Grid.Row="1" IsReadOnly="True" FontFamily="Consolas" FontSize="14" Margin="0,8,0,0" />
+            </Grid>
+          </Grid>
+        </Grid>
+      </Grid>
+    </Grid>
+  </Grid>
+</ContentPage>

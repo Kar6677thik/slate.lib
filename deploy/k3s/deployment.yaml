@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slate
+  namespace: slate
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: slate
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: slate
+        app.kubernetes.io/component: api
+    spec:
+      terminationGracePeriodSeconds: 60
+      imagePullSecrets:
+        - name: slate-registry
+      securityContext:
+        fsGroup: 1654
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: api
+          image: ghcr.io/owner/slate.lib:replace-me
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: slate-config
+          env:
+            - name: HOME
+              value: /tmp/home
+            - name: GIT_SSH_COMMAND
+              value: ssh -i /secrets/git/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=/secrets/git/known_hosts
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: derived
+              mountPath: /derived
+            - name: temporary
+              mountPath: /tmp
+            - name: git-ssh
+              mountPath: /secrets/git
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: slate-data
+        - name: derived
+          emptyDir: {}
+        - name: temporary
+          emptyDir: {}
+        - name: git-ssh
+          secret:
+            secretName: slate-git-ssh
+            defaultMode: 0400
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: slate
+  namespace: slate
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: slate
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      nodePort: 30518

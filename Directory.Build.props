@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <SlateVersion Condition="'$(SlateVersion)' == ''">0.4.0</SlateVersion>
+    <SlateVersionCode Condition="'$(SlateVersionCode)' == ''">400</SlateVersionCode>
+    <Version>$(SlateVersion)</Version>
+    <VersionPrefix>$(SlateVersion)</VersionPrefix>
+    <AssemblyVersion>$(SlateVersion).0</AssemblyVersion>
+    <FileVersion>$(SlateVersion).0</FileVersion>
+    <InformationalVersion>$(SlateVersion)</InformationalVersion>
+  </PropertyGroup>
+</Project>

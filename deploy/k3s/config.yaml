@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slate-config
+  namespace: slate
+data:
+  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_URLS: http://+:8080
+  # Default k3s pod/bridge CIDR: permits Tailscale Serve's node-local proxy hop to assert HTTPS.
+  # Change this if cluster-cidr differs; never use an unrestricted forwarded-header trust.
+  Networking__TrustedProxyNetworks: 10.42.0.0/16
+  Library__RootPath: /data/library
+  Data__AssetsPath: /data/assets
+  Data__DerivedPath: /derived
+  Authentication__DeviceFile: /data/auth/devices.json
+  Git__StatePath: /data/state/git
+  Updates__ManifestPath: /data/releases/release-manifest.json
+  Updates__ArtifactRoot: /data/releases
+  Backup__StatusFile: /data/state/backup-status.json
+  Git__RemoteName: origin
+  Git__Branch: main
+  Git__AuthorName: Slate
+  Git__AuthorEmail: slate@localhost

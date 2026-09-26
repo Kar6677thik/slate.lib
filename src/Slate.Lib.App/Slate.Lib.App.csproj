@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-windows10.0.19041.0;net10.0-android</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Slate.Lib.App</RootNamespace>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ApplicationTitle>slate.lib</ApplicationTitle>
+    <ApplicationId>dev.slate.lib</ApplicationId>
+    <ApplicationDisplayVersion>$(SlateVersion)</ApplicationDisplayVersion>
+    <ApplicationVersion>$(SlateVersionCode)</ApplicationVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <OutputType>WinExe</OutputType>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0' and '$(RuntimeIdentifierOverride)' != ''">
+    <RuntimeIdentifier>$(RuntimeIdentifierOverride)</RuntimeIdentifier>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <WindowsPackageType>MSIX</WindowsPackageType>
+    <AppxBundle>Never</AppxBundle>
+    <GenerateAppInstallerFile>false</GenerateAppInstallerFile>
+    <AppxSymbolPackageEnabled>false</AppxSymbolPackageEnabled>
+    <AppxPackageIncludePrivateSymbols>false</AppxPackageIncludePrivateSymbols>
+    <AppxPackageSigningEnabled Condition="'$(SLATE_WINDOWS_PFX)' != ''">true</AppxPackageSigningEnabled>
+    <AppxPackageSigningEnabled Condition="'$(SLATE_WINDOWS_PFX)' == ''">false</AppxPackageSigningEnabled>
+    <PackageCertificateKeyFile Condition="'$(SLATE_WINDOWS_PFX)' != ''">$(SLATE_WINDOWS_PFX)</PackageCertificateKeyFile>
+    <PackageCertificatePassword Condition="'$(SLATE_WINDOWS_PFX_PASSWORD)' != ''">$(SLATE_WINDOWS_PFX_PASSWORD)</PackageCertificatePassword>
+    <GenerateAppxPackageOnBuild>true</GenerateAppxPackageOnBuild>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <SupportedOSPlatformVersion>29.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net10.0-android'">
+    <AndroidPackageFormats>apk</AndroidPackageFormats>
+    <AndroidKeyStore Condition="'$(SLATE_ANDROID_KEYSTORE)' != ''">true</AndroidKeyStore>
+    <AndroidSigningKeyStore Condition="'$(SLATE_ANDROID_KEYSTORE)' != ''">$(SLATE_ANDROID_KEYSTORE)</AndroidSigningKeyStore>
+    <AndroidSigningKeyAlias Condition="'$(SLATE_ANDROID_KEY_ALIAS)' != ''">$(SLATE_ANDROID_KEY_ALIAS)</AndroidSigningKeyAlias>
+    <AndroidSigningKeyPass Condition="'$(SLATE_ANDROID_KEY_PASSWORD)' != ''">env:SLATE_ANDROID_KEY_PASSWORD</AndroidSigningKeyPass>
+    <AndroidSigningStorePass Condition="'$(SLATE_ANDROID_STORE_PASSWORD)' != ''">env:SLATE_ANDROID_STORE_PASSWORD</AndroidSigningStorePass>
+  </PropertyGroup>
+  <ItemGroup>
+    <MauiIcon Include="Resources/AppIcon/appicon.svg" Color="#163D46" />
+    <MauiSplashScreen Include="Resources/Splash/splash.svg" Color="#163D46" BaseSize="128,128" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.110" />
+    <ProjectReference Include="../Slate.Lib.Core/Slate.Lib.Core.csproj" />
+  </ItemGroup>
+</Project>
