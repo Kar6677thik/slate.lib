@@ -85,8 +85,11 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ secrets.HOME_SERVER_KNOWN_HOSTS }}
         run: |
           New-Item -ItemType Directory -Force ~/.ssh | Out-Null
-          Set-Content ~/.ssh/id_ed25519 $env:SSH_KEY -NoNewline
-          Set-Content ~/.ssh/known_hosts $env:SSH_KNOWN_HOSTS
+          $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+          $sshKey = ($env:SSH_KEY -replace "`r`n?", "`n").TrimEnd("`n") + "`n"
+          $knownHosts = ($env:SSH_KNOWN_HOSTS -replace "`r`n?", "`n").TrimEnd("`n") + "`n"
+          [IO.File]::WriteAllText((Join-Path $HOME '.ssh/id_ed25519'), $sshKey, $utf8NoBom)
+          [IO.File]::WriteAllText((Join-Path $HOME '.ssh/known_hosts'), $knownHosts, $utf8NoBom)
           icacls ~/.ssh/id_ed25519 /inheritance:r /grant:r "${env:USERNAME}:(R)" | Out-Null
           $remoteDir = "/home/kar_thik/slate-ci/releases/$env:GITHUB_REF_NAME"
           ssh "$env:DEPLOY_USER@$env:DEPLOY_HOST" "mkdir -p '$remoteDir'"
