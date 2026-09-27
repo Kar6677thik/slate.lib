@@ -3,8 +3,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisLevel>latest</AnalysisLevel>
-    <SlateVersion Condition="'$(SlateVersion)' == ''">0.4.0</SlateVersion>
-    <SlateVersionCode Condition="'$(SlateVersionCode)' == ''">400</SlateVersionCode>
+    <SlateVersion Condition="'$(SlateVersion)' == ''">0.4.1</SlateVersion>
+    <SlateVersionCode Condition="'$(SlateVersionCode)' == ''">403</SlateVersionCode>
     <Version>$(SlateVersion)</Version>
     <VersionPrefix>$(SlateVersion)</VersionPrefix>
     <AssemblyVersion>$(SlateVersion).0</AssemblyVersion>

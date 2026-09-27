@@ -44,9 +44,12 @@
     <AndroidSigningStorePass Condition="'$(SLATE_ANDROID_STORE_PASSWORD)' != ''">env:SLATE_ANDROID_STORE_PASSWORD</AndroidSigningStorePass>
   </PropertyGroup>
   <ItemGroup>
-    <MauiIcon Include="Resources/AppIcon/appicon.svg" Color="#163D46" />
-    <MauiSplashScreen Include="Resources/Splash/splash.svg" Color="#163D46" BaseSize="128,128" />
+    <MauiIcon Include="Resources/AppIcon/appicon.svg" Color="#8B5CF6" />
+    <MauiSplashScreen Include="Resources/Splash/splash.svg" Color="#090A0F" BaseSize="128,128" />
     <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.110" />
     <ProjectReference Include="../Slate.Lib.Core/Slate.Lib.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <MauiImage Include="Resources/Images/**/*.svg" />
   </ItemGroup>
 </Project>

@@ -156,6 +156,27 @@ public sealed class LibraryTests
         Assert.Throws<InvalidDataException>(() => NoteDocument.Parse($"---\n{yaml}\n---\n# Example", "Example.md"));
 
     [Fact]
+    public void NormalizesWindowsEditorLineEndingsBeforeParsing()
+    {
+        var id = Guid.NewGuid();
+        var editorText = $"---\rid: {id:D}\r---\r\r# Hello Slate\r\rBody";
+        var normalized = NoteDocument.NormalizeLineEndings(editorText);
+
+        Assert.DoesNotContain('\r', normalized);
+        Assert.Equal(id, NoteDocument.Parse(normalized, "Hello Slate.md").Id);
+        Assert.Contains("# Hello Slate\n\nBody", normalized);
+    }
+
+    [Fact]
+    public void ExtractsAssetReferencesAlongsideWikiLinks()
+    {
+        var assetId = Guid.NewGuid();
+        var markdown = $"[[Second Note]]\n\n![small image](../.assets/{assetId:D}.png)";
+
+        Assert.Equal([assetId], AssetReferences.Extract("Test/Hello Slate.md", markdown));
+    }
+
+    [Fact]
     public void RendersMarkdownWithoutActiveContentOrRemoteImages()
     {
         var id = Guid.NewGuid();

@@ -17,16 +17,36 @@ public sealed class TreeRow : INotifyPropertyChanged
     public LibraryEntry Entry { get; init; } = new("", "", true, null, null);
     public int Depth { get; init; }
     private bool expanded;
-    public bool Expanded { get => expanded; set { expanded = value; PropertyChanged?.Invoke(this, new(nameof(Glyph))); } }
+    private bool hovered;
+    private bool selected;
+    public bool Expanded
+    {
+        get => expanded;
+        set
+        {
+            expanded = value;
+            PropertyChanged?.Invoke(this, new(nameof(ChevronIcon)));
+            PropertyChanged?.Invoke(this, new(nameof(IconSource)));
+        }
+    }
+    public bool Hovered { get => hovered; set { hovered = value; PropertyChanged?.Invoke(this, new(nameof(ShowOverflow))); } }
+    public bool Selected { get => selected; set { selected = value; PropertyChanged?.Invoke(this, new(nameof(Selected))); PropertyChanged?.Invoke(this, new(nameof(ShowOverflow))); } }
     public event PropertyChangedEventHandler? PropertyChanged;
     public bool Loaded { get; set; }
     public int? NextPage { get; set; }
     public TreeRow? MoreFor { get; init; }
     public List<TreeRow> Children { get; } = [];
-    public Thickness Indent => new(16 + Depth * 18, 0, 0, 0);
+    public Thickness Indent => new(8 + Depth * 16, 0, 0, 0);
     public string Name => MoreFor is not null ? "Load more…" : Entry.Title ?? Entry.Name;
-    public string Glyph => MoreFor is not null ? "+" : Entry.IsDirectory ? (Expanded ? "▾" : "▸") : "·";
+    public string ChevronIcon => Entry.IsDirectory ? (Expanded ? "chevron_down_16_regular.png" : "chevron_right_16_regular.png") : "";
+    public string IconSource => MoreFor is not null ? "add_20_regular.png" : Entry.IsDirectory
+        ? (Expanded ? "folder_open_20_regular.png" : "folder_20_regular.png")
+        : "document_20_regular.png";
+    public bool ShowChevron => MoreFor is null && Entry.IsDirectory;
+    public bool ShowOverflow => MoreFor is null && (Hovered || Selected);
 }
+
+public sealed record LinkSidebarItem(Guid? NoteId, string Title, string Detail, bool Resolved);
 
 public partial class MainPage : ContentPage
 {
@@ -34,6 +54,8 @@ public partial class MainPage : ContentPage
     private readonly LibraryApiClient api;
     private readonly MarkdownReader renderer;
     private readonly ObservableCollection<TreeRow> rows = [];
+    private readonly ObservableCollection<LinkSidebarItem> backlinks = [];
+    private readonly ObservableCollection<LinkSidebarItem> outgoingLinks = [];
     private TreeRow root = new() { Depth = -1, Expanded = true };
     private CancellationTokenSource connection = new();
     private CancellationTokenSource? reading;
@@ -69,7 +91,12 @@ public partial class MainPage : ContentPage
     public MainPage(LibraryApiClient api, MarkdownReader renderer)
     {
         this.api = api; this.renderer = renderer;
-        InitializeComponent(); Tree.ItemsSource = rows;
+        InitializeComponent();
+        Tree.ItemsSource = rows;
+        BacklinksList.ItemsSource = backlinks;
+        OutgoingList.ItemsSource = outgoingLinks;
+        SetRailTab(true);
+        SetDocumentChromeVisible(false);
     }
 
     protected override async void OnAppearing()
@@ -81,6 +108,7 @@ public partial class MainPage : ContentPage
         ServerEntry.Text = Environment.GetEnvironmentVariable("SLATE_SERVER") ?? Preferences.Get("server", "http://localhost:5188");
         try { TokenEntry.Text = Environment.GetEnvironmentVariable("SLATE_TOKEN") ?? await SecureStorage.GetAsync("device-token"); }
         catch { Status.Text = "Saved token unavailable. Enter it again to connect."; }
+        ConnectionPanel.IsVisible = string.IsNullOrWhiteSpace(TokenEntry.Text);
         if (!string.IsNullOrWhiteSpace(TokenEntry.Text)) await ConnectAsync(false);
     }
 
@@ -94,7 +122,7 @@ public partial class MainPage : ContentPage
         connection.Cancel(); reading?.Cancel(); connection.Dispose(); connection = new();
         var cancellation = connection.Token;
         ResetDocument();
-        root = new() { Depth = -1, Expanded = true }; rows.Clear(); selectedRow = null;
+        root = new() { Depth = -1, Expanded = true }; rows.Clear(); SetSelectedRow(null);
         browsing = false; Busy.IsRunning = true; Status.Text = "Connecting…";
         ShowMessage("Connecting to your library", "Fetching folders from the server…");
         try
@@ -111,7 +139,8 @@ public partial class MainPage : ContentPage
             var stored = true;
             try { await SecureStorage.SetAsync("device-token", TokenEntry.Text ?? ""); } catch { stored = false; }
             Status.Text = $"Connected · server {status.ServerVersion} · search {status.IndexState}" + (stored ? "" : " · token could not be saved");
-            SyncState.Text = GitLabel(status.Git);
+            UpdateSyncState(GitLabel(status.Git));
+            ConnectionPanel.IsVisible = false;
             lastLibraryVersion = status.LibraryVersion; lastSearchVersion = status.SearchVersion;
             ShowMessage(rows.Count == 0 ? "Your library is empty" : "Choose a note", rows.Count == 0
                 ? "Create a folder or note to begin."
@@ -144,8 +173,8 @@ public partial class MainPage : ContentPage
             if (node.NextPage.HasValue) rows.Add(new TreeRow { MoreFor = node, Depth = node.Depth + 1 });
         }
         Append(root);
-        selectedRow = rows.FirstOrDefault(row => row.Entry.Path == selectPath) ??
-                      rows.FirstOrDefault(row => !row.Entry.IsDirectory && row.Entry.Id == openedNoteId);
+        SetSelectedRow(rows.FirstOrDefault(row => row.Entry.Path == selectPath) ??
+                       rows.FirstOrDefault(row => !row.Entry.IsDirectory && row.Entry.Id == openedNoteId));
         Tree.SelectedItem = selectedRow;
         rebuilding = false;
     }
@@ -169,12 +198,12 @@ public partial class MainPage : ContentPage
     private async void SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (rebuilding || e.CurrentSelection.FirstOrDefault() is not TreeRow row) return;
-        selectedRow = row;
+        SetSelectedRow(row);
         if (row.MoreFor is null && !row.Entry.IsDirectory)
         {
             if (currentNote?.Id == row.Entry.Id) return;
             if (await ResolveUnsavedAsync()) await OpenNote(token => api.ReadAsync(row.Entry.Id!.Value, token));
-            else { rebuilding = true; Tree.SelectedItem = rows.FirstOrDefault(x => x.Entry.Id == openedNoteId); rebuilding = false; }
+            else { rebuilding = true; SetSelectedRow(rows.FirstOrDefault(x => x.Entry.Id == openedNoteId)); Tree.SelectedItem = selectedRow; rebuilding = false; }
             return;
         }
         if (browsing) return;
@@ -208,7 +237,8 @@ public partial class MainPage : ContentPage
                 draftDebouncer = new(clientState);
                 if (await clientState.ReadDraftAsync(note.Id, cancellation) is { } draft)
                 {
-                    if (draft.Markdown == note.Markdown) await clientState.DeleteDraftAsync(draft.DraftId, cancellation);
+                    if (NoteDocument.NormalizeLineEndings(draft.Markdown) == NoteDocument.NormalizeLineEndings(note.Markdown))
+                        await clientState.DeleteDraftAsync(draft.DraftId, cancellation);
                     else if (await DisplayAlertAsync("Unsaved changes recovered", "Restore the local draft?", "Restore Draft", "Discard"))
                     {
                         markdown = draft.Markdown; dirty = true;
@@ -220,7 +250,7 @@ public partial class MainPage : ContentPage
             }
             settingEditor = true; MarkdownEditor.Text = markdown; settingEditor = false;
             UpdateDocumentChrome(); SetMode(mode); await RenderPreviewAsync(markdown, cancellation);
-            rebuilding = true; Tree.SelectedItem = rows.FirstOrDefault(row => row.Entry.Id == note.Id); selectedRow = Tree.SelectedItem as TreeRow; rebuilding = false;
+            rebuilding = true; SetSelectedRow(rows.FirstOrDefault(row => row.Entry.Id == note.Id)); Tree.SelectedItem = selectedRow; rebuilding = false;
             Status.Text = "Connected";
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
@@ -232,6 +262,7 @@ public partial class MainPage : ContentPage
     {
         if (settingEditor || currentNote is null) return;
         dirty = true; UpdateDocumentChrome();
+        UpdateInfoPanel(e.NewTextValue ?? "");
         draftDebouncer?.Schedule(CurrentDraft(e.NewTextValue ?? ""));
         autosaveDelay?.Cancel(); autosaveDelay?.Dispose(); autosaveDelay = new();
         _ = AutosaveAsync(autosaveDelay.Token);
@@ -240,7 +271,7 @@ public partial class MainPage : ContentPage
         _ = DebouncedPreviewAsync(e.NewTextValue ?? "", token);
     }
 
-    private DraftRecord CurrentDraft(string markdown) => new(currentNote!.Id, DraftKind.ExistingNote, markdown, DateTimeOffset.UtcNow,
+    private DraftRecord CurrentDraft(string markdown) => new(currentNote!.Id, DraftKind.ExistingNote, NoteDocument.NormalizeLineEndings(markdown), DateTimeOffset.UtcNow,
         currentNote.Id, currentNote.Path, currentNote.Revision, currentNote.Markdown, PendingAssets: pendingAssets.ToArray());
 
     private async Task AutosaveAsync(CancellationToken token)
@@ -259,8 +290,10 @@ public partial class MainPage : ContentPage
     private async Task RenderPreviewAsync(string source, CancellationToken cancellation)
     {
         if (currentNote is null) return;
-        var draft = currentNote with { Markdown = source };
+        var draft = currentNote with { Markdown = NoteDocument.NormalizeLineEndings(source) };
         NoteLinks? links = null; try { links = await api.LinksAsync(draft.Id, cancellation); } catch (HttpRequestException) { }
+        UpdateLinkSidebar(links);
+        UpdateInfoPanel(draft.Markdown);
         var images = new Dictionary<Guid, string>();
         foreach (var id in AssetReferences.Extract(draft.Path, draft.Markdown))
         {
@@ -344,7 +377,7 @@ public partial class MainPage : ContentPage
         Busy.IsRunning = true; DocumentState.Text = "Saving…";
         try
         {
-            var sent = MarkdownEditor.Text ?? "";
+            var sent = NoteDocument.NormalizeLineEndings(MarkdownEditor.Text ?? "");
             foreach (var asset in pendingAssets)
             {
                 var metadata = await PendingAssetStore.UploadAsync(api, asset, connection.Token);
@@ -353,7 +386,7 @@ public partial class MainPage : ContentPage
             if (sent != MarkdownEditor.Text) { settingEditor = true; MarkdownEditor.Text = sent; settingEditor = false; }
             var saved = await api.UpdateNoteAsync(currentNote.Id, new(sent, currentNote.Revision), connection.Token);
             currentNote = saved;
-            if ((MarkdownEditor.Text ?? "") == sent)
+            if (NoteDocument.NormalizeLineEndings(MarkdownEditor.Text ?? "") == sent)
             {
                 dirty = false; draftDebouncer?.Clear();
                 if (clientState is not null) await clientState.DeleteDraftAsync(saved.Id, connection.Token);
@@ -421,16 +454,22 @@ public partial class MainPage : ContentPage
     {
         currentNote = null; openedNoteId = null; dirty = false; settingEditor = true; MarkdownEditor.Text = ""; settingEditor = false; pendingAssets.Clear();
         draftDebouncer?.Clear(); draftDebouncer = null;
-        NoteTitle.Text = "Your library, one note at a time"; Breadcrumb.Text = "Choose a note from the folders on the left.";
+        NoteTitle.Text = "Library"; Breadcrumb.Text = "HOME  /  LIBRARY";
         AttachImageButton.IsEnabled = AttachFileButton.IsEnabled = InsertLinkButton.IsEnabled = HistoryButton.IsEnabled = WriteButton.IsEnabled = PreviewButton.IsEnabled = SplitButton.IsEnabled = SaveButton.IsEnabled = false;
-        CloseNoteButton.IsVisible = false; DocumentState.Text = ""; ShowMessage("Choose a note", "Expand a folder or create a Markdown note.");
+        CloseNoteButton.IsVisible = false; SaveButton.IsVisible = false; DocumentState.Text = "";
+        SetDocumentChromeVisible(false);
+        UpdateLinkSidebar(null); UpdateInfoPanel("");
+        ShowMessage("Choose a note", "Expand a folder or create a Markdown note.");
     }
 
     private void UpdateDocumentChrome()
     {
         if (currentNote is null) return;
+        SetDocumentChromeVisible(true);
         NoteTitle.Text = currentNote.Title + (dirty ? "  •" : ""); Breadcrumb.Text = "Library  ›  " + currentNote.Path.Replace("/", "  ›  ");
         DocumentState.Text = dirty ? "Unsaved" : "Saved ✓";
+        SaveButton.IsVisible = dirty;
+        UpdateInfoPanel(MarkdownEditor.Text ?? currentNote.Markdown);
         AttachImageButton.IsEnabled = AttachFileButton.IsEnabled = InsertLinkButton.IsEnabled = HistoryButton.IsEnabled = WriteButton.IsEnabled = PreviewButton.IsEnabled = SplitButton.IsEnabled = SaveButton.IsEnabled = true; CloseNoteButton.IsVisible = true;
     }
 
@@ -442,10 +481,87 @@ public partial class MainPage : ContentPage
         mode = value; MessagePanel.IsVisible = currentNote is null;
         EditorPane.IsVisible = currentNote is not null && value != ViewMode.Preview;
         Reader.IsVisible = currentNote is not null && value != ViewMode.Write;
+        ReaderPane.IsVisible = Reader.IsVisible;
         Grid.SetColumn(EditorPane, 0); Grid.SetColumnSpan(EditorPane, value == ViewMode.Write ? 2 : 1);
-        Grid.SetColumn(Reader, value == ViewMode.Preview ? 0 : 1); Grid.SetColumnSpan(Reader, value == ViewMode.Preview ? 2 : 1);
+        Grid.SetColumn(ReaderPane, value == ViewMode.Preview ? 0 : 1); Grid.SetColumnSpan(ReaderPane, value == ViewMode.Preview ? 2 : 1);
+        EditorPane.Margin = value == ViewMode.Write ? new Thickness(24, 0, 24, 16) : new Thickness(24, 0, 6, 16);
+        ReaderPane.Margin = value == ViewMode.Preview ? new Thickness(12, 0, 12, 16) : new Thickness(6, 0, 12, 16);
+        SetModeButtonState(WriteButton, value == ViewMode.Write);
+        SetModeButtonState(PreviewButton, value == ViewMode.Preview);
+        SetModeButtonState(SplitButton, value == ViewMode.Split);
         if (currentNote is not null && value != ViewMode.Write) _ = DebouncedPreviewAsync(MarkdownEditor.Text ?? "", CancellationToken.None);
         if (value != ViewMode.Preview) MarkdownEditor.Focus();
+    }
+
+    private static void SetModeButtonState(Button button, bool selected)
+    {
+        button.BackgroundColor = selected ? Color.FromArgb("#29213D") : Colors.Transparent;
+        button.BorderColor = selected ? Color.FromArgb("#8B5CF6") : Color.FromArgb("#262B3D");
+        button.TextColor = selected ? Color.FromArgb("#F1F3F9") : Color.FromArgb("#9BA3B8");
+    }
+
+    private void SettingsClicked(object? sender, EventArgs e) => ConnectionPanel.IsVisible = !ConnectionPanel.IsVisible;
+    private void SyncStatusTapped(object? sender, TappedEventArgs e) => SyncClicked(sender, e);
+    private void SyncStatusPointerEntered(object? sender, Microsoft.Maui.Controls.PointerEventArgs e) => SyncStatusSurface.BackgroundColor = Color.FromArgb("#202436");
+    private void SyncStatusPointerExited(object? sender, Microsoft.Maui.Controls.PointerEventArgs e) => SyncStatusSurface.BackgroundColor = Colors.Transparent;
+
+    private void LinksTabClicked(object? sender, EventArgs e) => SetRailTab(true);
+    private void InfoTabClicked(object? sender, EventArgs e) => SetRailTab(false);
+
+    private void SetRailTab(bool linksSelected)
+    {
+        LinksRail.IsVisible = linksSelected;
+        InfoRail.IsVisible = !linksSelected;
+        LinksTabIndicator.IsVisible = linksSelected;
+        InfoTabIndicator.IsVisible = !linksSelected;
+        LinksTabButton.TextColor = linksSelected ? Color.FromArgb("#F1F3F9") : Color.FromArgb("#9BA3B8");
+        InfoTabButton.TextColor = linksSelected ? Color.FromArgb("#9BA3B8") : Color.FromArgb("#F1F3F9");
+    }
+
+    private void SetDocumentChromeVisible(bool visible)
+    {
+        NoteToolbar.IsVisible = visible;
+        RightRail.IsVisible = visible;
+        RailDivider.IsVisible = visible;
+        RailDividerColumn.Width = visible ? new GridLength(1) : new GridLength(0);
+        RailColumn.Width = visible ? new GridLength(276) : new GridLength(0);
+    }
+
+    private void UpdateLinkSidebar(NoteLinks? links)
+    {
+        backlinks.Clear(); outgoingLinks.Clear();
+        if (links is not null)
+        {
+            foreach (var link in links.Backlinks)
+                backlinks.Add(new(link.SourceId, link.SourceTitle, link.Heading is null ? link.SourcePath : $"{link.SourcePath} · {link.Heading}", true));
+            foreach (var link in links.Outgoing)
+            {
+                var title = link.TargetTitle ?? link.Label ?? link.Target;
+                var detail = link.State == "resolved" ? link.TargetPath ?? "Resolved note" : link.State.Replace('-', ' ');
+                outgoingLinks.Add(new(link.TargetId, title, detail, link.State == "resolved"));
+            }
+        }
+        BacklinksHeading.Text = $"BACKLINKS · {backlinks.Count}";
+        OutgoingHeading.Text = $"OUTGOING LINKS · {outgoingLinks.Count}";
+    }
+
+    private void UpdateInfoPanel(string markdown)
+    {
+        InfoPath.Text = currentNote?.Path ?? "No note selected";
+        InfoRevision.Text = currentNote?.Revision ?? "—";
+        var normalized = NoteDocument.NormalizeLineEndings(markdown);
+        var words = normalized.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+        InfoWords.Text = $"{words} word{(words == 1 ? "" : "s")} · {normalized.Length} characters";
+    }
+
+    private async void BacklinkSelected(object? sender, SelectionChangedEventArgs e) => await NavigateFromRailAsync(BacklinksList, e);
+    private async void OutgoingLinkSelected(object? sender, SelectionChangedEventArgs e) => await NavigateFromRailAsync(OutgoingList, e);
+
+    private async Task NavigateFromRailAsync(CollectionView list, SelectionChangedEventArgs e)
+    {
+        if (e.CurrentSelection.FirstOrDefault() is not LinkSidebarItem { NoteId: { } id }) return;
+        list.SelectedItem = null;
+        if (await ResolveUnsavedAsync()) await OpenNote(token => api.ReadAsync(id, token));
     }
 
     private string TargetFolder(TreeRow? row = null)
@@ -456,6 +572,13 @@ public partial class MainPage : ContentPage
     }
 
     private async void NewNoteClicked(object? sender, EventArgs e) => await NewNoteAsync(TargetFolder());
+    private async void NewMenuClicked(object? sender, EventArgs e)
+    {
+        var choice = await DisplayActionSheetAsync("New", "Cancel", null, "New note", "New folder", "Quick Thought");
+        if (choice == "New note") await NewNoteAsync(TargetFolder());
+        else if (choice == "New folder") await NewFolderAsync(TargetFolder());
+        else if (choice == "Quick Thought") await QuickThoughtAsync();
+    }
     private async Task NewNoteAsync(string folder)
     {
         if (!await ResolveUnsavedAsync()) return;
@@ -544,7 +667,7 @@ public partial class MainPage : ContentPage
     }
 
     private static TreeRow RowFrom(object? sender) => (TreeRow)((MenuFlyoutItem)sender!).CommandParameter!;
-    private async void ContextOpen(object? sender, EventArgs e) { var row = RowFrom(sender); rebuilding = true; Tree.SelectedItem = row; rebuilding = false; selectedRow = row; if (row.Entry.IsDirectory) { if (!row.Loaded) await LoadChildren(row, 0, connection.Token); row.Expanded = !row.Expanded; RebuildRows(row.Entry.Path); } else if (await ResolveUnsavedAsync()) await OpenNote(token => api.ReadAsync(row.Entry.Id!.Value, token)); }
+    private async void ContextOpen(object? sender, EventArgs e) { var row = RowFrom(sender); rebuilding = true; SetSelectedRow(row); Tree.SelectedItem = row; rebuilding = false; if (row.Entry.IsDirectory) { if (!row.Loaded) await LoadChildren(row, 0, connection.Token); row.Expanded = !row.Expanded; RebuildRows(row.Entry.Path); } else if (await ResolveUnsavedAsync()) await OpenNote(token => api.ReadAsync(row.Entry.Id!.Value, token)); }
     private async void ContextNewNote(object? sender, EventArgs e) => await NewNoteAsync(TargetFolder(RowFrom(sender)));
     private async void ContextNewFolder(object? sender, EventArgs e) => await NewFolderAsync(TargetFolder(RowFrom(sender)));
     private async void ContextRename(object? sender, EventArgs e) => await RenameAsync(RowFrom(sender));
@@ -553,6 +676,32 @@ public partial class MainPage : ContentPage
     private async void ContextPaste(object? sender, EventArgs e) => await PasteAsync(TargetFolder(RowFrom(sender)));
     private async void ContextDuplicate(object? sender, EventArgs e) => await DuplicateAsync(RowFrom(sender));
     private async void ContextDelete(object? sender, EventArgs e) => await DeleteAsync(RowFrom(sender));
+
+    private void SetSelectedRow(TreeRow? row)
+    {
+        if (selectedRow is not null) selectedRow.Selected = false;
+        selectedRow = row;
+        if (selectedRow is not null) selectedRow.Selected = true;
+    }
+
+    private void TreeRowPointerEntered(object? sender, Microsoft.Maui.Controls.PointerEventArgs e)
+    {
+        if (sender is PointerGestureRecognizer { BindingContext: TreeRow row }) row.Hovered = true;
+    }
+
+    private void TreeRowPointerExited(object? sender, Microsoft.Maui.Controls.PointerEventArgs e)
+    {
+        if (sender is PointerGestureRecognizer { BindingContext: TreeRow row }) row.Hovered = false;
+    }
+
+    private void RowOverflowClicked(object? sender, EventArgs e)
+    {
+#if WINDOWS
+        if (sender is ImageButton { Parent: VisualElement parent } &&
+            parent.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement element)
+            Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(element);
+#endif
+    }
 
     private void TreeHandlerChanged(object? sender, EventArgs e)
     {
@@ -625,6 +774,13 @@ public partial class MainPage : ContentPage
     private void HookWindowClose()
     {
         if (closeHooked || Window?.Handler?.PlatformView is not Microsoft.UI.Xaml.Window native) return;
+        var titleBar = native.AppWindow.TitleBar;
+        titleBar.BackgroundColor = Windows.UI.Color.FromArgb(255, 15, 17, 23);
+        titleBar.ForegroundColor = Windows.UI.Color.FromArgb(255, 241, 243, 249);
+        titleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(255, 15, 17, 23);
+        titleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 155, 163, 184);
+        titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(255, 32, 36, 54);
+        titleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 241, 243, 249);
         native.AppWindow.Closing += WindowClosing;
         closeHooked = true;
     }
@@ -648,7 +804,9 @@ public partial class MainPage : ContentPage
         ShowResultView("Recent", recent.Select(x => new SearchHit(x.Id, x.Title, x.Path, "Recently opened on this device", 0, "")).ToArray(), recent.Count == 0 ? "No recently opened notes." : "");
     }
 
-    private async void QuickThoughtClicked(object? sender, EventArgs e)
+    private async void QuickThoughtClicked(object? sender, EventArgs e) => await QuickThoughtAsync();
+
+    private async Task QuickThoughtAsync()
     {
         var text = await DisplayPromptAsync("Quick Thought", "Save a thought to Inbox", accept: "Save", cancel: "Cancel", placeholder: "What are you thinking?");
         if (string.IsNullOrWhiteSpace(text)) return;
@@ -684,12 +842,12 @@ public partial class MainPage : ContentPage
 
     private void ShowResultView(string title, IReadOnlyList<SearchHit> results, string empty)
     {
-        MessagePanel.IsVisible = EditorPane.IsVisible = Reader.IsVisible = HistoryPanel.IsVisible = false;
+        MessagePanel.IsVisible = EditorPane.IsVisible = Reader.IsVisible = ReaderPane.IsVisible = HistoryPanel.IsVisible = false;
         SearchPanel.IsVisible = true; SearchSummary.Text = title; SearchResults.ItemsSource = results; SearchEmpty.Text = empty;
     }
     private void OpenSearch()
     {
-        MessagePanel.IsVisible = EditorPane.IsVisible = Reader.IsVisible = HistoryPanel.IsVisible = false;
+        MessagePanel.IsVisible = EditorPane.IsVisible = Reader.IsVisible = ReaderPane.IsVisible = HistoryPanel.IsVisible = false;
         SearchPanel.IsVisible = true;
         SearchEntry.Focus();
         if (!string.IsNullOrWhiteSpace(SearchEntry.Text)) _ = SearchAsync(SearchEntry.Text, CancellationToken.None);
@@ -699,7 +857,7 @@ public partial class MainPage : ContentPage
     {
         searchDelay?.Cancel(); searchDelay?.Dispose(); searchDelay = new();
         var token = searchDelay.Token;
-        MessagePanel.IsVisible = EditorPane.IsVisible = Reader.IsVisible = HistoryPanel.IsVisible = false;
+        MessagePanel.IsVisible = EditorPane.IsVisible = Reader.IsVisible = ReaderPane.IsVisible = HistoryPanel.IsVisible = false;
         SearchPanel.IsVisible = true;
         _ = DebouncedSearchAsync(e.NewTextValue ?? "", token);
     }
@@ -756,10 +914,10 @@ public partial class MainPage : ContentPage
 
     private async void SyncClicked(object? sender, EventArgs e)
     {
-        Busy.IsRunning = true; SyncState.Text = "Syncing…";
+        Busy.IsRunning = true; UpdateSyncState("Syncing…");
         try
         {
-            var state = await api.SyncAsync(connection.Token); SyncState.Text = GitLabel(state);
+            var state = await api.SyncAsync(connection.Token); UpdateSyncState(GitLabel(state));
             await ReloadTreeAsync(currentNote?.Path);
             if (currentNote is not null && !dirty)
             {
@@ -767,7 +925,7 @@ public partial class MainPage : ContentPage
                 catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound) { ResetDocument(); }
             }
         }
-        catch (Exception exception) { SyncState.Text = "Sync error"; ShowOperationError(exception, "Unable to synchronize Git."); }
+        catch (Exception exception) { UpdateSyncState("Sync error"); ShowOperationError(exception, "Unable to synchronize Git."); }
         finally { Busy.IsRunning = false; }
     }
 
@@ -782,7 +940,7 @@ public partial class MainPage : ContentPage
             HistoryList.ItemsSource = history;
             HistoricalEditor.Text = "";
             HistoricalLabel.Text = history.Count == 0 ? "No committed versions yet." : "Choose a version. Historical Markdown is read-only.";
-            MessagePanel.IsVisible = EditorPane.IsVisible = Reader.IsVisible = SearchPanel.IsVisible = false;
+            MessagePanel.IsVisible = EditorPane.IsVisible = Reader.IsVisible = ReaderPane.IsVisible = SearchPanel.IsVisible = false;
             HistoryPanel.IsVisible = true;
         }
         catch (Exception exception) { ShowOperationError(exception, "Unable to load note history."); }
@@ -824,7 +982,7 @@ public partial class MainPage : ContentPage
             while (await timer.WaitForNextTickAsync(token))
             {
                 var status = await api.StatusAsync(token);
-                SyncState.Text = GitLabel(status.Git);
+                UpdateSyncState(GitLabel(status.Git));
                 var libraryChanged = lastLibraryVersion is not null && status.LibraryVersion != lastLibraryVersion;
                 var searchChanged = status.SearchVersion != lastSearchVersion;
                 lastLibraryVersion = status.LibraryVersion; lastSearchVersion = status.SearchVersion;
@@ -843,10 +1001,21 @@ public partial class MainPage : ContentPage
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception) { SyncState.Text = "Status unavailable"; }
+        catch (Exception) { UpdateSyncState("Status unavailable"); }
     }
 
-    private void ShowMessage(string title, string detail) { Reader.IsVisible = EditorPane.IsVisible = SearchPanel.IsVisible = HistoryPanel.IsVisible = false; MessagePanel.IsVisible = true; MessageTitle.Text = title; MessageDetail.Text = detail; }
+    private void UpdateSyncState(string label)
+    {
+        SyncState.Text = label;
+        SyncIndicator.Color = label == "Synced" ? Color.FromArgb("#34D399")
+            : label.Contains("error", StringComparison.OrdinalIgnoreCase) || label.Contains("attention", StringComparison.OrdinalIgnoreCase)
+                ? Color.FromArgb("#EF6B73")
+                : label.Contains("Syncing", StringComparison.OrdinalIgnoreCase) || label.Contains("pending", StringComparison.OrdinalIgnoreCase)
+                    ? Color.FromArgb("#F0B35A")
+                    : Color.FromArgb("#64748B");
+    }
+
+    private void ShowMessage(string title, string detail) { Reader.IsVisible = ReaderPane.IsVisible = EditorPane.IsVisible = SearchPanel.IsVisible = HistoryPanel.IsVisible = false; MessagePanel.IsVisible = true; MessageTitle.Text = title; MessageDetail.Text = detail; }
     private void ShowOperationError(Exception exception, string fallback)
     {
         Status.Text = exception is HttpRequestException ? exception.Message : fallback + " " + exception.Message;

@@ -21,6 +21,9 @@ public sealed record NoteDocument(
     string PlainText)
 {
     public const int MaxBytes = 2 * 1024 * 1024;
+    public static string NormalizeLineEndings(string source) =>
+        source.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+
     public static NoteDocument Parse(string source, string path, bool allowMissingId = false)
     {
         var text = source.TrimStart('\uFEFF');

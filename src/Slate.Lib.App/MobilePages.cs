@@ -12,11 +12,16 @@ public sealed class MobileRootPage : TabbedPage
     public MobileRootPage(MobileSession session)
     {
         this.session = session;
-        Title = "slate.lib";
-        Children.Add(Tab(new MobileFolderPage(session, "", "Library"), "Library"));
-        Children.Add(Tab(new MobileSearchPage(session), "Search"));
-        Children.Add(Tab(new MobileFolderPage(session, "inbox", "Inbox", ensureFolder: true), "Inbox"));
-        Children.Add(Tab(new MobileRecentPage(session), "Recent"));
+        Title = "Slate";
+        BackgroundColor = MobileTheme.Canvas;
+        BarBackgroundColor = Color.FromArgb("#0F1117");
+        BarTextColor = MobileTheme.Secondary;
+        SelectedTabColor = MobileTheme.Accent;
+        UnselectedTabColor = MobileTheme.Muted;
+        Children.Add(Tab(new MobileFolderPage(session, "", "Library"), "Library", "folder_open_20_regular.png"));
+        Children.Add(Tab(new MobileSearchPage(session), "Search", "search_20_regular.png"));
+        Children.Add(Tab(new MobileFolderPage(session, "inbox", "Inbox", ensureFolder: true), "Inbox", "mail_inbox_20_regular.png"));
+        Children.Add(Tab(new MobileRecentPage(session), "Recent", "history_20_regular.png"));
         ShareSignals.Received += ShareReceived;
     }
 
@@ -28,7 +33,13 @@ public sealed class MobileRootPage : TabbedPage
             await CurrentPage.Navigation.PushAsync(new MobileCapturePage(session, share));
     }
 
-    private static NavigationPage Tab(Page page, string title) => new(page) { Title = title };
+    private static NavigationPage Tab(Page page, string title, string icon) => new(page)
+    {
+        Title = title,
+        IconImageSource = icon,
+        BarBackgroundColor = Color.FromArgb("#0F1117"),
+        BarTextColor = MobileTheme.Primary
+    };
 
     protected override async void OnAppearing()
     {
@@ -53,8 +64,9 @@ public abstract class MobilePage : ContentPage
     protected MobilePage(MobileSession session, string title)
     {
         Session = session; Title = title;
-        ToolbarItems.Add(new ToolbarItem("Capture", null, async () => await Navigation.PushAsync(new MobileCapturePage(session))));
-        ToolbarItems.Add(new ToolbarItem("Settings", null, async () => await Navigation.PushAsync(new MobileSettingsPage(session))));
+        MobileTheme.Apply(this);
+        ToolbarItems.Add(new ToolbarItem("Capture", "flash_20_regular.png", async () => await Navigation.PushAsync(new MobileCapturePage(session))));
+        ToolbarItems.Add(new ToolbarItem("Settings", "settings_20_regular.png", async () => await Navigation.PushAsync(new MobileSettingsPage(session))));
     }
 
     protected async Task ShowErrorAsync(Exception exception, string fallback)
@@ -89,37 +101,77 @@ public sealed class MobileFolderPage : MobilePage
     private readonly bool ensureFolder;
     private readonly ObservableCollection<LibraryEntry> entries = [];
     private readonly CollectionView list;
-    private readonly Label state = new() { Margin = new Thickness(16, 8), Opacity = 0.7 };
+    private readonly Label state = new() { Margin = new Thickness(2, 8), FontFamily = "monospace", FontSize = 11, TextColor = MobileTheme.Secondary };
+    private readonly Label connection = new() { Text = "○  CONNECTING", FontFamily = "monospace", FontSize = 10, TextColor = MobileTheme.Secondary, FontAttributes = FontAttributes.Bold };
     private readonly RefreshView refresh;
 
     public MobileFolderPage(MobileSession session, string path, string title, bool ensureFolder = false) : base(session, title)
     {
         this.path = path; this.ensureFolder = ensureFolder;
-        var breadcrumb = new Label { Text = path.Length == 0 ? "Library" : "Library  ›  " + path.Replace("/", "  ›  "), Margin = new Thickness(16, 12, 16, 6), FontSize = 13, Opacity = 0.7 };
-        list = new CollectionView { ItemsSource = entries, SelectionMode = SelectionMode.Single };
+        var isRoot = path.Length == 0;
+        var breadcrumb = MobileTheme.Label(path.Length == 0 ? "VAULT FILESYSTEM" : "LIBRARY  /  " + path.Replace("/", "  /  "), 11, MobileTheme.Secondary);
+        breadcrumb.FontFamily = "monospace"; breadcrumb.CharacterSpacing = 1.1;
+        list = new CollectionView { ItemsSource = entries, SelectionMode = SelectionMode.Single, BackgroundColor = Colors.Transparent };
         list.SelectionChanged += EntrySelected;
-        list.EmptyView = new Label { Text = title == "Inbox" ? "Inbox is empty. Capture a thought." : "This folder is empty.", Margin = 24, Opacity = 0.65 };
+        list.EmptyView = MobileTheme.Label(title == "Inbox" ? "Inbox is clear. Capture a thought when one arrives." : "Nothing here yet.", 13, MobileTheme.Secondary);
         list.ItemTemplate = new DataTemplate(() =>
         {
-            var name = new Label { FontSize = 16, VerticalOptions = LayoutOptions.Center, LineBreakMode = LineBreakMode.TailTruncation };
+            var icon = new Image { WidthRequest = 20, HeightRequest = 20, VerticalOptions = LayoutOptions.Center };
+            icon.SetBinding(Image.SourceProperty, new Binding(nameof(LibraryEntry.IsDirectory), converter: new LibraryEntryIconConverter()));
+            var name = new Label { FontSize = 15, TextColor = MobileTheme.Primary, VerticalOptions = LayoutOptions.Center, LineBreakMode = LineBreakMode.TailTruncation };
             name.SetBinding(Label.TextProperty, nameof(LibraryEntry.Name));
-            var pathLabel = new Label { FontSize = 11, Opacity = 0.55, LineBreakMode = LineBreakMode.TailTruncation };
+            var pathLabel = new Label { FontFamily = "monospace", FontSize = 10, TextColor = MobileTheme.Muted, LineBreakMode = LineBreakMode.TailTruncation };
             pathLabel.SetBinding(Label.TextProperty, nameof(LibraryEntry.Path));
             var text = new VerticalStackLayout { Spacing = 2, Children = { name, pathLabel } };
-            var actions = new Button { Text = "⋯", WidthRequest = 48, BackgroundColor = Colors.Transparent };
+            var actions = MobileTheme.IconButton("more_horizontal_20_regular.png", "More actions", false, 38);
+            actions.BackgroundColor = Colors.Transparent; actions.BorderWidth = 0;
             actions.SetBinding(BindableObject.BindingContextProperty, ".");
-            actions.Clicked += async (sender, _) => { if (((Button)sender!).BindingContext is LibraryEntry item) await ShowActionsAsync(item); };
-            var grid = new Grid { Padding = new Thickness(16, 10), ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) } };
-            grid.Add(text); grid.Add(actions, 1);
+            actions.Clicked += async (sender, _) => { if (((ImageButton)sender!).BindingContext is LibraryEntry item) await ShowActionsAsync(item); };
+            var grid = new Grid { Padding = new Thickness(14, 11), ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 12 };
+            grid.Add(icon); grid.Add(text, 1); grid.Add(actions, 2);
             return grid;
         });
         refresh = new RefreshView { Content = list, Command = new Command(async () => await LoadAsync()) };
-        var newNote = new Button { Text = "+ Note" }; newNote.Clicked += async (_, _) => await Navigation.PushAsync(new MobileNewNotePage(Session, path));
-        var newFolder = new Button { Text = "+ Folder" }; newFolder.Clicked += async (_, _) => await CreateFolderAsync();
-        var controls = new Grid { Padding = new Thickness(16, 8), ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star) }, ColumnSpacing = 8 };
-        controls.Add(newNote); controls.Add(newFolder, 1);
-        Content = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) }, Children = { breadcrumb } };
-        ((Grid)Content).Add(controls, 0, 1); ((Grid)Content).Add(refresh, 0, 2); ((Grid)Content).Add(state, 0, 3);
+        var header = isRoot ? BuildVaultHeader() : BuildFolderActions();
+        var section = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, Margin = new Thickness(2, 18, 2, 9) };
+        section.Add(breadcrumb); var count = MobileTheme.Label("LOCAL + REMOTE", 10, MobileTheme.Muted); count.FontFamily = "monospace"; section.Add(count, 1);
+        var content = new Grid { Padding = new Thickness(16, 14, 16, 12), RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) } };
+        content.Add(header); content.Add(section, 0, 1); content.Add(MobileTheme.Frame(refresh), 0, 2); content.Add(state, 0, 3);
+        var fab = MobileTheme.IconButton("add_20_regular.png", "Create", true, 58);
+        fab.Margin = new Thickness(0, 0, 6, 18); fab.HorizontalOptions = LayoutOptions.End; fab.VerticalOptions = LayoutOptions.End;
+        fab.Clicked += async (_, _) => await ShowCreateMenuAsync();
+        var shell = new Grid(); shell.Add(content); shell.Add(fab);
+        Content = shell;
+    }
+
+    private View BuildVaultHeader()
+    {
+        var mark = new Image { Source = "slate_logo.png", WidthRequest = 32, HeightRequest = 32 };
+        var brand = new VerticalStackLayout { Spacing = 0, Children = { MobileTheme.Label("Slate", 24, MobileTheme.Primary, FontAttributes.Bold), MobileTheme.Label("client  //  private vault", 10, MobileTheme.Muted) } };
+        var top = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 11, Children = { mark } };
+        top.Add(brand, 1); top.Add(connection, 2);
+        var inbox = MobileTheme.Button("Inbox", "mail_inbox_20_regular.png", false, true); inbox.Clicked += async (_, _) => await Navigation.PushAsync(new MobileFolderPage(Session, "inbox", "Inbox", true));
+        var recent = MobileTheme.Button("Recent", "history_20_regular.png", false, true); recent.Clicked += async (_, _) => await Navigation.PushAsync(new MobileRecentPage(Session));
+        var thought = MobileTheme.Button("Thought", "flash_20_regular.png", false, true); thought.Clicked += async (_, _) => await Navigation.PushAsync(new MobileCapturePage(Session));
+        var shortcuts = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star), new(GridLength.Star) }, ColumnSpacing = 8, Margin = new Thickness(0, 18, 0, 0) };
+        shortcuts.Add(inbox); shortcuts.Add(recent, 1); shortcuts.Add(thought, 2);
+        return new VerticalStackLayout { Spacing = 0, Children = { top, shortcuts } };
+    }
+
+    private View BuildFolderActions()
+    {
+        var newNote = MobileTheme.Button("New note", "add_20_regular.png", true, true); newNote.Clicked += async (_, _) => await Navigation.PushAsync(new MobileNewNotePage(Session, path));
+        var newFolder = MobileTheme.Button("New folder", "folder_20_regular.png", false, true); newFolder.Clicked += async (_, _) => await CreateFolderAsync();
+        var grid = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star) }, ColumnSpacing = 8 };
+        grid.Add(newNote); grid.Add(newFolder, 1); return grid;
+    }
+
+    private async Task ShowCreateMenuAsync()
+    {
+        var action = await DisplayActionSheetAsync("Create in Slate", "Cancel", null, "New note", "New folder", "Quick Thought");
+        if (action == "New note") await Navigation.PushAsync(new MobileNewNotePage(Session, path));
+        else if (action == "New folder") await CreateFolderAsync();
+        else if (action == "Quick Thought") await Navigation.PushAsync(new MobileCapturePage(Session));
     }
 
     protected override async void OnAppearing() { base.OnAppearing(); await LoadAsync(); }
@@ -143,8 +195,9 @@ public sealed class MobileFolderPage : MobilePage
                 if (result.NextPage is null) break; page = result.NextPage.Value;
             } while (true);
             state.Text = $"{entries.Count} item{(entries.Count == 1 ? "" : "s")}";
+            connection.Text = "●  LIVE"; connection.TextColor = MobileTheme.Success;
         }
-        catch (Exception exception) { state.Text = "Server unavailable"; if (entries.Count == 0) await ShowErrorAsync(exception, "Unable to load this folder."); }
+        catch (Exception exception) { state.Text = "Server unavailable"; connection.Text = "○  OFFLINE"; connection.TextColor = MobileTheme.Muted; if (entries.Count == 0) await ShowErrorAsync(exception, "Unable to load this folder."); }
         finally { refresh.IsRefreshing = false; }
     }
 
@@ -214,15 +267,18 @@ public sealed class MobileFolderPickerPage : ContentPage
     private MobileFolderPickerPage(MobileSession session, TaskCompletionSource<string?> completion)
     {
         this.session = session; this.completion = completion; Title = "Choose folder";
-        ToolbarItems.Add(new ToolbarItem("Up", null, async () => { if (path.Length == 0) return; path = path.Contains('/') ? path[..path.LastIndexOf('/')] : ""; await LoadAsync(); }));
-        var choose = new Button { Text = "Choose this folder" }; choose.Clicked += async (_, _) => { completion.TrySetResult(path); await Navigation.PopModalAsync(); };
-        var cancel = new Button { Text = "Cancel" }; cancel.Clicked += async (_, _) => { completion.TrySetResult(null); await Navigation.PopModalAsync(); };
-        var list = new CollectionView { ItemsSource = folders, ItemTemplate = new DataTemplate(() => { var label = new Label { Padding = 16, FontSize = 16 }; label.SetBinding(Label.TextProperty, nameof(LibraryEntry.Name)); return label; }), SelectionMode = SelectionMode.Single };
+        MobileTheme.Apply(this);
+        breadcrumb.TextColor = MobileTheme.Secondary; breadcrumb.FontFamily = "monospace"; breadcrumb.FontSize = 11;
+        ToolbarItems.Add(new ToolbarItem("Up", "arrow_left_20_regular.png", async () => { if (path.Length == 0) return; path = path.Contains('/') ? path[..path.LastIndexOf('/')] : ""; await LoadAsync(); }));
+        var choose = MobileTheme.Button("Choose folder", null, true, true); choose.Clicked += async (_, _) => { completion.TrySetResult(path); await Navigation.PopModalAsync(); };
+        var cancel = MobileTheme.Button("Cancel", null, false, true); cancel.Clicked += async (_, _) => { completion.TrySetResult(null); await Navigation.PopModalAsync(); };
+        var list = new CollectionView { ItemsSource = folders, BackgroundColor = Colors.Transparent, ItemTemplate = new DataTemplate(() => { var label = MobileTheme.Label("", 15); label.Padding = 14; label.SetBinding(Label.TextProperty, nameof(LibraryEntry.Name)); return label; }), SelectionMode = SelectionMode.Single };
         list.SelectionChanged += async (_, e) => { if (e.CurrentSelection.FirstOrDefault() is LibraryEntry folder) { path = folder.Path; list.SelectedItem = null; await LoadAsync(); } };
-        var newFolder = new Button { Text = "+ New folder" }; newFolder.Clicked += async (_, _) => { var name = await DisplayPromptAsync("New folder", "Name"); if (!string.IsNullOrWhiteSpace(name)) { await session.Api.CreateFolderAsync(new(path, name), default); await LoadAsync(); } };
-        Content = new Grid { Padding = 16, RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) }, Children = { breadcrumb } };
-        var buttons = new HorizontalStackLayout { Spacing = 8, Children = { choose, newFolder, cancel } };
-        ((Grid)Content).Add(buttons, 0, 1); ((Grid)Content).Add(list, 0, 2);
+        var newFolder = MobileTheme.Button("New folder", "folder_20_regular.png", false, true); newFolder.Clicked += async (_, _) => { var name = await DisplayPromptAsync("New folder", "Name"); if (!string.IsNullOrWhiteSpace(name)) { await session.Api.CreateFolderAsync(new(path, name), default); await LoadAsync(); } };
+        Content = new Grid { Padding = 16, RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) }, RowSpacing = 12, Children = { breadcrumb } };
+        var buttons = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 8 };
+        buttons.Add(choose); buttons.Add(newFolder, 1); buttons.Add(cancel, 2);
+        ((Grid)Content).Add(buttons, 0, 1); ((Grid)Content).Add(MobileTheme.Frame(list), 0, 2);
     }
 
     protected override void OnDisappearing() { completion.TrySetResult(null); base.OnDisappearing(); }
@@ -248,10 +304,10 @@ public sealed class MobileFolderPickerPage : ContentPage
 public sealed class MobileNotePage : MobilePage
 {
     private readonly Guid noteId;
-    private readonly Editor editor = new() { AutoSize = EditorAutoSizeOption.Disabled, FontFamily = "monospace", FontSize = 15, Placeholder = "Write Markdown…" };
-    private readonly WebView reader = new();
-    private readonly Label status = new() { FontSize = 12, Opacity = 0.7, VerticalOptions = LayoutOptions.Center };
-    private readonly Button toggle = new() { Text = "Edit" };
+    private readonly Editor editor = new() { AutoSize = EditorAutoSizeOption.Disabled, FontFamily = "monospace", FontSize = 15, Placeholder = "Write Markdown…", Margin = 10 };
+    private readonly WebView reader = new() { BackgroundColor = MobileTheme.Canvas };
+    private readonly Label status = new() { FontFamily = "monospace", FontSize = 10, TextColor = MobileTheme.Secondary, VerticalOptions = LayoutOptions.Center };
+    private readonly Button toggle = MobileTheme.Button("Edit", "edit_20_regular.png", false, true);
     private LibraryNote? note;
     private DraftDebouncer? drafts;
     private CancellationTokenSource? autosave;
@@ -265,17 +321,21 @@ public sealed class MobileNotePage : MobilePage
     public MobileNotePage(MobileSession session, Guid noteId, string? heading = null) : base(session, "Note")
     {
         this.noteId = noteId; pendingHeading = heading;
-        var save = new Button { Text = "Save" }; save.Clicked += async (_, _) => await SaveAsync();
+        MobileTheme.Input(editor);
+        var save = MobileTheme.Button("Save", "save_20_regular.png", true, true); save.Clicked += async (_, _) => await SaveAsync();
         toggle.Clicked += async (_, _) => await ToggleAsync();
-        var image = new Button { Text = "Image" }; image.Clicked += async (_, _) => await PickAssetAsync(true);
-        var file = new Button { Text = "File" }; file.Clicked += async (_, _) => await PickAssetAsync(false);
-        var link = new Button { Text = "Link" }; link.Clicked += async (_, _) => await InsertWikiLinkAsync(editor);
-        var bar = new Grid { Padding = new Thickness(12, 8), ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto) }, ColumnSpacing = 8 };
-        bar.Add(status); bar.Add(image, 1); bar.Add(file, 2); bar.Add(link, 3); bar.Add(toggle, 4); bar.Add(save, 5);
+        var image = MobileTheme.IconButton("image_20_regular.png", "Insert image", false, 38); image.Clicked += async (_, _) => await PickAssetAsync(true);
+        var file = MobileTheme.IconButton("attach_20_regular.png", "Attach file", false, 38); file.Clicked += async (_, _) => await PickAssetAsync(false);
+        var link = MobileTheme.IconButton("link_20_regular.png", "Insert wiki link", false, 38); link.Clicked += async (_, _) => await InsertWikiLinkAsync(editor);
+        var actions = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto) }, ColumnSpacing = 7 };
+        actions.Add(image); actions.Add(file, 1); actions.Add(link, 2); actions.Add(toggle, 4); actions.Add(save, 5);
+        var bar = new Grid { Padding = new Thickness(0, 0, 0, 10), RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto) }, RowSpacing = 8, Children = { status } };
+        bar.Add(actions, 0, 1);
         editor.TextChanged += EditorChanged;
         reader.Navigating += ReaderNavigating;
-        Content = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) }, Children = { bar } };
-        ((Grid)Content).Add(reader, 0, 1); ((Grid)Content).Add(editor, 0, 1); editor.IsVisible = false;
+        var body = new Grid(); body.Add(reader); body.Add(editor); editor.IsVisible = false;
+        Content = new Grid { Padding = new Thickness(16, 10, 16, 14), RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) }, Children = { MobileTheme.Frame(bar, new Thickness(10), 7) } };
+        ((Grid)Content).Add(MobileTheme.Frame(body, new Thickness(0), 7), 0, 1);
     }
 
     protected override async void OnAppearing()
@@ -495,13 +555,18 @@ public sealed class MobileNewNotePage : MobilePage
     private MobileNewNotePage(MobileSession session, string folder, Guid id, string? initialName, string? initialMarkdown) : base(session, "New note")
     {
         this.folder = folder; this.id = id; name.Text = initialName; editor.Text = initialMarkdown;
+        MobileTheme.Input(name); MobileTheme.Input(editor);
+        name.HeightRequest = 48; name.Margin = new Thickness(10, 0);
         editor.TextChanged += (_, _) => Persist(); name.TextChanged += (_, _) => Persist();
-        var save = new Button { Text = "Save" }; save.Clicked += async (_, _) => await SaveAsync();
-        var image = new Button { Text = "Attach image" }; image.Clicked += async (_, _) => await PickAssetAsync(true);
-        var file = new Button { Text = "Attach file" }; file.Clicked += async (_, _) => await PickAssetAsync(false);
-        var link = new Button { Text = "Wiki link" }; link.Clicked += async (_, _) => await InsertWikiLinkAsync(editor);
-        Content = new Grid { Padding = 16, RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) }, RowSpacing = 10, Children = { new Label { Text = folder.Length == 0 ? "Library" : folder, FontSize = 12, Opacity = 0.65 } } };
-        ((Grid)Content).Add(name, 0, 1); ((Grid)Content).Add(new HorizontalStackLayout { Spacing = 8, Children = { image, file, link } }, 0, 2); ((Grid)Content).Add(editor, 0, 3);
+        state.TextColor = MobileTheme.Secondary; state.FontFamily = "monospace";
+        var save = MobileTheme.Button("Save note", "save_20_regular.png", true, true); save.Clicked += async (_, _) => await SaveAsync();
+        var image = MobileTheme.Button("Image", "image_20_regular.png", false, true); image.Clicked += async (_, _) => await PickAssetAsync(true);
+        var file = MobileTheme.Button("File", "attach_20_regular.png", false, true); file.Clicked += async (_, _) => await PickAssetAsync(false);
+        var link = MobileTheme.Button("Link", "link_20_regular.png", false, true); link.Clicked += async (_, _) => await InsertWikiLinkAsync(editor);
+        var location = MobileTheme.Section(folder.Length == 0 ? "Library / New note" : "Library / " + folder);
+        var tools = new Grid { ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto) }, ColumnSpacing = 7 }; tools.Add(image); tools.Add(file, 1); tools.Add(link, 2);
+        Content = new Grid { Padding = 16, RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) }, RowSpacing = 10, Children = { location } };
+        ((Grid)Content).Add(MobileTheme.Frame(name, new Thickness(0), 7), 0, 1); ((Grid)Content).Add(tools, 0, 2); ((Grid)Content).Add(MobileTheme.Frame(editor, new Thickness(0), 7), 0, 3);
         var footer = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } }; footer.Add(state); footer.Add(save, 1); ((Grid)Content).Add(footer, 0, 4);
     }
 
@@ -594,16 +659,20 @@ public sealed class MobileCapturePage : MobilePage
         kind = shared is null && pendingAssets.Count == 0 ? DraftKind.QuickThought : DraftKind.Share;
         if (shared is not null) content.Text = shared.Text;
         if (existingComment is not null) comment.Text = existingComment;
+        MobileTheme.Input(content); MobileTheme.Input(comment);
+        content.MinimumHeightRequest = 150; content.Margin = 10; comment.Margin = 10;
+        state.TextColor = MobileTheme.Secondary; state.FontFamily = "monospace";
+        attachments.TextColor = MobileTheme.Secondary;
         content.TextChanged += (_, _) => Persist(); comment.TextChanged += (_, _) => Persist();
-        var save = new Button { Text = "Save to Inbox" }; save.Clicked += async (_, _) => await SaveAsync();
-        var image = new Button { Text = "Attach image" }; image.Clicked += async (_, _) => await PickAsync(true);
-        var file = new Button { Text = "Attach file" }; file.Clicked += async (_, _) => await PickAsync(false);
+        var save = MobileTheme.Button("Save to Inbox", "save_20_regular.png", true, true); save.Clicked += async (_, _) => await SaveAsync();
+        var image = MobileTheme.Button("Image", "image_20_regular.png", false, true); image.Clicked += async (_, _) => await PickAsync(true);
+        var file = MobileTheme.Button("File", "attach_20_regular.png", false, true); file.Clicked += async (_, _) => await PickAsync(false);
         var attachmentBar = new HorizontalStackLayout { Spacing = 8, Children = { image, file, attachments } };
-        Content = new Grid { Padding = 16, RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto) }, RowSpacing = 10,
-            Children = { new Label { Text = "Inbox", FontSize = 12, Opacity = 0.65 }, new Label { Text = kind == DraftKind.QuickThought ? "Quick Thought" : "Shared content", FontAttributes = FontAttributes.Bold, FontSize = 18 } } };
-        ((Grid)Content).SetRow(((Grid)Content).Children[1], 1); ((Grid)Content).Add(content, 0, 2);
+        Content = new Grid { Padding = 16, RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto) }, RowSpacing = 10,
+            Children = { MobileTheme.Section("Inbox / Capture"), MobileTheme.Label(kind == DraftKind.QuickThought ? "Quick Thought" : "Shared content", 22, MobileTheme.Primary, FontAttributes.Bold) } };
+        ((Grid)Content).SetRow(((Grid)Content).Children[1], 1); ((Grid)Content).Add(MobileTheme.Frame(content, new Thickness(0), 7), 0, 2);
         ((Grid)Content).Add(attachmentBar, 0, 3);
-        ((Grid)Content).Add(new Label { Text = "Context", FontSize = 12, Opacity = 0.65 }, 0, 4); ((Grid)Content).Add(comment, 0, 5);
+        ((Grid)Content).Add(MobileTheme.Section("Context"), 0, 4); ((Grid)Content).Add(MobileTheme.Frame(comment, new Thickness(0), 7), 0, 5);
         var footer = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } }; footer.Add(state); footer.Add(save, 1); ((Grid)Content).Add(footer, 0, 6);
         UpdateAttachments();
     }
@@ -670,24 +739,25 @@ public sealed class MobileSearchPage : MobilePage
 {
     private readonly Entry query = new() { Placeholder = "Search notes, title:, path:, tag:…", ReturnType = ReturnType.Search };
     private readonly ObservableCollection<SearchHit> results = [];
-    private readonly Label state = new() { Margin = new Thickness(16, 8), Opacity = 0.7 };
+    private readonly Label state = new() { Margin = new Thickness(2, 8), FontFamily = "monospace", FontSize = 11, TextColor = MobileTheme.Secondary };
     private CancellationTokenSource? delay;
 
     public MobileSearchPage(MobileSession session) : base(session, "Search")
     {
+        MobileTheme.Input(query); query.HeightRequest = 48; query.Margin = new Thickness(10, 0);
         query.TextChanged += (_, e) => { delay?.Cancel(); delay?.Dispose(); delay = new(); _ = SearchAfterDelayAsync(e.NewTextValue ?? "", delay.Token); };
         query.Completed += async (_, _) => await SearchAsync(query.Text ?? "", default);
-        var list = new CollectionView { ItemsSource = results, SelectionMode = SelectionMode.Single, EmptyView = new Label { Text = "Search the full Library.", Margin = 24, Opacity = 0.65 } };
+        var list = new CollectionView { ItemsSource = results, BackgroundColor = Colors.Transparent, SelectionMode = SelectionMode.Single, EmptyView = MobileTheme.Label("Search titles, paths, tags, and note text.", 13, MobileTheme.Secondary) };
         list.ItemTemplate = new DataTemplate(() =>
         {
-            var title = new Label { FontSize = 16, FontAttributes = FontAttributes.Bold }; title.SetBinding(Label.TextProperty, nameof(SearchHit.Title));
-            var path = new Label { FontSize = 11, Opacity = 0.6 }; path.SetBinding(Label.TextProperty, nameof(SearchHit.Path));
-            var snippet = new Label { FontSize = 13, MaxLines = 3 }; snippet.SetBinding(Label.TextProperty, nameof(SearchHit.Snippet));
-            return new VerticalStackLayout { Padding = new Thickness(16, 10), Spacing = 3, Children = { title, path, snippet } };
+            var title = new Label { FontSize = 15, FontAttributes = FontAttributes.Bold, TextColor = MobileTheme.Primary }; title.SetBinding(Label.TextProperty, nameof(SearchHit.Title));
+            var path = new Label { FontFamily = "monospace", FontSize = 10, TextColor = MobileTheme.Accent }; path.SetBinding(Label.TextProperty, nameof(SearchHit.Path));
+            var snippet = new Label { FontSize = 13, TextColor = MobileTheme.Secondary, MaxLines = 3 }; snippet.SetBinding(Label.TextProperty, nameof(SearchHit.Snippet));
+            return new VerticalStackLayout { Padding = new Thickness(14, 11), Spacing = 4, Children = { title, path, snippet } };
         });
         list.SelectionChanged += async (_, e) => { if (e.CurrentSelection.FirstOrDefault() is SearchHit hit) { list.SelectedItem = null; await Navigation.PushAsync(new MobileNotePage(Session, hit.Id)); } };
-        Content = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) }, Children = { query } };
-        query.Margin = new Thickness(16, 12, 16, 4); ((Grid)Content).Add(state, 0, 1); ((Grid)Content).Add(list, 0, 2);
+        Content = new Grid { Padding = 16, RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) }, Children = { MobileTheme.Frame(query, new Thickness(0), 7) } };
+        ((Grid)Content).Add(state, 0, 1); ((Grid)Content).Add(MobileTheme.Frame(list), 0, 2);
     }
 
     private async Task SearchAfterDelayAsync(string value, CancellationToken token)
@@ -719,11 +789,11 @@ public sealed class MobileRecentPage : MobilePage
 
     public MobileRecentPage(MobileSession session) : base(session, "Recent")
     {
-        var recentList = new CollectionView { ItemsSource = recents, SelectionMode = SelectionMode.Single };
-        recentList.ItemTemplate = new DataTemplate(() => { var title = new Label { FontSize = 16, Padding = 12 }; title.SetBinding(Label.TextProperty, nameof(RecentNote.Title)); return title; });
+        var recentList = new CollectionView { ItemsSource = recents, BackgroundColor = Colors.Transparent, SelectionMode = SelectionMode.Single };
+        recentList.ItemTemplate = new DataTemplate(() => { var title = MobileTheme.Label("", 15); title.Padding = 14; title.SetBinding(Label.TextProperty, nameof(RecentNote.Title)); return title; });
         recentList.SelectionChanged += async (_, e) => { if (e.CurrentSelection.FirstOrDefault() is RecentNote recent) { recentList.SelectedItem = null; await Navigation.PushAsync(new MobileNotePage(Session, recent.Id)); } };
-        var draftList = new CollectionView { ItemsSource = drafts, HeightRequest = 160, SelectionMode = SelectionMode.Single };
-        draftList.ItemTemplate = new DataTemplate(() => { var text = new Label { FontSize = 14, Padding = 12, MaxLines = 2 }; text.SetBinding(Label.TextProperty, nameof(DraftRecord.Markdown)); return text; });
+        var draftList = new CollectionView { ItemsSource = drafts, BackgroundColor = Colors.Transparent, HeightRequest = 160, SelectionMode = SelectionMode.Single };
+        draftList.ItemTemplate = new DataTemplate(() => { var text = MobileTheme.Label("", 13, MobileTheme.Secondary); text.Padding = 14; text.MaxLines = 2; text.SetBinding(Label.TextProperty, nameof(DraftRecord.Markdown)); return text; });
         draftList.SelectionChanged += async (_, e) =>
         {
             if (e.CurrentSelection.FirstOrDefault() is not DraftRecord draft) return; draftList.SelectedItem = null;
@@ -734,8 +804,10 @@ public sealed class MobileRecentPage : MobilePage
             else if (draft.NoteId is { } id) await Navigation.PushAsync(new MobileNotePage(Session, id));
             else await Navigation.PushAsync(new MobileNewNotePage(Session, draft));
         };
-        Content = new Grid { Padding = 12, RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) }, Children = { new Label { Text = "Unsaved drafts", FontAttributes = FontAttributes.Bold } } };
-        ((Grid)Content).Add(draftList, 0, 1); ((Grid)Content).Add(new Label { Text = "Recently opened", FontAttributes = FontAttributes.Bold, Margin = new Thickness(0, 12, 0, 0) }, 0, 2); ((Grid)Content).Add(recentList, 0, 3);
+        var draftsHeading = MobileTheme.Section("Unsaved drafts");
+        var recentHeading = MobileTheme.Section("Recently opened"); recentHeading.Margin = new Thickness(0, 16, 0, 8);
+        Content = new Grid { Padding = 16, RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) }, RowSpacing = 8, Children = { draftsHeading } };
+        ((Grid)Content).Add(MobileTheme.Frame(draftList), 0, 1); ((Grid)Content).Add(recentHeading, 0, 2); ((Grid)Content).Add(MobileTheme.Frame(recentList), 0, 3);
     }
 
     protected override async void OnAppearing()
@@ -757,10 +829,13 @@ public sealed class MobileSettingsPage : ContentPage
     public MobileSettingsPage(MobileSession session)
     {
         this.session = session; Title = "Settings"; server.Text = session.Server;
-        var connect = new Button { Text = "Save and test connection" }; connect.Clicked += async (_, _) => await ConnectAsync();
-        var update = new Button { Text = "Check for update" }; update.Clicked += async (_, _) => await UpdateCoordinator.CheckAsync(this, session.Api, true);
-        Content = new VerticalStackLayout { Padding = 20, Spacing = 12, Children = { new Label { Text = "Server URL", FontAttributes = FontAttributes.Bold }, server, new Label { Text = "Device token", FontAttributes = FontAttributes.Bold }, token, connect, update, state,
-            new Label { Text = "Generate a token on the server with: dotnet run --project src/Slate.Lib.Api -- --create-device-token Android", FontSize = 12, Opacity = 0.65 } } };
+        MobileTheme.Apply(this); MobileTheme.Input(server); MobileTheme.Input(token);
+        server.HeightRequest = token.HeightRequest = 48; server.Margin = token.Margin = new Thickness(10, 0);
+        state.TextColor = MobileTheme.Secondary; state.FontFamily = "monospace";
+        var connect = MobileTheme.Button("Save and test", "arrow_sync_20_regular.png", true); connect.Clicked += async (_, _) => await ConnectAsync();
+        var update = MobileTheme.Button("Check for update", "history_20_regular.png"); update.Clicked += async (_, _) => await UpdateCoordinator.CheckAsync(this, session.Api, true);
+        Content = new VerticalStackLayout { Padding = 20, Spacing = 12, Children = { MobileTheme.Section("Connection"), MobileTheme.Label("Server URL", 13, MobileTheme.Secondary), MobileTheme.Frame(server, new Thickness(0), 7), MobileTheme.Label("Device token", 13, MobileTheme.Secondary), MobileTheme.Frame(token, new Thickness(0), 7), connect, update, state,
+            MobileTheme.Label("Create or rotate device tokens from the Slate server CLI.", 11, MobileTheme.Muted) } };
     }
 
     protected override async void OnAppearing()

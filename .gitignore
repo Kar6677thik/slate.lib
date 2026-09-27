@@ -23,6 +23,16 @@ coverage.*
 # Local Slate runtime, smoke-test, and restore data
 .local/
 
+# Local design references and generated prototypes
+stitch_slate_knowledge_library_ui_system/
+
+# Local scratch and diagnostic output
+*.tmp
+*.bak
+*.orig
+*.rej
+*.dmp
+
 # IDE and user-specific files
 .vs/
 .idea/

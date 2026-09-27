@@ -4,14 +4,14 @@ public partial class App : Application
 {
 #if ANDROID
     private readonly MobileRootPage mobile;
-    public App(MobileRootPage mobile) { InitializeComponent(); this.mobile = mobile; }
-    protected override Window CreateWindow(IActivationState? activationState) => new(mobile) { Title = "slate.lib" };
+    public App(MobileRootPage mobile) { InitializeComponent(); UserAppTheme = AppTheme.Dark; this.mobile = mobile; }
+    protected override Window CreateWindow(IActivationState? activationState) => new(mobile) { Title = "Slate" };
 #else
     private readonly MainPage page;
-    public App(MainPage page) { InitializeComponent(); this.page = page; }
+    public App(MainPage page) { InitializeComponent(); UserAppTheme = AppTheme.Dark; this.page = page; }
     protected override Window CreateWindow(IActivationState? activationState) => new(page)
     {
-        Title = "slate.lib", Width = 1200, Height = 800, MinimumWidth = 850, MinimumHeight = 560
+        Title = "Slate", Width = 1440, Height = 900, MinimumWidth = 1100, MinimumHeight = 680
     };
 #endif
 }

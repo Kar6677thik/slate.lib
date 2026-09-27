@@ -113,7 +113,7 @@ public static class AssetReferences
     public static IReadOnlyList<Guid> Extract(string notePath, string markdown)
     {
         var ids = new HashSet<Guid>();
-        foreach (Match match in Regex.Matches(markdown, @"!?\[[^\]\r\n]*\]\((?<url>[^)\s]+))", RegexOptions.CultureInvariant))
+        foreach (Match match in Regex.Matches(markdown, @"!?\[[^\]\r\n]*\]\((?<url>[^)\s]+)\)", RegexOptions.CultureInvariant))
             if (TryParse(notePath, match.Groups["url"].Value, out var id)) ids.Add(id);
         return ids.ToArray();
     }
