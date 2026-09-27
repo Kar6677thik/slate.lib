@@ -75,12 +75,15 @@ jobs:
           tags: |
             ${{ env.BACKUP_IMAGE }}
             ${{ env.BACKUP_MAIN_IMAGE }}
-      - name: Render deployment bundle with exact images
+      - name: Render deployment bundle with exact image
         shell: bash
         run: |
           sed -i "s|ghcr.io/owner/slate.lib:replace-me|$IMAGE|" deploy/k3s/deployment.yaml
-          sed -i "s|ghcr.io/owner/slate.lib-backup:replace-me|$BACKUP_IMAGE|" deploy/k3s/backup-cronjob.yaml
-          tar -czf "$RUNNER_TEMP/slate-k3s.tgz" deploy/k3s
+          tar -czf "$RUNNER_TEMP/slate-k3s.tgz" -C deploy/k3s \
+            namespace.yaml \
+            storage.yaml \
+            config.yaml \
+            deployment.yaml
       - uses: tailscale/github-action@v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
@@ -100,5 +103,8 @@ jobs:
           DEPLOY_HOST: ${{ secrets.HOME_SERVER_HOST }}
           DEPLOY_USER: ${{ secrets.HOME_SERVER_USER }}
         run: |
-          scp "$RUNNER_TEMP/slate-k3s.tgz" "$DEPLOY_USER@$DEPLOY_HOST:/tmp/slate-k3s.tgz"
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" "rm -rf /tmp/slate-deploy && mkdir -p /tmp/slate-deploy && tar -xzf /tmp/slate-k3s.tgz -C /tmp/slate-deploy && sudo k3s kubectl apply -k /tmp/slate-deploy/deploy/k3s && sudo k3s kubectl -n slate rollout status deployment/slate --timeout=180s && rm -rf /tmp/slate-deploy /tmp/slate-k3s.tgz"
+          REMOTE_DIR="/home/kar_thik/slate-ci/${GITHUB_SHA}"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$REMOTE_DIR'"
+          scp "$RUNNER_TEMP/slate-k3s.tgz" "$DEPLOY_USER@$DEPLOY_HOST:$REMOTE_DIR/slate-k3s.tgz"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "tar -xzf '$REMOTE_DIR/slate-k3s.tgz' -C '$REMOTE_DIR'"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n /usr/local/sbin/slate-deploy '$REMOTE_DIR'"
