@@ -88,12 +88,15 @@ jobs:
           Set-Content ~/.ssh/id_ed25519 $env:SSH_KEY -NoNewline
           Set-Content ~/.ssh/known_hosts $env:SSH_KNOWN_HOSTS
           icacls ~/.ssh/id_ed25519 /inheritance:r /grant:r "${env:USERNAME}:(R)" | Out-Null
-          ssh "$env:DEPLOY_USER@$env:DEPLOY_HOST" "rm -rf /tmp/slate-release && mkdir -p /tmp/slate-release"
+          $remoteDir = "/home/kar_thik/slate-ci/releases/$env:GITHUB_REF_NAME"
+          ssh "$env:DEPLOY_USER@$env:DEPLOY_HOST" "mkdir -p '$remoteDir'"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create remote staging directory." }
           Get-ChildItem ./artifacts/release -File | ForEach-Object {
-            scp $_.FullName "$env:DEPLOY_USER@$env:DEPLOY_HOST`:/tmp/slate-release/"
+            scp $_.FullName "$env:DEPLOY_USER@$env:DEPLOY_HOST`:$remoteDir/"
             if ($LASTEXITCODE -ne 0) { throw "Failed to copy $($_.Name)." }
           }
-          ssh "$env:DEPLOY_USER@$env:DEPLOY_HOST" "sudo install -d -o 1654 -g 1654 /srv/slate/data/releases && sudo install -o 1654 -g 1654 -m 0644 /tmp/slate-release/* /srv/slate/data/releases/ && rm -rf /tmp/slate-release"
+          ssh "$env:DEPLOY_USER@$env:DEPLOY_HOST" "sudo -n /usr/local/sbin/slate-publish-release '$remoteDir'"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to publish release." }
       - name: Remove signing material
         if: always()
         shell: pwsh
