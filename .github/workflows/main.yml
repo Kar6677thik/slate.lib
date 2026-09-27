@@ -79,11 +79,11 @@ jobs:
         shell: bash
         run: |
           sed -i "s|ghcr.io/owner/slate.lib:replace-me|$IMAGE|" deploy/k3s/deployment.yaml
-          tar -czf "$RUNNER_TEMP/slate-k3s.tgz" -C deploy/k3s \
-            namespace.yaml \
-            storage.yaml \
-            config.yaml \
-            deployment.yaml
+          tar -czf "$RUNNER_TEMP/slate-k3s.tgz" \
+            deploy/k3s/namespace.yaml \
+            deploy/k3s/storage.yaml \
+            deploy/k3s/config.yaml \
+            deploy/k3s/deployment.yaml
       - uses: tailscale/github-action@v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
