@@ -11,6 +11,8 @@ import {
   Zap,
   Moon,
   Settings,
+  BookmarkPlus,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useApi } from "@/lib/auth/context";
@@ -23,6 +25,16 @@ import {
   Empty,
 } from "@/components/common/primitives";
 import { Button } from "@/components/ui/button";
+import { useWorkspacePreferences } from "@/lib/storage/workspace-preferences";
+
+export function setSearchFilter(query: string, key: string, value: string) {
+  const pattern = new RegExp(`(?:^|\\s)${key}:(?:"[^"]*"|\\S+)`, "gi");
+  const base = query.replace(pattern, " ").replace(/\s+/g, " ").trim();
+  const clean = value.trim();
+  if (!clean) return base;
+  const formatted = /\s/.test(clean) ? JSON.stringify(clean) : clean;
+  return `${base} ${key}:${formatted}`.trim();
+}
 export function SearchResults({ query }: { query: string }) {
   const api = useApi(),
     w = useWorkspace();
@@ -114,6 +126,10 @@ export function SearchResults({ query }: { query: string }) {
 }
 export function SearchPage() {
   const w = useWorkspace();
+  const local = useWorkspacePreferences(w.scope);
+  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState("");
+  const [filters, setFilters] = useState(false);
   return (
     <>
       <div className="view-header">
@@ -129,10 +145,112 @@ export function SearchPage() {
             onChange={(e) => w.setQuery(e.target.value)}
           />
         </div>
+        {w.query.trim() && (
+          <div className="search-actions">
+            <Button variant="ghost" size="sm" onClick={() => setFilters((value) => !value)}>
+              <SlidersHorizontal size={15} />
+              Filters
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setName(w.query.trim().slice(0, 80));
+                setSaving(true);
+              }}
+            >
+              <BookmarkPlus size={15} />
+              Save search
+            </Button>
+          </div>
+        )}
+        {filters && (
+          <div className="search-filters">
+            <label>
+              Type
+              <select onChange={(event) => w.setQuery(setSearchFilter(w.query, "type", event.target.value))} defaultValue="">
+                <option value="">Any</option>
+                <option value="question">Question</option>
+                <option value="link">Link</option>
+                <option value="daily">Daily</option>
+              </select>
+            </label>
+            <label>
+              Status
+              <select onChange={(event) => w.setQuery(setSearchFilter(w.query, "status", event.target.value))} defaultValue="">
+                <option value="">Any</option>
+                <option value="open">Open</option>
+                <option value="answered">Answered</option>
+                <option value="learning">Learning</option>
+                <option value="needs-review">Needs review</option>
+              </select>
+            </label>
+            <label>
+              Contains
+              <select onChange={(event) => w.setQuery(setSearchFilter(w.query, "has", event.target.value))} defaultValue="">
+                <option value="">Anything</option>
+                <option value="code">Code</option>
+                <option value="diagram">Diagram</option>
+                <option value="links">Links</option>
+                <option value="image">Image</option>
+                <option value="file">File</option>
+              </select>
+            </label>
+            <label>
+              Path
+              <input
+                placeholder="projects/slate"
+                onBlur={(event) => w.setQuery(setSearchFilter(w.query, "path", event.target.value))}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter")
+                    w.setQuery(setSearchFilter(w.query, "path", event.currentTarget.value));
+                }}
+              />
+            </label>
+          </div>
+        )}
       </div>
       <div className="view-body scroll-area">
         <SearchResults query={w.query} />
       </div>
+      <Modal
+        open={saving}
+        onClose={() => setSaving(false)}
+        title="Save this search"
+        description="Saved searches stay in this browser for this library."
+      >
+        <form
+          className="form-stack"
+          onSubmit={(event) => {
+            event.preventDefault();
+            local.saveSearch({
+              id: crypto.randomUUID(),
+              name: name.trim(),
+              query: w.query.trim(),
+            });
+            setSaving(false);
+          }}
+        >
+          <label>
+            Name
+            <input
+              autoFocus
+              required
+              maxLength={80}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <div className="dialog-actions">
+            <Button type="button" variant="outline" onClick={() => setSaving(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!name.trim()}>
+              Save
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </>
   );
 }

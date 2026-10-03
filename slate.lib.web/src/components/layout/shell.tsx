@@ -29,7 +29,16 @@ import { PreferencesForm } from "./preferences-form";
 import { useAuth } from "@/lib/auth/context";
 import { useMedia } from "@/hooks/use-media";
 import { Button } from "@/components/ui/button";
-export type Destination = "library" | "search" | "inbox" | "recent";
+import type { SmartViewId } from "@/features/views/smart-views";
+export type Destination =
+  | "library"
+  | "search"
+  | "inbox"
+  | "recent"
+  | "recovery"
+  | "rediscover"
+  | "link-health"
+  | SmartViewId;
 export function Shell({
   children,
   sidebar,

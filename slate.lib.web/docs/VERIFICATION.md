@@ -6,9 +6,9 @@ Final local verification: 3 October 2026. All implementation and generated artif
 | --- | --- |
 | ESLint | Passed |
 | Strict TypeScript | Passed |
-| Vitest / Testing Library | 14 tests passed across 8 files |
+| Vitest / Testing Library | 23 tests passed across 10 files |
 | Next production build | Passed; standalone server starts successfully |
-| Playwright Chromium | 22 passed, 1 optional integration test skipped |
+| Playwright Chromium | 25 passed, 1 optional integration test skipped |
 | Axe accessibility | No violations in tested connection, light/dark reader, settings and mobile editor states |
 | Responsive layouts | Passed at 390×844, 412×915, 768×1024, 1366×768, 1440×900, 1920×1080 |
 | PWA | Registration, manifest, static-only cache and offline fallback passed |
@@ -24,6 +24,11 @@ Final local verification: 3 October 2026. All implementation and generated artif
 - Create folders/notes; move, rename, duplicate and explicitly delete fixture items.
 - Upload attachments, paste image bytes, insert canonical asset links and download controls.
 - Navigate backlinks, inspect read-only historical versions and invoke sync.
+- Use server-backed smart views, rediscovery reasons, Daily Note, related notes and the bounded current-note graph.
+- Multi-select folders, inspect the server-generated bulk plan and apply one idempotent operation.
+- Preview wiki-link conversion as source text and explicitly apply it with revision protection.
+- Compare history with the current note, restore a revision, restore as new and recover deleted notes.
+- Save library-scoped favorites, pinned folders and named searches in versioned browser preferences.
 - Persist theme and recent activity; operate mobile drawers, capture, search and editor controls.
 - Block raw HTML/script execution and unsafe links; render math and diagrams on demand.
 
@@ -49,7 +54,7 @@ There is no synthetic Lighthouse score or claim of a measured large-library late
 
 ## Deliberate limits
 
-- No full offline library, automatic replay, three-way merging, graph, OCR, semantic search, history restore or collaboration in this pass.
+- No full offline library, automatic replay UI, three-way merge UI, OCR, semantic search, intelligence provider runtime or collaboration in this milestone.
 - The destination picker filters already-browsed folders; browse deeper or enter the exact path for an unvisited destination. It never scans the complete library just to build a picker.
 - External images are not loaded; uploaded assets use authenticated requests.
 - Browser-reserved shortcuts can override application shortcuts.
@@ -64,6 +69,6 @@ After Docker Desktop was started, the image built successfully from this folder 
 
 The verification container ran with UID/GID 1000, a read-only root filesystem, all capabilities dropped, no-new-privileges, a 512 MiB memory limit, one CPU, a 128-process limit, and a 32 MiB `/tmp` tmpfs. Its port was bound to loopback only. No host directories, library data, production URLs or real tokens were mounted or supplied.
 
-The app, manifest, service worker, icon and offline page returned HTTP 200. Real proxy requests rejected an unapproved server with 403 and a missing bearer token with 401. The complete Chromium suite passed against the Linux container using the same isolated API fixtures, including PWA and accessibility checks. Logs reported successful startup without application errors.
+The app, manifest, service worker, icon and offline page returned HTTP 200. Real proxy requests rejected an unapproved server with 403 and a missing bearer token with 401. That earlier container baseline passed its complete Chromium suite, including PWA and accessibility checks. The current Milestone 1 changes were verified through the local standalone production build and the 25-scenario Chromium suite; the container image was not rebuilt in this milestone.
 
 The temporary verification container was stopped and retained, along with its image. Browser reports are in `output/docker/playwright-report`. Use `playwright.container.config.ts` with `SLATE_CONTAINER_URL` to repeat browser checks against a running local container. Real-backend connectivity and k3s deployment remain separate checks.

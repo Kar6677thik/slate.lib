@@ -29,6 +29,14 @@ export async function mockSlate(page: Page) {
   ]);
   const folders = new Set(["Projects", "Research", "inbox"]);
   const assets = new Map<string, { meta: Asset; bytes: Buffer }>();
+  const bulkPlans = new Map<
+    string,
+    {
+      operation: string;
+      items: { sourcePath: string; destinationPath: string | null; isDirectory: boolean }[];
+      fingerprint: string;
+    }
+  >();
   const requests: { path: string; method: string; body: unknown }[] = [];
   let conflict = false;
   let assetCounter = 0;
@@ -68,6 +76,76 @@ export async function mockSlate(page: Page) {
       });
     if (path === "v1/sync") return respond({ state: "Synced", pending: false });
     if (path === "v1/library/refresh") return route.fulfill({ status: 204 });
+    if (path === "v1/library/bulk/preview") {
+      const operationId = String(body.operationId);
+      const operation = String(body.operation);
+      const destination = String(body.destinationFolderPath ?? "");
+      const selected = body.paths as string[];
+      const items = selected.map((sourcePath) => {
+        const isDirectory = folders.has(sourcePath);
+        const filename = sourcePath.split("/").at(-1)!;
+        const parent = sourcePath.includes("/")
+          ? sourcePath.slice(0, sourcePath.lastIndexOf("/"))
+          : "";
+        const destinationPath =
+          operation === "delete"
+            ? null
+            : operation === "duplicate"
+              ? [parent, `${filename} copy`].filter(Boolean).join("/")
+              : [destination, filename].filter(Boolean).join("/");
+        return { sourcePath, destinationPath, isDirectory };
+      });
+      const plan = { operation, items, fingerprint: `fixture-${operationId}` };
+      bulkPlans.set(operationId, plan);
+      return respond({
+        operationId,
+        operation,
+        items,
+        noteCount: selected.reduce(
+          (count, selectedPath) =>
+            count +
+            Array.from(notes.values()).filter(
+              (note) =>
+                note.path === selectedPath || note.path.startsWith(`${selectedPath}/`),
+            ).length,
+          0,
+        ),
+        fingerprint: plan.fingerprint,
+        repairs: [],
+      });
+    }
+    if (path === "v1/library/bulk/apply") {
+      const operationId = String(body.operationId);
+      const plan = bulkPlans.get(operationId);
+      if (!plan || plan.fingerprint !== body.fingerprint) return respond({}, 412);
+      for (const item of plan.items) {
+        const affected = Array.from(notes.values()).filter(
+          (note) =>
+            note.path === item.sourcePath || note.path.startsWith(`${item.sourcePath}/`),
+        );
+        if (plan.operation === "delete" || plan.operation === "move") {
+          for (const note of affected) notes.delete(note.id);
+          if (item.isDirectory) folders.delete(item.sourcePath);
+        }
+        if (item.destinationPath && plan.operation !== "delete") {
+          if (item.isDirectory) folders.add(item.destinationPath);
+          for (const note of affected) {
+            const copied = {
+              ...note,
+              id: plan.operation === "move" ? note.id : crypto.randomUUID(),
+              path: item.destinationPath + note.path.slice(item.sourcePath.length),
+            };
+            notes.set(copied.id, copied);
+          }
+        }
+      }
+      return respond({
+        operationId,
+        state: "completed",
+        items: plan.items,
+        noteCount: plan.items.length,
+      });
+    }
     if (path === "v1/library") {
       const folder = url.searchParams.get("path") ?? "";
       if (folder && !folders.has(folder)) return respond({}, 404);
@@ -118,6 +196,59 @@ export async function mockSlate(page: Page) {
         results,
       });
     }
+    if (path === "v1/views/unanswered") {
+      const note = notes.get(first)!;
+      return respond({
+        query: "is:unanswered",
+        page: 0,
+        pageSize: 20,
+        total: 1,
+        results: [
+          {
+            id: note.id,
+            title: note.title,
+            path: note.path,
+            revision: note.revision,
+            snippet: "An open question from the library.",
+            score: 1,
+          },
+        ],
+        searchVersion: 1,
+      });
+    }
+    if (path.startsWith("v1/rediscovery/")) {
+      const note = notes.get(second)!;
+      return respond({
+        view: path.split("/").at(-1),
+        page: 0,
+        total: 1,
+        results: [
+          {
+            id: note.id,
+            title: note.title,
+            path: note.path,
+            reason: "You have not opened this note recently.",
+            date: "2026-09-28",
+          },
+        ],
+      });
+    }
+    if (path === "v1/workflows/daily") {
+      const date = String(body.date);
+      const id = "00000000-0000-4000-8000-000000000003";
+      const existing = notes.get(id);
+      if (existing) return respond(existing);
+      folders.add("Daily");
+      const note = {
+        id,
+        path: `Daily/${date}.md`,
+        title: date,
+        markdown: `---\nid: ${id}\ntype: daily\n---\n\n# ${date}\n`,
+        revision: '"r1"',
+      };
+      notes.set(id, note);
+      return respond(note, 201);
+    }
     if (path === "v1/captures") {
       const id = String(body.captureId);
       if (notes.has(id)) return respond(notes.get(id));
@@ -133,7 +264,7 @@ export async function mockSlate(page: Page) {
       return respond(note, 201);
     }
     if (path === "v1/notes" && method === "POST") {
-      const id = crypto.randomUUID();
+      const id = String(body.id ?? crypto.randomUUID());
       let name = String(body.name);
       if (!name.endsWith(".md")) name += ".md";
       const target = [body.folderPath, name].filter(Boolean).join("/");
@@ -142,8 +273,11 @@ export async function mockSlate(page: Page) {
       const note = {
         id,
         path: target,
-        title: name.replace(/\.md$/, ""),
-        markdown: `---\nid: ${id}\n---\n\n# ${name.replace(/\.md$/, "")}\n`,
+        title: String(body.title ?? name.replace(/\.md$/, "")),
+        markdown: String(
+          body.initialMarkdown ??
+            `---\nid: ${id}\n---\n\n# ${name.replace(/\.md$/, "")}\n`,
+        ),
         revision: '"r1"',
       };
       notes.set(id, note);
@@ -295,6 +429,80 @@ export async function mockSlate(page: Page) {
           message: "Document library structure",
           markdown: "# Earlier version\n\nOriginal design notes.",
         });
+      if (match[2] === "/related") {
+        const target = notes.get(n.id === first ? second : first)!;
+        return respond([
+          {
+            id: target.id,
+            title: target.title,
+            path: target.path,
+            score: 0.82,
+            reasons: ["Links to this note", "Shares the library topic"],
+          },
+        ]);
+      }
+      if (match[2] === "/graph") {
+        const target = notes.get(n.id === first ? second : first)!;
+        return respond({
+          focus: n.id,
+          nodes: [
+            {
+              id: n.id,
+              title: n.title,
+              path: n.path,
+              type: "reference",
+              status: null,
+              depth: 0,
+            },
+            {
+              id: target.id,
+              title: target.title,
+              path: target.path,
+              type: "reading",
+              status: null,
+              depth: 1,
+            },
+          ],
+          edges: [{ source: n.id, target: target.id }],
+          limited: false,
+        });
+      }
+      if (match[2] === "/wiki-export" && method === "GET") {
+        const proposedMarkdown = n.markdown.replace(
+          "[[Reading list]]",
+          "[Reading list](../Research/Reading%20list.md)",
+        );
+        return respond({
+          id: n.id,
+          path: n.path,
+          revision: n.revision,
+          originalMarkdown: n.markdown,
+          proposedMarkdown,
+          changes:
+            proposedMarkdown === n.markdown
+              ? []
+              : [
+                  {
+                    start: n.markdown.indexOf("[[Reading list]]"),
+                    length: "[[Reading list]]".length,
+                    original: "[[Reading list]]",
+                    proposed: "[Reading list](../Research/Reading%20list.md)",
+                    targetId: second,
+                    targetPath: "Research/Reading list.md",
+                  },
+                ],
+        });
+      }
+      if (match[2] === "/wiki-export" && method === "POST") {
+        if (body.sourceRevision !== n.revision) return respond({}, 412);
+        const updated = {
+          ...n,
+          markdown: String(body.proposedMarkdown),
+          revision: '"wiki-export"',
+        };
+        notes.set(n.id, updated);
+        return respond(updated);
+      }
       if (method === "PUT") {
         if (conflict || req.headers()["if-match"] !== n.revision)
           return respond({}, 412);

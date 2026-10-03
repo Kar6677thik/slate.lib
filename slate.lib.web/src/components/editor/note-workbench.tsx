@@ -24,6 +24,8 @@ import {
   ListTodo,
   Link,
   Braces,
+  MessageCircleQuestion,
+  FileOutput,
 } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 import type { Note } from "@/lib/api/contracts";
@@ -47,6 +49,7 @@ import { UploadTools } from "@/components/assets/upload-tools";
 import { assetMarkdown } from "@/lib/markdown/assets";
 import { ItemMenu } from "@/components/library/item-menu";
 import type { Format } from "./codemirror";
+import { WikiExportDialog } from "@/components/links/wiki-export-dialog";
 const Editor = dynamic(() => import("./codemirror"), {
   ssr: false,
   loading: () => <Loading label="Loading editor…" />,
@@ -65,6 +68,9 @@ export function NoteWorkbench({ note }: { note: Note }) {
     [recovery, setRecovery] = useState<Draft | null>(null),
     [checked, setChecked] = useState(false),
     [conflict, setConflict] = useState(false);
+  const [answerOpen, setAnswerOpen] = useState(false);
+  const [wikiExportOpen, setWikiExportOpen] = useState(false);
+  const [answer, setAnswer] = useState("");
   const editor = useRef<EditorView | null>(null);
   const [editorLoaded, setEditorLoaded] = useState(false);
   const savingLock = useRef(false);
@@ -75,6 +81,8 @@ export function NoteWorkbench({ note }: { note: Note }) {
     queryFn: ({ signal }) => api.links(note.id, signal),
   });
   const dirty = source !== base.markdown;
+  const questionNote = /^type:\s*["']?question["']?\s*$/im.test(base.markdown);
+  const answered = /^status:\s*["']?answered["']?\s*$/im.test(base.markdown);
   const preview = useDeferredValue(source);
   const [uploading, setUploading] = useState(false);
   const uploadIds = useRef(new WeakMap<File, string>());
@@ -286,6 +294,22 @@ export function NoteWorkbench({ note }: { note: Note }) {
           ))}
         </div>
         <UploadTools onFiles={upload} busy={uploading || saving} />
+        {questionNote && !answered && (
+          <IconButton
+            label="Answer question"
+            disabled={dirty || saving}
+            onClick={() => setAnswerOpen(true)}
+          >
+            <MessageCircleQuestion size={17} />
+          </IconButton>
+        )}
+        <IconButton
+          label="Export wiki links"
+          disabled={dirty || saving}
+          onClick={() => setWikiExportOpen(true)}
+        >
+          <FileOutput size={17} />
+        </IconButton>
         <span className="save-status" aria-live="polite">
           {saving ? "Saving…" : dirty ? "Unsaved changes" : "Saved"}
         </span>
@@ -406,6 +430,70 @@ export function NoteWorkbench({ note }: { note: Note }) {
           </>
         )}
       </Modal>
+      <Modal
+        open={answerOpen}
+        onClose={() => !saving && setAnswerOpen(false)}
+        title="Answer question"
+        description="Your answer will be appended to this note and its status will become answered."
+      >
+        <form
+          className="form-stack"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setSaving(true);
+            setError(null);
+            try {
+              const saved = await api.answer(note.id, answer, base.revision);
+              setBase(saved);
+              setSource(saved.markdown);
+              cache.setQueryData(["note", note.id], saved);
+              void cache.invalidateQueries({ queryKey: ["smart-view"] });
+              void cache.invalidateQueries({ queryKey: ["search"] });
+              setAnswer("");
+              setAnswerOpen(false);
+            } catch (error) {
+              setError(error);
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          <label>
+            Answer
+            <textarea
+              autoFocus
+              required
+              rows={8}
+              value={answer}
+              onChange={(event) => setAnswer(event.target.value)}
+              placeholder="Write the answer you want to keep with this question."
+            />
+          </label>
+          <div className="dialog-actions">
+            <Button type="button" variant="outline" onClick={() => setAnswerOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving || !answer.trim()}>
+              {saving ? "Saving…" : "Save answer"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+      {wikiExportOpen && (
+        <WikiExportDialog
+          note={note}
+          onClose={() => setWikiExportOpen(false)}
+          onApplied={async (saved) => {
+            setBase(saved);
+            setSource(saved.markdown);
+            cache.setQueryData(["note", note.id], saved);
+            await drafts.remove(key);
+            void cache.invalidateQueries({ queryKey: ["links", note.id] });
+            void cache.invalidateQueries({ queryKey: ["search"] });
+            setWikiExportOpen(false);
+          }}
+        />
+      )}
     </>
   );
 }

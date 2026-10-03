@@ -11,6 +11,17 @@ import {
   type HistoricalNote,
   type Asset,
   type Mutation,
+  type LinkIssuePage,
+  type NoteTextPreview,
+  type BulkPreview,
+  type BulkResult,
+  type RecoveryPage,
+  type KnowledgeGraph,
+  type RelatedNote,
+  type RediscoveryPage,
+  type AssetPage,
+  type AssetReferencePage,
+  type AssetDerivedText,
 } from "./contracts";
 export function normalizeServer(value: string) {
   const url = new URL(value.trim());
@@ -147,6 +158,13 @@ export class SlateApi {
       signal,
     );
   }
+  smartView(view: string, page = 0, signal?: AbortSignal) {
+    return this.request<SearchPage>(
+      `v1/views/${encodeURIComponent(view)}?page=${page}&pageSize=20`,
+      {},
+      signal,
+    );
+  }
   links(id: string, signal?: AbortSignal) {
     return this.request<Links>(`v1/notes/${id}/links`, {}, signal);
   }
@@ -158,8 +176,184 @@ export class SlateApi {
       `v1/notes/${id}/history/${encodeURIComponent(commit)}`,
     );
   }
-  create(folderPath: string, name: string) {
-    return this.post<Note>("v1/notes", { folderPath, name });
+  restore(
+    id: string,
+    request: {
+      commit: string;
+      mode: "current" | "new" | "recover";
+      revision?: string;
+      folder?: string;
+      name?: string;
+    },
+  ) {
+    return this.post<Note>(`v1/notes/${id}/restore`, request);
+  }
+  recoverable(signal?: AbortSignal) {
+    return this.request<RecoveryPage>("v1/history/deleted", {}, signal);
+  }
+  linkIssues(page = 0, signal?: AbortSignal) {
+    return this.request<LinkIssuePage>(
+      `v1/links/issues?page=${page}`,
+      {},
+      signal,
+    );
+  }
+  previewLinkRepair(
+    id: string,
+    request: {
+      sourceRevision: string;
+      start: number;
+      targetId: string;
+      targetRevision: string;
+    },
+  ) {
+    return this.post<NoteTextPreview>(
+      `v1/notes/${id}/link-repair/preview`,
+      request,
+    );
+  }
+  applyLinkRepair(
+    id: string,
+    request: {
+      sourceRevision: string;
+      start: number;
+      targetId: string;
+      targetRevision: string;
+    },
+  ) {
+    return this.post<Note>(`v1/notes/${id}/link-repair/apply`, request);
+  }
+  previewWikiExport(id: string, signal?: AbortSignal) {
+    return this.request<NoteTextPreview>(
+      `v1/notes/${id}/wiki-export`,
+      {},
+      signal,
+    );
+  }
+  applyWikiExport(id: string, sourceRevision: string, proposedMarkdown: string) {
+    return this.post<Note>(`v1/notes/${id}/wiki-export`, {
+      sourceRevision,
+      proposedMarkdown,
+    });
+  }
+  previewBulk(request: {
+    operationId: string;
+    operation: string;
+    paths: string[];
+    destinationFolderPath?: string;
+    newName?: string;
+  }) {
+    return this.post<BulkPreview>("v1/library/bulk/preview", request);
+  }
+  applyBulk(request: {
+    operationId: string;
+    fingerprint: string;
+    repairIncoming?: boolean;
+  }) {
+    return this.post<BulkResult>("v1/library/bulk/apply", request);
+  }
+  bulkStatus(operationId: string, signal?: AbortSignal) {
+    return this.request<BulkResult>(
+      `v1/library/bulk/${operationId}`,
+      {},
+      signal,
+    );
+  }
+  graph(
+    id: string,
+    options: { depth?: number; limit?: number; folder?: string; type?: string } = {},
+    signal?: AbortSignal,
+  ) {
+    const params = new URLSearchParams({
+      depth: String(options.depth ?? 1),
+      limit: String(options.limit ?? 40),
+    });
+    if (options.folder) params.set("folder", options.folder);
+    if (options.type) params.set("type", options.type);
+    return this.request<KnowledgeGraph>(
+      `v1/notes/${id}/graph?${params}`,
+      {},
+      signal,
+    );
+  }
+  related(id: string, signal?: AbortSignal) {
+    return this.request<RelatedNote[]>(
+      `v1/notes/${id}/related`,
+      {},
+      signal,
+    );
+  }
+  rediscover(view: string, today: string, page = 0, signal?: AbortSignal) {
+    return this.request<RediscoveryPage>(
+      `v1/rediscovery/${encodeURIComponent(view)}?today=${encodeURIComponent(today)}&page=${page}`,
+      {},
+      signal,
+    );
+  }
+  daily(date: string) {
+    return this.post<Note>("v1/workflows/daily", { date });
+  }
+  answer(id: string, answer: string, revision: string) {
+    return this.post<Note>(`v1/notes/${id}/answer`, {
+      answer,
+      revision,
+      answeredAt: new Date().toISOString(),
+    });
+  }
+  assets(page = 0, unreferenced = false, signal?: AbortSignal) {
+    return this.request<AssetPage>(
+      `v1/assets?page=${page}&unreferenced=${unreferenced}`,
+      {},
+      signal,
+    );
+  }
+  assetReferences(id: string, page = 0, signal?: AbortSignal) {
+    return this.request<AssetReferencePage>(
+      `v1/assets/${id}/references?page=${page}`,
+      {},
+      signal,
+    );
+  }
+  assetText(id: string, signal?: AbortSignal) {
+    return this.request<AssetDerivedText>(
+      `v1/assets/${id}/text`,
+      {},
+      signal,
+    );
+  }
+  extractAsset(id: string) {
+    return this.post<AssetDerivedText>(`v1/assets/${id}/extract`);
+  }
+  create(
+    folderPath: string,
+    name: string,
+    options: { title?: string; id?: string; initialMarkdown?: string } = {},
+  ) {
+    return this.post<Note>("v1/notes", { folderPath, name, ...options });
+  }
+  question(folderPath: string, name: string, title: string, body: string) {
+    const id = crypto.randomUUID();
+    const instant = new Date().toISOString();
+    const safeTitle = title.trim().replace(/[\r\n]+/g, " ");
+    const initialMarkdown = [
+      "---",
+      `id: ${id}`,
+      "type: question",
+      "status: open",
+      `created: ${JSON.stringify(instant)}`,
+      `updated: ${JSON.stringify(instant)}`,
+      "---",
+      "",
+      `# ${safeTitle}`,
+      "",
+      body.trim(),
+      "",
+    ].join("\n");
+    return this.create(folderPath, name, {
+      id,
+      title: safeTitle,
+      initialMarkdown,
+    });
   }
   folder(parentPath: string, name: string) {
     return this.post<Mutation>("v1/folders", { parentPath, name });

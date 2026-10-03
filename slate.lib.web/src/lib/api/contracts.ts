@@ -32,6 +32,7 @@ export interface SearchHit {
   path: string;
   snippet: string;
   revision: string;
+  score?: number;
 }
 export interface SearchPage {
   query: string;
@@ -39,6 +40,7 @@ export interface SearchPage {
   pageSize: number;
   total: number;
   results: SearchHit[];
+  searchVersion?: number;
 }
 export interface NoteLink {
   raw: string;
@@ -54,7 +56,12 @@ export interface NoteLink {
 export interface Links {
   noteId: string;
   outgoing: NoteLink[];
-  backlinks: { sourceId: string; sourceTitle: string; sourcePath: string }[];
+  backlinks: {
+    sourceId: string;
+    sourceTitle: string;
+    sourcePath: string;
+    heading?: string | null;
+  }[];
 }
 export interface HistoryEntry {
   commit: string;
@@ -88,4 +95,132 @@ export interface Mutation {
 export interface Connection {
   server: string;
   token: string;
+}
+
+export interface LinkIssue {
+  sourceId: string;
+  sourceTitle: string;
+  sourcePath: string;
+  sourceRevision: string;
+  link: NoteLink & { start: number; length: number; candidates?: string[] };
+}
+export interface LinkIssuePage {
+  page: number;
+  total: number;
+  results: LinkIssue[];
+}
+export interface LinkReplacement {
+  start: number;
+  length: number;
+  original: string;
+  proposed: string;
+  targetId: string;
+  targetPath: string;
+}
+export interface NoteTextPreview {
+  id: string;
+  path: string;
+  revision: string;
+  originalMarkdown: string;
+  proposedMarkdown: string;
+  changes: LinkReplacement[];
+}
+export interface BulkItem {
+  sourcePath: string;
+  destinationPath: string | null;
+  isDirectory: boolean;
+}
+export interface BulkPreview {
+  operationId: string;
+  operation: string;
+  items: BulkItem[];
+  noteCount: number;
+  fingerprint: string;
+  repairs?: NoteTextPreview[] | null;
+}
+export interface BulkResult {
+  operationId: string;
+  state: string;
+  items: BulkItem[];
+  noteCount: number;
+}
+export interface RecoverableNote {
+  id: string;
+  path: string;
+  title: string;
+  sourceCommit: string;
+  deletionCommit: string;
+  deletedAt: string;
+}
+export interface RecoveryPage {
+  notes: RecoverableNote[];
+  bounded: boolean;
+}
+export interface GraphNode {
+  id: string;
+  title: string;
+  path: string;
+  type: string | null;
+  status: string | null;
+  depth: number;
+}
+export interface GraphEdge {
+  source: string;
+  target: string;
+}
+export interface KnowledgeGraph {
+  focus: string;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  limited: boolean;
+}
+export interface RelatedNote {
+  id: string;
+  title: string;
+  path: string;
+  score: number;
+  reasons: string[];
+}
+export interface RediscoveryHit {
+  id: string;
+  path: string;
+  title: string;
+  reason: string;
+  date: string | null;
+}
+export interface RediscoveryPage {
+  view: string;
+  page: number;
+  total: number;
+  results: RediscoveryHit[];
+}
+export interface AssetListing {
+  metadata: Asset & { createdAt: string; sha256: string };
+  referenceCount: number;
+}
+export interface AssetPage {
+  page: number;
+  total: number;
+  totalBytes: number;
+  results: AssetListing[];
+}
+export interface AssetReference {
+  noteId: string;
+  title: string;
+  path: string;
+}
+export interface AssetReferencePage {
+  page: number;
+  total: number;
+  results: AssetReference[];
+}
+export interface AssetDerivedText {
+  assetId: string;
+  sha256: string;
+  kind: string;
+  state: string;
+  text: string;
+  updatedAt: string;
+  error?: string | null;
+  jobId?: string | null;
 }

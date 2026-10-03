@@ -76,7 +76,7 @@ test("unsaved draft survives reload and is explicitly recovered", async ({
   await page.getByRole("button", { name: "Write", exact: true }).click();
   await page.getByRole("textbox", { name: "Markdown editor" }).click();
   await page.keyboard.press("Control+End");
-  await page.keyboard.type("\nRecover this browser draft");
+  await page.keyboard.insertText("\nRecover this browser draft");
   await expect(
     page.getByText("Unsaved changes", { exact: true }),
   ).toBeVisible();

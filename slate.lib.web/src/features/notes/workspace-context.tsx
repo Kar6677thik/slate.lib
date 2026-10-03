@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { Note, Entry } from "@/lib/api/contracts";
 import type { Destination } from "@/components/layout/shell";
+import { isSmartView } from "@/features/views/smart-views";
 export type Tab = { id: string; title: string; path: string; dirty: boolean };
 export type Operation = {
   kind:
@@ -66,7 +67,13 @@ export function WorkspaceProvider({
     setActive(id && /^[0-9a-f-]{36}$/i.test(id) ? id : null);
     const view = url.searchParams.get("view");
     setNav(
-      view === "inbox" || view === "recent" || view === "search"
+      view === "inbox" ||
+        view === "recent" ||
+        view === "search" ||
+        view === "recovery" ||
+        view === "rediscover" ||
+        view === "link-health" ||
+        isSmartView(view)
         ? view
         : "library",
     );

@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { afterEach, expect, it, vi } from "vitest";
-import { GET, POST } from "@/app/api/slate/[...path]/route";
+import {
+  GET,
+  POST,
+  isAllowedPath,
+} from "@/app/api/slate/[...path]/route";
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
@@ -163,4 +167,33 @@ it("rejects credentials and query strings in the trusted internal upstream", asy
   vi.stubEnv("SLATE_UPSTREAM_URL", "http://user:password@slate.svc/?token=x");
   vi.stubGlobal("fetch", vi.fn());
   expect((await GET(...request())).status).toBe(502);
+});
+
+it("allows the bounded parity API surface and rejects path-shaped lookalikes", () => {
+  const id = "00000000-0000-4000-8000-000000000001";
+  for (const path of [
+    "v1/views/unanswered",
+    "v1/library/bulk/preview",
+    `v1/library/bulk/${id}`,
+    "v1/links/issues",
+    `v1/notes/${id}/link-repair/apply`,
+    `v1/notes/${id}/history/abc123`,
+    `v1/notes/${id}/graph`,
+    "v1/history/deleted",
+    "v1/rediscovery/something-forgotten",
+    "v1/workflows/daily",
+    `v1/assets/${id}/references`,
+    "v1/sync/merge-preview",
+  ])
+    expect(isAllowedPath(path), path).toBe(true);
+
+  for (const path of [
+    "v1/devices",
+    "v1/releases/private",
+    "v1/views/../../devices",
+    `v1/assets/${id}/../../devices`,
+    `v1/library/bulk/${id}/extra`,
+    "v1/rediscovery/random?admin=true",
+  ])
+    expect(isAllowedPath(path), path).toBe(false);
 });

@@ -1,7 +1,33 @@
 import { normalizeServer } from "@/lib/api/client";
 export const dynamic = "force-dynamic";
-const allowedPath =
-  /^v1\/(status|library(?:\/(?:item|rename|move|copy|delete|refresh))?|notes(?:\/[a-f0-9-]+(?:\/(?:links|history(?:\/[a-f0-9]+)?))?)?|folders|captures|search|sync|assets(?:\/[a-f0-9-]+(?:\/metadata)?)?)$/i;
+const allowedPaths = [
+  /^v1\/status$/,
+  /^v1\/library$/,
+  /^v1\/library\/(?:item|rename|move|copy|delete|refresh)$/,
+  /^v1\/library\/bulk\/(?:preview|apply|[a-f0-9-]{36})$/,
+  /^v1\/notes$/,
+  /^v1\/notes\/by-path$/,
+  /^v1\/notes\/[a-f0-9-]{36}$/,
+  /^v1\/notes\/[a-f0-9-]{36}\/(?:links|related|graph|restore|answer|append-preview|append-capture|wiki-export)$/,
+  /^v1\/notes\/[a-f0-9-]{36}\/history(?:\/[a-f0-9]+)?$/,
+  /^v1\/notes\/[a-f0-9-]{36}\/link-repair\/(?:preview|apply)$/,
+  /^v1\/(?:folders|captures)$/,
+  /^v1\/search(?:\/rebuild)?$/,
+  /^v1\/views\/[a-z-]+$/,
+  /^v1\/links\/issues$/,
+  /^v1\/history\/deleted$/,
+  /^v1\/rediscovery\/[a-z-]+$/,
+  /^v1\/workflows\/daily$/,
+  /^v1\/offline\/replay$/,
+  /^v1\/sync$/,
+  /^v1\/sync\/(?:merge-preview|merge\/[a-f0-9-]{36})$/,
+  /^v1\/git\/flush$/,
+  /^v1\/assets$/,
+  /^v1\/assets\/[a-f0-9-]{36}(?:\/(?:metadata|references|thumbnail|text|extract|cleanup))?$/,
+] as const;
+export function isAllowedPath(path: string) {
+  return allowedPaths.some((pattern) => pattern.test(path));
+}
 
 function trustedUpstream() {
   const value = process.env.SLATE_UPSTREAM_URL?.trim();
@@ -69,7 +95,7 @@ async function proxy(
     return fail(502);
   }
   const path = (await params).path.join("/");
-  if (!allowedPath.test(path)) return fail(404);
+  if (!isAllowedPath(path)) return fail(404);
   const auth = request.headers.get("authorization");
   if (!auth?.startsWith("Bearer ")) return fail(401);
   const length = Number(request.headers.get("content-length") ?? 0);
