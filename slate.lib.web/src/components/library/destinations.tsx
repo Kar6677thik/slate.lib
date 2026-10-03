@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Clock3, Plus, ArrowUpRight } from "lucide-react";
+import { FileText, Clock3, Plus, ArrowUpRight, Star } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useWorkspace } from "@/features/notes/workspace-context";
 import { readRecent } from "@/lib/storage/recent";
@@ -14,12 +14,40 @@ import { smartView } from "@/features/views/smart-views";
 import { RecoveryPage } from "@/components/history/recovery-page";
 import { RediscoveryPage } from "./rediscovery-page";
 import { LinkHealthPage } from "@/components/links/link-health-page";
+import { useWorkspacePreferences } from "@/lib/storage/workspace-preferences";
 export function DestinationPage() {
   const w = useWorkspace();
+  const local = useWorkspacePreferences(w.scope);
   const [recent] = useState(() => readRecent(w.scope));
   if (w.nav === "recovery") return <RecoveryPage />;
   if (w.nav === "rediscover") return <RediscoveryPage />;
   if (w.nav === "link-health") return <LinkHealthPage />;
+  if (w.nav === "favorites")
+    return (
+      <>
+        <div className="view-header">
+          <p className="eyebrow">PERSONAL VIEW</p>
+          <h1>Favorites</h1>
+          <p>Notes you have starred in this browser.</p>
+        </div>
+        <div className="scroll-area view-body">
+          {local.preferences.favorites.length ? (
+            local.preferences.favorites.map((favorite) => (
+              <button className="result-row" key={favorite.id} onClick={() => w.open(favorite.id)}>
+                <Star size={18} fill="currentColor" />
+                <div>
+                  <strong>{favorite.title}</strong>
+                  <span className="result-path">{favorite.path}</span>
+                </div>
+                <ArrowUpRight size={15} />
+              </button>
+            ))
+          ) : (
+            <Empty title="No favorites" detail="Star a note from its menu or the Command Center." />
+          )}
+        </div>
+      </>
+    );
   const view = smartView(w.nav);
   if (view) return <SmartViewPage view={view} />;
   if (w.nav === "recent")

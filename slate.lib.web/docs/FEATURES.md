@@ -45,10 +45,18 @@ Milestone 1 requires no new backend endpoint. Later milestones need web-only der
 4. Milestone 1D: link health/repair and wiki export. **Implemented with source comparison and revision-checked apply.**
 5. Milestone 1E: history comparison, restore, and deleted recovery. **Implemented.**
 6. Milestone 1F: rediscovery, related notes, graph, and advanced asset tools. **The requested Milestone 1 rediscovery, related-note, and bounded current-note graph parity is implemented. Advanced asset tooling remains a later product slice.**
-7. Milestone 2: command registry and shared desktop/mobile command surfaces.
+7. Milestone 2: command registry and shared desktop/mobile command surfaces. **Implemented.** The Universal Command Center blends commands, open tabs, favorites, recent notes, saved searches, pinned folders, and cancellable server note search. `>` and `Ctrl/Cmd+Shift+P` enter command-only mode; availability follows the current note, dirty state, registered editor tools, and details panels.
 8. Milestone 3: derived store, background indexing, and hybrid search.
 9. Milestones 4–10: grounded assistance, project/context views, evolution, conflicts, duplicates, linking, and virtual concept pages.
 10. Milestones 11–18: graph expansion, health, triage, rediscovery expansion, briefs, learning, gaps, and failure memory.
 11. Milestones 19–27: advanced reader, capture/clipper, attachment intelligence, voice/writing proposals, workspaces/collections, offline expansion, and final mobile polish.
 
 Each numbered milestone is gated by lint, strict type checking, unit tests, relevant Playwright coverage, and a production build.
+
+## Milestone 2 command surface
+
+The web client now exposes a declarative command registry grouped by Create, Navigation, Document, Workspace, Library, Appearance, and Settings. Dynamic providers add open tabs, local favorites, recent notes, pinned folders, saved searches, and remote note results without scanning or preloading the library.
+
+Current command families include note/folder/question/capture/daily creation; primary and smart-view navigation; save/read/write/split/favorite/file operations; backlinks, outgoing links, related notes, graph, history, document info, and wiki export; tab and pane controls; refresh/sync/recovery/rediscovery/link diagnostics; theme selection; and settings. Commands that do not have a real implementation or valid current context are omitted.
+
+Desktop shortcuts are `Ctrl/Cmd+K` for blended search, `Ctrl/Cmd+Shift+P` for command-only mode, `Ctrl/Cmd+S` to save, `Ctrl/Cmd+W` to close the active tab, `Ctrl/Cmd+Tab` and `Ctrl/Cmd+Shift+Tab` to change tabs, `Ctrl/Cmd+N` for a new note, and `Ctrl/Cmd+Shift+C` for Quick Thought. Inside CodeMirror, `Ctrl/Cmd+K` remains the Markdown-link command; the command-only shortcut always opens the Command Center.

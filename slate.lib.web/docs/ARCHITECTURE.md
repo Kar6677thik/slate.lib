@@ -13,6 +13,14 @@ The application is organized into four layers:
 
 TanStack Query owns remote cache/revalidation. IndexedDB owns durable drafts and later acknowledged offline operations. React state owns transient modal, pane, selection, and command state. URL parameters preserve current navigation and note identity without including credentials.
 
+## Universal Command Center
+
+Milestone 2 adds a declarative registry in `src/features/commands`. A command describes its identity, copy, icon, keywords, group, optional shortcut and danger/context metadata, an availability predicate, and an execution handler. Registry filtering and ranking are pure and independently tested. Components that own local behavior, such as editor modes, the details rail, the library explorer, and responsive panes, register small handlers with `CommandRuntimeProvider`; commands invoke those existing handlers instead of duplicating UI state or mutations.
+
+Static commands and dynamic result sources share one result model. Local providers return open tabs, favorites, recent notes, saved searches, and pinned folders synchronously. Remote note enrichment reuses the canonical paged search API with debounce and cancellation and starts only after the user enters normal search text. Command-only mode never starts note search. Command history is a library-scoped local list capped at 25 items and only adds a bounded ranking bonus; it is not analytics or server data.
+
+The Command Center keeps focus in an ARIA combobox/listbox interaction, supports Arrow keys, Home, End, Enter, and Escape, and restores the prior focus target. The same component is a centered desktop palette and a large bottom sheet on mobile. Destructive commands only open the existing guarded operation flow.
+
 ## Canonical mutation rule
 
 Create, update, rename, move, copy, delete, bulk apply, answer, append, restore, repair, and sync operations use the backend implementation. Reviewed server previews and source fingerprints are preserved where the API supplies them. Client retries never repeat a structural mutation after an unknown acknowledgement; status/receipt endpoints resolve that ambiguity.

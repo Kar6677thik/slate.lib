@@ -50,6 +50,7 @@ import { assetMarkdown } from "@/lib/markdown/assets";
 import { ItemMenu } from "@/components/library/item-menu";
 import type { Format } from "./codemirror";
 import { WikiExportDialog } from "@/components/links/wiki-export-dialog";
+import { useCommandRuntime } from "@/features/commands/runtime";
 const Editor = dynamic(() => import("./codemirror"), {
   ssr: false,
   loading: () => <Loading label="Loading editor…" />,
@@ -74,6 +75,8 @@ export function NoteWorkbench({ note }: { note: Note }) {
   const editor = useRef<EditorView | null>(null);
   const [editorLoaded, setEditorLoaded] = useState(false);
   const savingLock = useRef(false);
+  const saveAction = useRef<() => Promise<void>>(async () => {});
+  const { register } = useCommandRuntime();
   const incoming = useRef(note);
   const key = `${w.scope}:${note.id}`;
   const links = useQuery({
@@ -174,16 +177,23 @@ export function NoteWorkbench({ note }: { note: Note }) {
       setSaving(false);
     }
   }
+  saveAction.current = save;
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        void save();
-      }
+    const actions: Record<string, () => void | Promise<void>> = {
+      "document.save": () => saveAction.current(),
+      "document.write": () => setMode("write"),
+      "document.read": () => setMode("preview"),
+      "document.split": () => setMode("split"),
+      "document.export-wiki": () => setWikiExportOpen(true),
+      "document.focus-editor": () => {
+        setMode("write");
+        requestAnimationFrame(() => editor.current?.focus());
+      },
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  });
+    if (questionNote && !answered && !dirty && !saving)
+      actions["document.answer-question"] = () => setAnswerOpen(true);
+    return register(`note:${note.id}`, actions);
+  }, [answered, dirty, note.id, questionNote, register, saving]);
   async function upload(files: File[]) {
     if (uploading || saving || !checked || recovery) return;
     setUploading(true);

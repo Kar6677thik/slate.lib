@@ -6,10 +6,10 @@ Final local verification: 3 October 2026. All implementation and generated artif
 | --- | --- |
 | ESLint | Passed |
 | Strict TypeScript | Passed |
-| Vitest / Testing Library | 23 tests passed across 10 files |
+| Vitest / Testing Library | 33 tests passed across 11 files, including command registry, fuzzy ranking, availability, provider collection, recency, and safeguard delegation |
 | Next production build | Passed; standalone server starts successfully |
-| Playwright Chromium | 25 passed, 1 optional integration test skipped |
-| Axe accessibility | No violations in tested connection, light/dark reader, settings and mobile editor states |
+| Playwright Chromium | 33 passed, 1 optional integration test skipped |
+| Axe accessibility | No violations in tested connection, light/dark reader, settings, mobile editor, and Command Center states |
 | Responsive layouts | Passed at 390×844, 412×915, 768×1024, 1366×768, 1440×900, 1920×1080 |
 | PWA | Registration, manifest, static-only cache and offline fallback passed |
 | Docker container | Linux image built; non-root/read-only runtime and HTTP checks passed; browser suite: 22 passed, 1 optional integration skipped |
@@ -31,6 +31,7 @@ Final local verification: 3 October 2026. All implementation and generated artif
 - Save library-scoped favorites, pinned folders and named searches in versioned browser preferences.
 - Persist theme and recent activity; operate mobile drawers, capture, search and editor controls.
 - Block raw HTML/script execution and unsafe links; render math and diagrams on demand.
+- Open the Universal Command Center from keyboard and global search, use blended and command-only modes, search notes, execute contextual save/details/file actions, preserve editor `Ctrl/Cmd+K`, navigate/close tabs through shared handlers, and use the mobile bottom sheet.
 
 All mutation scenarios use local, stateful mocked API fixtures. They do not contact or alter the home server. The optional real-server test was skipped because no development credentials were supplied.
 
@@ -58,6 +59,7 @@ There is no synthetic Lighthouse score or claim of a measured large-library late
 - The destination picker filters already-browsed folders; browse deeper or enter the exact path for an unvisited destination. It never scans the complete library just to build a picker.
 - External images are not loaded; uploaded assets use authenticated requests.
 - Browser-reserved shortcuts can override application shortcuts.
+- Command usage history, favorites, pins, recent notes, and saved searches are scoped to this browser and library. They do not sync between browsers.
 - Browser drafts are a recovery aid, not a backup. Persistent credentials are opt-in browser storage, not an encrypted vault.
 - Deployment requires an approved backend URL reachable from the web container, a real image digest and private HTTPS routing. Existing backend/native routes must remain intact.
 
@@ -69,6 +71,6 @@ After Docker Desktop was started, the image built successfully from this folder 
 
 The verification container ran with UID/GID 1000, a read-only root filesystem, all capabilities dropped, no-new-privileges, a 512 MiB memory limit, one CPU, a 128-process limit, and a 32 MiB `/tmp` tmpfs. Its port was bound to loopback only. No host directories, library data, production URLs or real tokens were mounted or supplied.
 
-The app, manifest, service worker, icon and offline page returned HTTP 200. Real proxy requests rejected an unapproved server with 403 and a missing bearer token with 401. That earlier container baseline passed its complete Chromium suite, including PWA and accessibility checks. The current Milestone 1 changes were verified through the local standalone production build and the 25-scenario Chromium suite; the container image was not rebuilt in this milestone.
+The app, manifest, service worker, icon and offline page returned HTTP 200. Real proxy requests rejected an unapproved server with 403 and a missing bearer token with 401. That earlier container baseline passed its complete Chromium suite, including PWA and accessibility checks. The current Milestone 2 changes were verified through the local standalone production build and the 33-scenario Chromium suite; the container image was not rebuilt in this milestone.
 
 The temporary verification container was stopped and retained, along with its image. Browser reports are in `output/docker/playwright-report`. Use `playwright.container.config.ts` with `SLATE_CONTAINER_URL` to repeat browser checks against a running local container. Real-backend connectivity and k3s deployment remain separate checks.

@@ -5,6 +5,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import type { Note, Entry } from "@/lib/api/contracts";
@@ -30,6 +31,7 @@ type State = {
   nav: Destination;
   query: string;
   searchOpen: boolean;
+  commandInitialQuery: string;
   captureOpen: boolean;
   settingsOpen: boolean;
   operation: Operation | null;
@@ -40,6 +42,7 @@ type State = {
   navigate: (nav: Destination) => void;
   setQuery: (query: string) => void;
   setSearchOpen: (v: boolean) => void;
+  openCommandCenter: (query?: string) => void;
   setCaptureOpen: (v: boolean) => void;
   setSettingsOpen: (v: boolean) => void;
   setOperation: (op: Operation | null) => void;
@@ -57,10 +60,12 @@ export function WorkspaceProvider({
     [nav, setNav] = useState<Destination>("library"),
     [query, setQuery] = useState(""),
     [searchOpen, setSearchOpen] = useState(false),
+    [commandInitialQuery, setCommandInitialQuery] = useState(""),
     [captureOpen, setCaptureOpen] = useState(false),
     [settingsOpen, setSettingsOpen] = useState(false),
     [operation, setOperation] = useState<Operation | null>(null),
     [loaded, setLoaded] = useState(false);
+  const commandReturnFocus = useRef<HTMLElement | null>(null);
   const readUrl = useCallback(() => {
     const url = new URL(location.href);
     const id = url.searchParams.get("note");
@@ -73,6 +78,7 @@ export function WorkspaceProvider({
         view === "recovery" ||
         view === "rediscover" ||
         view === "link-health" ||
+        view === "favorites" ||
         isSmartView(view)
         ? view
         : "library",
@@ -186,6 +192,7 @@ export function WorkspaceProvider({
         nav,
         query,
         searchOpen,
+        commandInitialQuery,
         captureOpen,
         settingsOpen,
         operation,
@@ -219,7 +226,19 @@ export function WorkspaceProvider({
           else url.searchParams.delete("q");
           history.replaceState({}, "", url);
         },
-        setSearchOpen,
+        setSearchOpen(value) {
+          setSearchOpen(value);
+          if (!value) {
+            setCommandInitialQuery("");
+            const target = commandReturnFocus.current;
+            if (target?.isConnected) requestAnimationFrame(() => target.focus());
+          }
+        },
+        openCommandCenter(initial = "") {
+          commandReturnFocus.current = document.activeElement as HTMLElement | null;
+          setCommandInitialQuery(initial);
+          setSearchOpen(true);
+        },
         setCaptureOpen,
         setSettingsOpen,
         setOperation,

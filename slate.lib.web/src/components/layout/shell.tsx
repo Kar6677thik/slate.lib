@@ -31,11 +31,13 @@ import { useAuth } from "@/lib/auth/context";
 import { useMedia } from "@/hooks/use-media";
 import { Button } from "@/components/ui/button";
 import type { SmartViewId } from "@/features/views/smart-views";
+import { useCommandRuntime } from "@/features/commands/runtime";
 export type Destination =
   | "library"
   | "search"
   | "inbox"
   | "recent"
+  | "favorites"
   | "recovery"
   | "rediscover"
   | "link-health"
@@ -82,6 +84,32 @@ export function Shell({
   const desktop = useMedia("(min-width: 768px)"),
     wide = useMedia("(min-width: 1100px)");
   const layout = useDefaultLayout({ id: "slate.workspace.panes" });
+  const { register } = useCommandRuntime();
+  useEffect(
+    () =>
+      register("workspace-shell", {
+        "workspace.toggle-library": () => {
+          if (desktop) setLeft((value) => !value);
+          else setMobileLeft(true);
+        },
+        "workspace.focus-library": () => {
+          if (desktop) setLeft(true);
+          else setMobileLeft(true);
+          requestAnimationFrame(() =>
+            document.querySelector<HTMLButtonElement>(".sidebar .tree-label, .modal .tree-label")?.focus(),
+          );
+        },
+        "workspace.toggle-details": () => {
+          if (wide) setRight((value) => !value);
+          else setMobileRight(true);
+        },
+        "workspace.show-details": () => {
+          if (wide) setRight(true);
+          else setMobileRight(true);
+        },
+      }),
+    [desktop, register, wide],
+  );
   const navigation = (
     [
       ["library", FolderOpen, "Library"],

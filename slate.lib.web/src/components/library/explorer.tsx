@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useInfiniteQuery,
   useMutation,
@@ -40,6 +40,7 @@ import { useWorkspacePreferences } from "@/lib/storage/workspace-preferences";
 import { Modal } from "@/components/common/primitives";
 import { format } from "date-fns";
 import { BulkActions } from "./bulk-actions";
+import { useCommandRuntime } from "@/features/commands/runtime";
 
 type Selection = {
   paths: ReadonlySet<string>;
@@ -221,6 +222,11 @@ export function Explorer() {
     title: "",
     body: "",
   });
+  const { register } = useCommandRuntime();
+  useEffect(
+    () => register("explorer", { "create.question": () => setQuestionOpen(true) }),
+    [register],
+  );
   const api = useApi(),
     cache = useQueryClient();
   const refresh = useMutation({

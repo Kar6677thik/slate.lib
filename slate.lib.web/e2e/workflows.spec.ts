@@ -22,9 +22,9 @@ test("connection, lazy folders, tabs, read, edit, save, search and history", asy
     page.getByRole("article").getByText("Acceptance marker: persistence."),
   ).toBeVisible();
   await page.getByRole("button", { name: "Search your library" }).click();
-  await page.getByLabel("Quick search").fill("persistence");
+  await page.getByLabel("Quick search for notes and commands").fill("persistence");
   await page
-    .getByRole("listitem")
+    .getByRole("option")
     .filter({ hasText: "Library architecture" })
     .click();
   await expect(

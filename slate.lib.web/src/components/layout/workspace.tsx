@@ -2,7 +2,7 @@
 import { useAuth } from "@/lib/auth/context";
 import { ConnectionScreen } from "./connection";
 import { Loading } from "@/components/common/primitives";
-import { SearchPage, QuickOpen } from "@/components/search/search";
+import { SearchPage } from "@/components/search/search";
 import { SyncControl } from "./sync-control";
 import { DetailsRail } from "@/components/links/details-rail";
 import { OperationDialog } from "@/components/library/operation-dialog";
@@ -18,6 +18,8 @@ import {
 import { Explorer } from "@/components/library/explorer";
 import { Document, Tabs } from "@/components/editor/document";
 import { ErrorMessage } from "@/components/common/primitives";
+import { CommandRuntimeProvider } from "@/features/commands/runtime";
+import { CommandCenter } from "@/features/commands/command-center";
 export function Workspace() {
   const { ready, api } = useAuth();
   if (!ready) return <Loading />;
@@ -43,7 +45,9 @@ function Connected() {
       key={connection!.server + q.data.libraryId}
       scope={connection!.server + ":" + q.data.libraryId}
     >
-      <LibraryWorkspace />
+      <CommandRuntimeProvider>
+        <LibraryWorkspace />
+      </CommandRuntimeProvider>
     </WorkspaceProvider>
   );
 }
@@ -57,7 +61,7 @@ function LibraryWorkspace() {
       sidebar={<Explorer />}
       nav={w.nav}
       onNav={w.navigate}
-      onSearch={() => w.setSearchOpen(true)}
+      onSearch={() => w.openCommandCenter()}
       onNew={() => w.setOperation({ kind: "create-note", folder: "" })}
       onCapture={() => w.setCaptureOpen(true)}
     >
@@ -69,7 +73,7 @@ function LibraryWorkspace() {
       ) : (
         <DestinationPage key={w.nav} />
       )}
-      <QuickOpen />
+      <CommandCenter />
       <Capture />
       <OperationDialog />
     </Shell>

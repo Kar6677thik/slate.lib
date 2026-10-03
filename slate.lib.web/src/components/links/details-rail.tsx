@@ -1,6 +1,6 @@
 "use client";
 import { HistoryPanel } from "@/components/history/history-panel";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Link,
@@ -18,12 +18,25 @@ import {
   ErrorMessage,
   Empty,
 } from "@/components/common/primitives";
+import { useCommandRuntime } from "@/features/commands/runtime";
 export function DetailsRail() {
   const api = useApi(),
     w = useWorkspace();
   const [tab, setTab] = useState<
     "links" | "related" | "graph" | "info" | "history"
   >("links");
+  const { register } = useCommandRuntime();
+  useEffect(
+    () =>
+      register("details-rail", {
+        "details.links": () => setTab("links"),
+        "details.related": () => setTab("related"),
+        "details.graph": () => setTab("graph"),
+        "details.info": () => setTab("info"),
+        "details.history": () => setTab("history"),
+      }),
+    [register],
+  );
   const note = useQuery({
     queryKey: ["note", w.active],
     queryFn: ({ signal }) => api.note(w.active!, signal),

@@ -5,16 +5,9 @@ import {
   Search,
   FileText,
   ArrowUpRight,
-  Plus,
-  FolderPlus,
-  RefreshCw,
-  Zap,
-  Moon,
-  Settings,
   BookmarkPlus,
   SlidersHorizontal,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useApi } from "@/lib/auth/context";
 import { useWorkspace } from "@/features/notes/workspace-context";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -252,117 +245,5 @@ export function SearchPage() {
         </form>
       </Modal>
     </>
-  );
-}
-export function QuickOpen() {
-  const w = useWorkspace(),
-    api = useApi();
-  const [query, setQuery] = useState(""),
-    [error, setError] = useState<unknown>(null);
-  const { setTheme, theme } = useTheme();
-  return (
-    <Modal
-      open={w.searchOpen}
-      onClose={() => w.setSearchOpen(false)}
-      title="Search & commands"
-      description="Search your notes or choose a workspace action."
-      wide
-    >
-      <div className="search-field">
-        <Search size={18} />
-        <input
-          autoFocus
-          aria-label="Quick search"
-          placeholder="Search the library…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </div>
-      {error != null && <ErrorMessage error={error} />}
-      <div
-        className="quick-results"
-        onKeyDown={(e) => {
-          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-          const items = Array.from(
-            e.currentTarget.querySelectorAll<HTMLButtonElement>(".command-row"),
-          );
-          if (!items.length) return;
-          e.preventDefault();
-          const index = items.indexOf(
-            document.activeElement as HTMLButtonElement,
-          );
-          items[
-            (index + (e.key === "ArrowDown" ? 1 : -1) + items.length) %
-              items.length
-          ]?.focus();
-        }}
-      >
-        {query ? (
-          <SearchResults query={query} />
-        ) : (
-          <>
-            <p className="section-label">WORKSPACE ACTIONS</p>
-            {[
-              {
-                label: "New note",
-                icon: Plus,
-                run: () => w.setOperation({ kind: "create-note", folder: "" }),
-              },
-              {
-                label: "New folder",
-                icon: FolderPlus,
-                run: () =>
-                  w.setOperation({ kind: "create-folder", folder: "" }),
-              },
-              {
-                label: "Quick Thought",
-                icon: Zap,
-                run: () => w.setCaptureOpen(true),
-              },
-              {
-                label: "Search library",
-                icon: Search,
-                run: () => w.navigate("search"),
-              },
-              {
-                label: "Sync library",
-                icon: RefreshCw,
-                run: () => api.sync(),
-              },
-              {
-                label: "Settings",
-                icon: Settings,
-                run: () => w.setSettingsOpen(true),
-              },
-              {
-                label: "Toggle theme",
-                icon: Moon,
-                run: () => setTheme(theme === "dark" ? "light" : "dark"),
-              },
-            ].map((c) => (
-              <button
-                className="command-row"
-                key={c.label}
-                onClick={async () => {
-                  try {
-                    await c.run();
-                    w.setSearchOpen(false);
-                  } catch (error) {
-                    setError(error);
-                  }
-                }}
-              >
-                <c.icon size={18} />
-                {c.label}
-                <ArrowUpRight size={14} />
-              </button>
-            ))}
-          </>
-        )}
-      </div>
-      <div className="overlay-hint">
-        <kbd>↑ ↓</kbd> navigate <kbd>Enter</kbd> open <kbd>Esc</kbd> close
-      </div>
-    </Modal>
   );
 }
