@@ -1,6 +1,11 @@
 # slate.lib — Product specification
 
-Status: reviewed specification with implementation complete through Phase 3B, 2026-09-24.
+## Evolution implementation — 2026-10-02
+
+Milestone A adds multi-selection, reviewed bulk move/copy/duplicate/delete, Windows internal drag/drop, a searchable command registry, and shared Markdown editing commands. Android supports long-press selection, selection actions, and a compact editor toolbar. Existing note-ID tabs and dirty-draft protection remain. Favorites/pins and capture workflows are implemented in B/C below.
+
+
+Status: evolution milestones A–M implemented; validation and remaining device qualification are recorded in ROADMAP, 2026-10-03.
 
 This document owns product scope. [ARCHITECTURE](ARCHITECTURE.md) owns components and deployment; [CONTENT_AND_SYNC](CONTENT_AND_SYNC.md) owns data and consistency rules; [UX](UX.md) owns interactions; [ROADMAP](ROADMAP.md) owns implementation order. Change these together when a decision changes. “MVP” means the end of roadmap phase 3D; phases 1–2 establish the Windows read/write explorer, Phase 3A adds search/Git/history, and Phase 3B adds Android/capture/durable client state.
 
@@ -23,39 +28,33 @@ The library may grow to tens of thousands of Markdown notes and many assets. Cli
 
 ## Core workflows
 
-1. **Capture a question:** Android → Quick Thought (or the later Question shortcut) → type “Why does PostgreSQL need VACUUM?” → Save to Inbox. Later add an answer, related links, and move the same note to `computer-science/databases/postgresql/`.
+1. **Capture a question:** Android → Question or Quick Thought → type “Why does PostgreSQL need VACUUM?” → Save to Inbox. Later add an answer, related links, and move the same note to `computer-science/databases/postgresql/`.
 2. **Learn and retrieve:** Windows → quick open or search → read a note → edit Markdown → save → search a phrase from the new content. Search must locate saved content promptly without waiting for GitHub.
 3. **Organize:** browse actual folders → create, rename, move, or delete a note/folder. Confirm destructive scope. Existing note identity survives movement.
 4. **Keep project context:** create `projects/anythingtcg/` containing `overview.md`, `architecture.md`, and `decisions/`, `experiments/`, `failures/`, `ideas/`, `questions/`. Use ordinary links and optional metadata.
 5. **Capture a reference:** Android Share → slate.lib → review shared text, URL, or image → save to Inbox. Upload image bytes before saving a link to them.
 6. **Edit elsewhere:** clone the private knowledge repository in VS Code, edit and push normally. The home server imports validated changes; open clients refresh without losing unsaved edits.
-7. **Recover work:** a stale save preserves the draft and offers Open latest or Save draft as a new note. Combine text manually when needed. Divergent Git histories pause synchronization and are resolved using ordinary Git/VS Code; a merge workbench is a later feature.
+7. **Recover work:** a stale save preserves the draft and opens base/local/current review. Restore writes new commits. Divergent Git histories can be combined after review only when changed paths are disjoint; overlapping changes require operator resolution.
 
-## Feature catalogue and release boundary
+## Implemented feature catalogue
 
-The later column records intended direction, not a requirement to build every feature immediately. All write operations eventually exist on both platforms, using different interactions.
+| Area | Current implementation |
+| --- | --- |
+| Explorer | Reviewed multi-select move/copy/duplicate/delete; internal Windows drag/drop; Android long-press selection; stable IDs and recoverable operation journals |
+| Writing | Source/read/split modes, drafts, Markdown insertion commands, tabs, searchable command palette |
+| Reading | Safe local highlighting/Mermaid/math, nested outline, heading navigation, collapsible callouts |
+| Capture | Questions and answers, daily notes, Add Link, templates, reviewed append, bounded Android multi-file Share |
+| Search and views | Type/status/date/has filters, exact-title ranking, paged smart views and saved searches |
+| Navigation | UUID Favorites, path-based pins with missing-folder recovery; device-local preferences |
+| Links | Wiki and Markdown backlinks, reviewed incoming repairs and wiki export, broken/ambiguous link management |
+| Assets | Paged catalog, reference lookup, thumbnails, isolated PDF extraction and optional local OCR; explicit unused-asset cleanup |
+| Offline | Selected note/folder/pin downloads, quota, plain-text downloaded-content search, durable note/upload queue and receipts |
+| Conflicts | Base/local/current text workbench; reviewed Git merge only for disjoint changed paths |
+| History | Bounded version comparison, restore as a new revision or new note, deleted-note recovery |
+| Rediscovery | Explained age/status/date views and random notes; optional private local reading history |
+| Graph | Bounded current-note neighborhood with depth/type/folder controls; eight deterministic explained related notes |
 
-| Area | MVP: phases 1–3 | After MVP |
-| --- | --- | --- |
-| Library | Real folder hierarchy, breadcrumbs, paged listings, create/read/edit notes, create/rename/move/delete files and folders, basic sorting | Multi-select, copy/cut/paste, duplicate, drag/drop, richer context menus |
-| Writing | Native plain Markdown editor, Read/Write/Preview modes, explicit save and debounced autosave, recoverable local drafts | Windows split mode, editing commands, stronger syntax editing, tab/workspace polish |
-| Reading | Headings, lists, tasks, tables, quotes, fenced code, links, images, heading anchors; selectable text and code copy | Highlighting, footnotes, TOC, Mermaid, math, callouts, safe expandable sections |
-| Capture | Inbox, New Note/Quick Thought, Add Image; Android share text/URL/image; Windows image paste | Dedicated Question/Daily Note/Add Link shortcuts, multiple shared files, templates, reviewed merge-into-existing-note |
-| Search | Server lexical search, snippets, quick open, title/tag/path/unanswered filters | Type/status/date/has filters, ranking refinement, richer query UI, cached-content search |
-| Connections | Stable IDs, wiki links, relative Markdown links, aliases, backlinks, broken-link indicators | Reviewed repair of incoming path links after moves; related-note suggestions, optional graph |
-| Questions | Markdown metadata for open/answered status and dates; unanswered search; ordinary related-note links | Dedicated capture/answer controls, aggregation and resurfacing |
-| Smart views | Inbox and Recent; unanswered notes available through search | Favorites, Unanswered Questions, Recently Modified, Orphan Notes, Notes With Diagrams/Code, Currently Learning, Needs Review, saved queries |
-| Personal navigation | Recent notes, back/forward on Windows | Favorites, pinned folders; optional cross-device preferences |
-| Assets | Immutable server assets; PNG/JPEG/WebP/GIF image display, PDF/file attachments opened through platform actions | Thumbnails, PDF text extraction/OCR, storage cleanup tools |
-| Sync | Atomic server saves, ETag conflicts, batched Git commits, fetch-before-push, validated fast-forward imports, incremental indexing | In-app history/merge tools only if needed |
-| Offline | Bounded read cache and local draft recovery; clear “Saved on this device” wording | Explicit offline downloads, queued edits/creates/uploads and limited local search |
-| History | Git history plus in-app read-only note versions; deleted work preserved by the deletion protocol | Diff and restore |
-| Rediscovery | Recent notes only | Random Note, Something Forgotten, Old Idea, Old Question, On This Day, Recently Learned, Continue Learning, timeline |
-| Delivery | Windows signed MSIX, Android signed APK, private backend; manual release installation | In-app version checks and user-directed installation |
-| Other clients / AI | None | Optional Angular web client; much later semantic retrieval and grounded AI tools |
-
-Copy/cut/paste of editor text is standard platform behavior in the MVP; the deferred explorer operations act on files/folders. Local draft recovery is not an offline synchronization engine. Both clients use bounded cache/draft files in the MVP; neither needs a database, full clone or local search index. ID links survive moves; incoming path links can require manual repair until the later reviewed repair feature. Syntax unsupported by the current renderer remains intact in source and has a readable fallback.
-
+Structural operations remain online-only. Offline search covers deliberately downloaded content and uses plain terms, not the server's filter grammar. Asset cleanup considers the current library, not historical Git revisions or other devices' pending work; the review warns about this explicitly. No automatic cleanup runs. Cross-device preference sync, AI/embeddings, a web client, full-library replication and overlapping-file Git merges remain outside this implementation.
 ## MVP acceptance
 
 The first usable release must let the owner perform the essential loop on both an installed Windows app and an installed Android app against the same Linux home server.
@@ -72,7 +71,7 @@ A beautiful MVP means legible typography, predictable navigation, responsive lis
 
 ## Platform experience
 
-**Windows:** a proper desktop window with native navigation and editor controls. A collapsible tree, Inbox and Recent sit beside a folder listing or document; richer smart views follow. Search is always reachable; keyboard focus, selection, context menus, breadcrumbs, quick open, and back/forward behave consistently. Large folders are virtualized and loaded in pages. Dark/light themes, scaling, and resizable panes must remain readable.
+**Windows:** a proper desktop window with native navigation and editor controls. A collapsible tree, Inbox and Recent sit beside a folder listing or document; smart views are available. Search is always reachable; keyboard focus, selection, context menus, breadcrumbs, quick open, and back/forward behave consistently. Large folders are virtualized and loaded in pages. Dark/light themes, scaling, and resizable panes must remain readable.
 
 **Android:** an installed mobile app with Library, Search, Inbox, and a prominent Capture action. Reading occupies the screen; edit/preview switch rather than compete for space. Folder browsing uses drill-down and breadcrumbs. Share integration, quick capture, keyboard-safe controls, large touch targets, and draft recovery are first-class. Lifecycle interruptions must not erase text.
 
@@ -99,3 +98,46 @@ No AI, embeddings, semantic search, graph visualization, recommendations, advanc
 Rediscovery uses understandable queries before recommendations: random eligible note; an old idea/question; notes created on this month/day; recently modified learning notes; notes marked `learning` or `needs-review`. It must show why a note appeared. Reading-history-based resurfacing requires an explicitly introduced, private activity store; it is not silently collected in the MVP.
 
 AI may later consume the same retrieval and document APIs to summarize learning, recover project context, identify unanswered questions, compare historical thinking, and suggest gaps. Model providers, vector storage, prompts, and automation are deliberately undecided until there is a concrete feature and a privacy decision.
+
+Milestone B adds UUID Favorites and path-based folder pins on both clients, with explicit missing-pin recovery. These are local preferences; canonical Markdown and Git are unaffected.
+
+Milestone C: both clients expose Question, Answer and Add Link; new daily folders use daily/YYYY-MM-DD.md from the device-local date. Templates are ordinary notes in templates/. Captures can be reviewed and appended to an existing note without creating another note. Android accepts bounded multi-file Share batches and retains an interrupted handoff.
+
+Milestone D implemented (2026-10-02): Favorites, Unanswered Questions, Recently Modified, Orphan Notes, Notes With Diagrams, Notes With Code, Currently Learning, Needs Review, and locally saved named searches are available from both clients. Views use paged derived queries; saved queries can be renamed/deleted and run through normal search.
+
+Current scope: milestones A–M are implemented. Dated phase/milestone records below are historical checkpoints, not statements that later completed features are still deferred. ROADMAP contains current verification and device limitations.
+
+
+Milestone E implemented (2026-10-02): lexical search combines type/status, created/modified/date ranges, content/link predicates, tags, paths and text. Exact-title and leading-title-prefix signals supplement existing title/alias/heading/body ranking. Both clients expose compact filters and paged results. Offline-content search is implemented with milestone I, not claimed here.
+
+
+Milestone F implemented (2026-10-02): reviewed incoming-link repair accompanies native move/rename flows. Both clients expose missing/ambiguous link checks and reviewed wiki-to-relative-Markdown conversion. UUID/title links that survive a move are left alone; uncertain links are never auto-repaired.
+
+
+Milestone G implemented (2026-10-02): nested reader outline, current-section indication, previous/next heading navigation, copy heading link, and explicit expandable callouts are available in both clients. Reader position/disclosure state is retained in the WebView session where browser storage is available.
+
+
+Milestone H — attachment management (2026-10-02)
+
+The Windows command palette and Android Commands expose Attachments: paged metadata, current reference counts, referencing-note navigation, lazy image thumbnails, explicit PDF text extraction and local image OCR. Extracted text is visibly derived and does not modify binaries or Markdown. Unreferenced attachment removal requires a preview, a 24-hour age grace period, a fresh full canonical-reference audit, and confirmation. History and other devices’ pending drafts may still refer to unused binaries; the warning is explicit.
+
+Milestone I — deliberate offline availability (2026-10-02)
+
+Offline work is available from the Windows palette and Android Commands/note actions. Mark a note, folder, or pinned folder, then read/search downloaded copies and their attachments without a server. The manager shows download progress, timestamps, failures, storage/quota and pending saves. Create/edit/capture saves use durable operations with attachment dependencies, receipts, attempts and errors. Structural mutations remain online-only.
+
+Milestone J — conflict handling (2026-10-02)
+
+Windows and Android now show Base, Local, Current and Proposed versions for stale note saves. Non-overlapping line changes combine deterministically; overlapping blocks require explicit side selection or reviewed manual editing. Saving revalidates the fetched current revision. Save local as separate note preserves both notes. Independent divergent histories can be explicitly previewed/combined only when they changed different files; same-file changes and rewritten histories require the recovery runbook.
+
+Milestone K — history and recovery (2026-10-02)
+
+History supports current-versus-historical and historical-versus-historical comparisons, version metadata, restore as a new current revision, and restore as a new note. Deleted-note recovery offers a bounded list from existing Git history, previews content and asks for a destination. Restoration preserves history and uses normal new commits; existing destinations never silently overwrite.
+
+Milestone L — rediscovery (2026-10-02)
+Both clients expose Rediscover with random notes, older ideas/open questions, Something Forgotten, On This Day, explicit learning states, and a dated timeline. Results explain their eligibility. Unknown dates are omitted from date-driven views; templates are excluded. Date-based ordering is deterministic; Random Note is deliberately random. Results are paged in groups of 20 from cached parsed metadata.
+Reading history is opt-in and device-local: UUID plus last-opened timestamp, at most 1,000 entries retained for 180 days, never uploaded. Privacy controls enable/disable and clear it. Forgotten results exclude recently opened notes when tracking is enabled; when disabled, only explicit note age is used. No reading activity before opt-in is implied. No canonical metadata migration or production changes.
+
+Milestone M — graph and related notes (2026-10-02)
+Windows commands and Android note actions expose a current-note graph and up to eight related notes. Graph traversal is bidirectional over resolved wiki/Markdown links, with directed edges displayed, depths 1–3, folder/type filters, 40 client nodes (60 API maximum) and 240 edges. Limits are visible. Selecting a plotted node or its accessible numbered row opens it. Filters restrict traversal; the current note remains visible.
+Related scores are deterministic: direct link +12; shared incoming source +4 each (maximum 20); shared tag +3 each (maximum 15); title/heading term +1 each (maximum 4); same non-root folder +1. Every score has an explanation. Ties sort by path. Templates are excluded from suggestions. All data is rebuilt from the existing link index and cached parsed metadata; there are no embeddings, AI calls, graph database or canonical-data migrations.
+Full solution Windows/Android build: zero warnings/errors. All 181 tests pass, including graph edge direction, incoming traversal, filters, limits, invalidation, score explanations and deterministic ordering. L was verified with 179 passing tests before M. Native and physical-device acceptance remains separately reported.

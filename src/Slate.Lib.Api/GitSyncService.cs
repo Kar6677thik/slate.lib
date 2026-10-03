@@ -21,7 +21,7 @@ public sealed class GitOptions
 
 public sealed record GitSynchronization(bool Imported, IReadOnlyList<string> ChangedPaths, GitSyncState Status);
 
-public sealed class GitSyncService
+public sealed partial class GitSyncService
 {
     private readonly LibraryPaths paths;
     private readonly GitOptions options;
@@ -46,6 +46,7 @@ public sealed class GitSyncService
     }
 
     public bool IsRepository => Directory.Exists(Path.Combine(paths.Root, ".git"));
+    internal string OperationStatePath => Path.Combine(options.StatePath, "operations");
     public GitSyncState Status { get { lock (stateGate) return status; } }
 
     public void MarkPending()
@@ -198,7 +199,7 @@ public sealed class GitSyncService
         await gate.WaitAsync(cancellationToken);
         try
         {
-            var output = await RunRequiredAsync(["log", "--follow", "--format=%H%x1f%cI%x1f%s%x1f%an", "--", currentPath], cancellationToken);
+            var output = await RunRequiredAsync(["log", "--follow", "-100", "--format=%H%x1f%cI%x1f%s%x1f%an", "--", currentPath], cancellationToken);
             return output.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line => line.Split('\x1f')).Where(parts => parts.Length == 4)
                 .Select(parts => new NoteHistoryEntry(parts[0], DateTimeOffset.Parse(parts[1]), parts[2], parts[3])).ToArray();
         }

@@ -4,6 +4,12 @@ using Slate.Lib.Api;
 using Slate.Lib.Core;
 
 var command = args.FirstOrDefault();
+if (command == "--asset-worker")
+{
+    try { await LocalAssetExtractor.WorkerAsync(args[1], args[2], args[3]); }
+    catch { Environment.ExitCode = 1; }
+    return;
+}
 var setup = command is "--initialize-library" or "--create-device-token" or "--list-devices" or "--revoke-device" or "--rotate-device-token" or "--rebuild-index" or "--initialize-git";
 var builder = WebApplication.CreateBuilder(setup ? [] : args);
 builder.Logging.ClearProviders();
@@ -92,6 +98,7 @@ builder.Services.AddSingleton(_ => new SearchIndex(Path.Combine(derivedRoot, "se
 builder.Services.AddSingleton<LinkIndex>();
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(assetOptions));
 builder.Services.AddSingleton<AssetStore>();
+builder.Services.AddSingleton(provider => new AssetDerivatives(provider.GetRequiredService<AssetStore>(), Path.Combine(derivedRoot, "attachments"), new LocalAssetExtractor()));
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(gitOptions));
 builder.Services.AddSingleton<GitSyncService>();
 builder.Services.AddSingleton<LibraryStore>();
@@ -189,6 +196,11 @@ IResult NoteResult(HttpContext context, LibraryNote note)
 app.MapGet("/v1/notes/by-path", (HttpContext context, LibraryStore library, string path) => NoteResult(context, library.ReadPath(path)));
 app.MapGet("/v1/notes/{id:guid}", (HttpContext context, LibraryStore library, Guid id) => NoteResult(context, library.Read(id)));
 app.MapGet("/v1/notes/{id:guid}/links", (LibraryStore library, Guid id) => library.Links(id));
+app.MapGet("/v1/links/issues", (LibraryStore library, int? page) => library.LinkIssues(page ?? 0));
+app.MapGet("/v1/notes/{id:guid}/wiki-export", (LibraryStore library, Guid id) => library.PreviewWikiExport(id));
+app.MapPost("/v1/notes/{id:guid}/wiki-export", (LibraryStore library, Guid id, WikiExportRequest request) => library.ApplyWikiExport(id, request));
+app.MapPost("/v1/notes/{id:guid}/link-repair/preview", (LibraryStore library, Guid id, LinkRepairRequest request) => library.PreviewLinkRepair(id, request));
+app.MapPost("/v1/notes/{id:guid}/link-repair/apply", (LibraryStore library, Guid id, LinkRepairRequest request) => library.ApplyLinkRepair(id, request));
 app.MapPost("/v1/assets", async (HttpRequest request, AssetStore assets, CancellationToken cancellationToken) =>
 {
     if (!Guid.TryParse(request.Query["id"], out var id)) throw new ArgumentException("An asset ID is required.");
@@ -197,6 +209,13 @@ app.MapPost("/v1/assets", async (HttpRequest request, AssetStore assets, Cancell
     return Results.Created($"/v1/assets/{metadata.Id:D}/metadata", metadata);
 });
 app.MapGet("/v1/assets/{id:guid}/metadata", (AssetStore assets, Guid id) => assets.ReadMetadata(id));
+app.MapGet("/v1/assets", (LibraryStore library, int? page, bool? unreferenced) => library.ListAssets(page ?? 0, unreferenced ?? false));
+app.MapGet("/v1/assets/{id:guid}/references", (LibraryStore library, Guid id, int? page) => library.AssetNotes(id, page ?? 0));
+app.MapGet("/v1/assets/{id:guid}/thumbnail", async (AssetDerivatives derived, Guid id, CancellationToken token) => Results.File(await derived.ThumbnailAsync(id, token), "image/png"));
+app.MapGet("/v1/assets/{id:guid}/text", (AssetDerivatives derived, Guid id) => derived.Read(id));
+app.MapPost("/v1/assets/{id:guid}/extract", (AssetDerivatives derived, Guid id) => Results.Accepted($"/v1/assets/{id:D}/text", derived.Start(id)));
+app.MapGet("/v1/assets/{id:guid}/cleanup", (LibraryStore library, Guid id) => library.PreviewAssetCleanup(id));
+app.MapPost("/v1/assets/{id:guid}/cleanup", (LibraryStore library, Guid id, AssetCleanupRequest request) => library.CleanupAsset(id, request));
 app.MapGet("/v1/assets/{id:guid}", (AssetStore assets, Guid id) =>
 {
     var item = assets.Open(id);
@@ -225,9 +244,25 @@ app.MapGet("/v1/library/item", (LibraryStore library, string path) => library.De
 app.MapPost("/v1/library/rename", (LibraryStore library, RenameItemRequest request) => library.Rename(request));
 app.MapPost("/v1/library/move", (LibraryStore library, TransferItemRequest request) => library.Move(request));
 app.MapPost("/v1/library/copy", (LibraryStore library, TransferItemRequest request) => library.Copy(request));
+app.MapPost("/v1/library/bulk/preview", (LibraryStore library, BulkOperationRequest request) => library.PreviewBulk(request));
+app.MapPost("/v1/library/bulk/apply", (LibraryStore library, BulkApplyRequest request) => library.ApplyBulk(request));
+app.MapPost("/v1/offline/replay", (LibraryStore library, ReplayNoteRequest request) => library.Replay(request));
+app.MapPost("/v1/sync/merge-preview", async (LibraryStore library, GitSyncService git, CancellationToken token) => await git.PreviewSafeMergeAsync(library, token));
+app.MapPost("/v1/sync/merge/{id:guid}", async (LibraryStore library, GitSyncService git, Guid id, CancellationToken token) => await git.ApplySafeMergeAsync(library, id, token));
+app.MapGet("/v1/history/deleted", async (LibraryStore library, GitSyncService git, CancellationToken token) => await git.RecoverableAsync(library, token));
+app.MapGet("/v1/notes/{id:guid}/graph", (LinkIndex links, Guid id, int? depth, int? limit, string? folder, string? type) => links.Graph(id, depth ?? 1, limit ?? 40, folder, type));
+app.MapGet("/v1/notes/{id:guid}/related", (LinkIndex links, Guid id) => links.Related(id));
+app.MapGet("/v1/rediscovery/{view}", (LinkIndex links, string view, DateOnly today, int? page) => links.Rediscover(view, today, page ?? 0));
+app.MapPost("/v1/notes/{id:guid}/restore", async (LibraryStore library, GitSyncService git, Guid id, RestoreNoteRequest request, CancellationToken token) => await git.RestoreAsync(library, id, request, token));
+app.MapGet("/v1/library/bulk/{id:guid}", (LibraryStore library, Guid id) => library.BulkStatus(id));
+app.MapPost("/v1/workflows/daily", (LibraryStore library, DailyNoteRequest request) => library.Daily(request));
+app.MapPost("/v1/notes/{id:guid}/answer", (LibraryStore library, Guid id, AnswerQuestionRequest request) => library.AnswerQuestion(id, request));
+app.MapGet("/v1/notes/{id:guid}/append-preview", (LibraryStore library, Guid id, Guid captureId) => library.PreviewCaptureAppend(id, captureId));
+app.MapPost("/v1/notes/{id:guid}/append-capture", (LibraryStore library, Guid id, AppendCaptureRequest request) => library.AppendCapture(id, request));
 app.MapPost("/v1/library/delete", (LibraryStore library, DeleteItemRequest request) => library.Delete(request));
 app.MapPost("/v1/library/refresh", (LibraryStore library) => { library.Refresh(); return Results.NoContent(); });
 app.MapGet("/v1/search", (LibraryStore library, string? q, int? page, int? pageSize) => library.Search(q ?? "", page ?? 0, pageSize ?? 20));
+app.MapGet("/v1/views/{view}", (LibraryStore library, string view, int? page, int? pageSize) => library.SmartView(view, page ?? 0, pageSize ?? 20));
 app.MapPost("/v1/search/rebuild", (LibraryStore library, SearchIndex search) => Results.Ok(new { indexed = search.Rebuild(library.AllNotes()) }));
 app.MapPost("/v1/git/flush", async (GitSyncService git, LibraryStore library, CancellationToken cancellationToken) =>
 {

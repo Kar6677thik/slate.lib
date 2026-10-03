@@ -20,6 +20,8 @@ public sealed record NoteDocument(
     string? Status,
     string PlainText)
 {
+    public DateTimeOffset? Created { get; init; }
+    public DateTimeOffset? Modified { get; init; }
     public const int MaxBytes = 2 * 1024 * 1024;
     public static string NormalizeLineEndings(string source) =>
         source.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
@@ -82,6 +84,7 @@ public sealed record NoteDocument(
                 throw new InvalidDataException($"Front matter '{key}' must be a nonempty scalar.");
             return scalar.Value;
         }
+        DateTimeOffset? DateValue(string key) => metadata is not null && metadata.Children.TryGetValue(new YamlScalarNode(key), out var value) && value is YamlScalarNode scalar ? ParseDate(scalar.Value) : null;
 
         IReadOnlyList<string> Scalars(string key)
         {
@@ -129,7 +132,17 @@ public sealed record NoteDocument(
             headings,
             Scalar("type"),
             Scalar("status"),
-            Markdown.ToPlainText(body).Trim());
+            Markdown.ToPlainText(body).Trim()) { Created = DateValue("created"), Modified = DateValue("updated") ?? DateValue("modified") };
+    }
+
+    public static DateTimeOffset? ParseDate(string? value)
+    {
+        if (value is null) return null;
+        if (DateOnly.TryParseExact(value, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var day))
+            return new DateTimeOffset(day.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        // A timestamp without an offset cannot establish an instant across devices.
+        if (!value.EndsWith('Z') && !System.Text.RegularExpressions.Regex.IsMatch(value, @"[+-]\d{2}:\d{2}$")) return null;
+        return DateTimeOffset.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var instant) ? instant.ToUniversalTime() : null;
     }
 
     public static string AddId(string source, Guid id)

@@ -8,6 +8,9 @@ artifacts
 docs
 samples
 tests
+**/node_modules
+**/.next
+**/output
 *.pfx
 *.p12
 *.jks

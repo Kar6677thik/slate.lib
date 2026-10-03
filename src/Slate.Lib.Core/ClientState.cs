@@ -15,7 +15,8 @@ public sealed record DraftRecord(
     string? BaseRevision = null,
     string? BaseMarkdown = null,
     CaptureNoteRequest? PendingCapture = null,
-    IReadOnlyList<PendingAsset>? PendingAssets = null);
+    IReadOnlyList<PendingAsset>? PendingAssets = null,
+    bool? ReadyToSubmit = null);
 
 public sealed record CachedNoteRecord(LibraryNote Note, DateTimeOffset FetchedAt, DateTimeOffset LastAccessedAt);
 public sealed record RecentNote(Guid Id, string Path, string Title, DateTimeOffset LastAccessedAt);
@@ -29,15 +30,23 @@ public sealed class ClientStateStore
     private readonly long cacheLimitBytes;
     private readonly int recentLimit;
     private readonly SemaphoreSlim gate = new(1, 1);
+    public WorkspacePreferenceStore Workspace { get; }
+    public OfflineLibrary Offline { get; }
+    public Guid LibraryId { get; }
+    public ReadingActivityStore Activity { get; }
 
     public ClientStateStore(string appDataRoot, string cacheRoot, Guid libraryId, long cacheLimitBytes, int recentLimit = 100)
     {
         if (libraryId == Guid.Empty) throw new ArgumentException("A library ID is required.", nameof(libraryId));
+        LibraryId = libraryId;
         if (cacheLimitBytes < 1024) throw new ArgumentOutOfRangeException(nameof(cacheLimitBytes));
         if (recentLimit is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(recentLimit));
         draftsDirectory = Path.Combine(appDataRoot, "libraries", libraryId.ToString("D"), "drafts");
         cacheDirectory = Path.Combine(cacheRoot, "slate.lib", libraryId.ToString("D"), "notes");
         preferencesPath = Path.Combine(appDataRoot, "libraries", libraryId.ToString("D"), "preferences.json");
+        Workspace = new WorkspacePreferenceStore(appDataRoot, libraryId);
+        Offline = new OfflineLibrary(appDataRoot, libraryId);
+        Activity = new ReadingActivityStore(appDataRoot, libraryId);
         this.cacheLimitBytes = cacheLimitBytes;
         this.recentLimit = recentLimit;
     }
@@ -48,6 +57,19 @@ public sealed class ClientStateStore
         await gate.WaitAsync(cancellationToken);
         try { await AtomicJson.WriteAsync(Path.Combine(draftsDirectory, draft.DraftId.ToString("D") + ".json"), draft, Json, cancellationToken); }
         finally { gate.Release(); }
+    }
+    public async Task ReconcileOfflineAsync(LibraryApiClient api, CancellationToken token = default)
+    {
+        if ((await api.StatusAsync(token)).LibraryId != LibraryId) throw new InvalidOperationException("The connected server is a different library. Pending work was preserved.");
+        await Offline.Queue.ReplayAsync(api, token: token);
+        foreach (var operation in (await Offline.Queue.ReadAsync()).Where(x => x.State == "completed" && !x.Acknowledged && x.Result is not null))
+        {
+            var draft = await ReadDraftAsync(operation.DraftId, token);
+            // A newer draft always survives replay of an older snapshot.
+            if (draft?.Markdown == operation.Request.Markdown) await DeleteDraftAsync(operation.DraftId, token);
+            await CacheNoteAsync(operation.Result!, cancellationToken: token);
+            await Offline.Queue.AcknowledgeAsync(operation.Id);
+        }
     }
 
     public async Task<DraftRecord?> ReadDraftAsync(Guid draftId, CancellationToken cancellationToken = default)
@@ -87,6 +109,8 @@ public sealed class ClientStateStore
             await AtomicJson.WriteAsync(Path.Combine(cacheDirectory, note.Id.ToString("D") + ".json"), new CachedNoteRecord(note, instant, instant), Json, cancellationToken);
             var recents = (await ReadRecentsUnsafe(cancellationToken)).Where(x => x.Id != note.Id).Prepend(new RecentNote(note.Id, note.Path, note.Title, instant)).Take(recentLimit).ToArray();
             await AtomicJson.WriteAsync(preferencesPath, recents, Json, cancellationToken);
+            var preferences = await Workspace.ReadAsync(cancellationToken);
+            if (preferences.Favorites.Any(x => x.Id == note.Id && x.Title != note.Title)) await Workspace.UpdateTitleAsync(note.Id, note.Title);
             EvictCacheUnsafe(recents.Select(x => x.Id).ToArray());
         }
         finally { gate.Release(); }
@@ -94,6 +118,7 @@ public sealed class ClientStateStore
 
     public async Task<CachedNoteRecord?> ReadCachedNoteAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        if (await Offline.ReadAsync(id) is { } downloaded) return downloaded;
         await gate.WaitAsync(cancellationToken);
         try
         {
@@ -194,7 +219,8 @@ public sealed class PendingCaptureProcessor(ClientStateStore store)
     public async Task<int> RetryAsync(Func<CaptureNoteRequest, CancellationToken, Task<LibraryNote>> submit, CancellationToken token = default)
     {
         var completed = 0;
-        foreach (var draft in (await store.ReadDraftsAsync(token)).Where(x => x.PendingCapture is not null).OrderBy(x => x.UpdatedAt))
+        var queued = (await store.Offline.Queue.ReadAsync()).Select(x => x.DraftId).ToHashSet();
+        foreach (var draft in (await store.ReadDraftsAsync(token)).Where(x => x.PendingCapture is not null && x.ReadyToSubmit != false && !queued.Contains(x.DraftId)).OrderBy(x => x.UpdatedAt))
         {
             try
             {
@@ -214,7 +240,8 @@ public sealed class PendingCaptureProcessor(ClientStateStore store)
         CancellationToken token = default)
     {
         var completed = 0;
-        foreach (var draft in (await store.ReadDraftsAsync(token)).Where(x => x.PendingCapture is not null).OrderBy(x => x.UpdatedAt))
+        var queued = (await store.Offline.Queue.ReadAsync()).Select(x => x.DraftId).ToHashSet();
+        foreach (var draft in (await store.ReadDraftsAsync(token)).Where(x => x.PendingCapture is not null && x.ReadyToSubmit != false && !queued.Contains(x.DraftId)).OrderBy(x => x.UpdatedAt))
         {
             try
             {
@@ -240,6 +267,8 @@ public sealed class PendingAssetStore
 {
     private readonly string directory;
     private readonly long maximumBytes;
+    private PendingAssetStore(string directory, long maximumBytes) { this.directory = directory; this.maximumBytes = maximumBytes; }
+    public static PendingAssetStore ForShareStaging(string appDataRoot, long maximumBytes = 25L * 1024 * 1024) => new(Path.Combine(appDataRoot, "incoming-assets"), maximumBytes);
 
     public PendingAssetStore(string appDataRoot, Guid libraryId, long maximumBytes = 25L * 1024 * 1024)
     {

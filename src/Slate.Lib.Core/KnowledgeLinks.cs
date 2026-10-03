@@ -97,7 +97,7 @@ public static class AssetReferences
     {
         assetId = default;
         if (url.StartsWith("asset://", StringComparison.OrdinalIgnoreCase)) return Guid.TryParse(url[8..].Split(['/', '?', '#'])[0], out assetId);
-        var pathOnly = url.Split(['?', '#'])[0].Replace('\\', '/');
+        var pathOnly = Uri.UnescapeDataString(url.Split(['?', '#'])[0]).Replace('\\', '/');
         var noteDirectory = notePath.Contains('/') ? notePath[..notePath.LastIndexOf('/')] : "";
         var parts = noteDirectory.Length == 0 ? new List<string>() : noteDirectory.Split('/').ToList();
         foreach (var part in pathOnly.Split('/', StringSplitOptions.RemoveEmptyEntries))
@@ -115,6 +115,10 @@ public static class AssetReferences
         var ids = new HashSet<Guid>();
         foreach (Match match in Regex.Matches(markdown, @"!?\[[^\]\r\n]*\]\((?<url>[^)\s]+)\)", RegexOptions.CultureInvariant))
             if (TryParse(notePath, match.Groups["url"].Value, out var id)) ids.Add(id);
+        foreach (var link in PortableNoteLinks.Extract(markdown)) if (TryParse(notePath, link.Url, out var id)) ids.Add(id);
+        // Conservative retention also recognizes literal asset identifiers, including examples and unusual syntax.
+        foreach (Match match in Regex.Matches(markdown, @"(?:\.assets/|asset://)([0-9a-fA-F-]{36})", RegexOptions.CultureInvariant))
+            if (Guid.TryParse(match.Groups[1].Value, out var id)) ids.Add(id);
         return ids.ToArray();
     }
 }

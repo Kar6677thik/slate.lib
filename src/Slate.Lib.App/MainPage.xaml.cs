@@ -19,6 +19,16 @@ public sealed class TreeRow : INotifyPropertyChanged
     private bool expanded;
     private bool hovered;
     private bool selected;
+    private bool multiSelected;
+    public bool SingleSelection => !multiSelected;
+    public string CopyCaption => multiSelected ? "Copy selection" : "Copy";
+    public string CutCaption => multiSelected ? "Cut selection" : "Cut";
+    public string DeleteCaption => multiSelected ? "Delete selection…" : "Delete…";
+    public void SetMultiSelection(bool value)
+    {
+        multiSelected = value;
+        foreach (var property in new[] { nameof(SingleSelection), nameof(CopyCaption), nameof(CutCaption), nameof(DeleteCaption) }) PropertyChanged?.Invoke(this, new(property));
+    }
     public bool Expanded
     {
         get => expanded;
@@ -29,8 +39,9 @@ public sealed class TreeRow : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new(nameof(IconSource)));
         }
     }
-    public bool Hovered { get => hovered; set { hovered = value; PropertyChanged?.Invoke(this, new(nameof(ShowOverflow))); } }
-    public bool Selected { get => selected; set { selected = value; PropertyChanged?.Invoke(this, new(nameof(Selected))); PropertyChanged?.Invoke(this, new(nameof(ShowOverflow))); } }
+    public bool Hovered { get => hovered; set { hovered = value; PropertyChanged?.Invoke(this, new(nameof(OverflowOpacity))); PropertyChanged?.Invoke(this, new(nameof(RowBackground))); } }
+    public bool Selected { get => selected; set { selected = value; PropertyChanged?.Invoke(this, new(nameof(Selected))); PropertyChanged?.Invoke(this, new(nameof(OverflowOpacity))); PropertyChanged?.Invoke(this, new(nameof(RowBackground))); } }
+    public Color RowBackground => Selected ? Color.FromArgb("#2C3D59") : Hovered ? Color.FromArgb("#2C2F3B") : Colors.Transparent;
     public event PropertyChangedEventHandler? PropertyChanged;
     public bool Loaded { get; set; }
     public int? NextPage { get; set; }
@@ -44,6 +55,7 @@ public sealed class TreeRow : INotifyPropertyChanged
         : "document_20_regular.png";
     public bool ShowChevron => MoreFor is null && Entry.IsDirectory;
     public bool ShowOverflow => MoreFor is null && (Hovered || Selected);
+    public double OverflowOpacity => ShowOverflow ? 1 : 0;
 }
 
 public sealed record LinkSidebarItem(Guid? NoteId, string Title, string Detail, bool Resolved);
@@ -63,18 +75,23 @@ public partial class MainPage : ContentPage
     private CancellationTokenSource? searchDelay;
     private CancellationTokenSource? autosaveDelay;
     private readonly TaskCompletionSource webReady = new();
+    private readonly SemaphoreSlim saveGate = new(1, 1);
+    private readonly SemaphoreSlim previewGate = new(1, 1);
+    private int previewGeneration;
+    private string? renderedPreviewKey;
     private bool firstAppearance = true;
     private bool rebuilding;
     private bool browsing;
     private bool loadingDocument;
     private bool settingEditor;
     private bool dirty;
+    private bool explicitOfflineRead;
     private Guid? openedNoteId;
     private LibraryNote? currentNote;
     private TreeRow? selectedRow;
     private string? clipboardPath;
     private bool clipboardCut;
-    private ViewMode mode = ViewMode.Split;
+    private ViewMode mode = ViewMode.Preview;
 #if WINDOWS
     private bool closeHooked;
     private bool allowWindowClose;
@@ -82,6 +99,7 @@ public partial class MainPage : ContentPage
 #endif
     private string? lastLibraryVersion;
     private long lastSearchVersion;
+    private bool searchKeyboardNavigating = false;
     private ClientStateStore? clientState;
     private DraftDebouncer? draftDebouncer;
     private PendingAssetStore? assetStore;
@@ -92,7 +110,11 @@ public partial class MainPage : ContentPage
     {
         this.api = api; this.renderer = renderer;
         InitializeComponent();
+        ClientControls.RoundPanel(ExplorerPanel);
+        ClientControls.RoundPanel(RightRail);
+        ClientControls.RoundPanel(ReaderPane, 14);
         Tree.ItemsSource = rows;
+        InitializeProductivity();
         BacklinksList.ItemsSource = backlinks;
         OutgoingList.ItemsSource = outgoingLinks;
         SetRailTab(true);
@@ -105,11 +127,17 @@ public partial class MainPage : ContentPage
         HookWindowClose();
         if (!firstAppearance) return;
         firstAppearance = false;
+        if (Environment.GetEnvironmentVariable("SLATE_SERVER") is null && Guid.TryParse(Preferences.Get("library-id", ""), out var knownLibrary))
+        {
+            clientState = new ClientStateStore(FileSystem.AppDataDirectory, FileSystem.CacheDirectory, knownLibrary, 500L * 1024 * 1024);
+            assetStore = new PendingAssetStore(FileSystem.AppDataDirectory, knownLibrary);
+            OfflineReplayPump.Start(clientState, api);
+        }
         ServerEntry.Text = Environment.GetEnvironmentVariable("SLATE_SERVER") ?? Preferences.Get("server", "http://localhost:5188");
         try { TokenEntry.Text = Environment.GetEnvironmentVariable("SLATE_TOKEN") ?? await SecureStorage.GetAsync("device-token"); }
         catch { Status.Text = "Saved token unavailable. Enter it again to connect."; }
-        ConnectionPanel.IsVisible = string.IsNullOrWhiteSpace(TokenEntry.Text);
         if (!string.IsNullOrWhiteSpace(TokenEntry.Text)) await ConnectAsync(false);
+        else await OpenSettingsAsync();
     }
 
     private async void ConnectClicked(object? sender, EventArgs e)
@@ -122,6 +150,8 @@ public partial class MainPage : ContentPage
         connection.Cancel(); reading?.Cancel(); connection.Dispose(); connection = new();
         var cancellation = connection.Token;
         ResetDocument();
+        openTabs.Clear(); navigationHistory.Clear(); navigationIndex = -1; RenderTabs(); UpdateNavigationControls();
+        FeedbackBanner.IsVisible = false;
         root = new() { Depth = -1, Expanded = true }; rows.Clear(); SetSelectedRow(null);
         browsing = false; Busy.IsRunning = true; Status.Text = "Connecting…";
         ShowMessage("Connecting to your library", "Fetching folders from the server…");
@@ -130,14 +160,22 @@ public partial class MainPage : ContentPage
             api.Connect(ServerEntry.Text ?? "", TokenEntry.Text ?? "");
             if (refreshServer) await api.RefreshAsync(cancellation);
             var status = await api.StatusAsync(cancellation);
+            if (Environment.GetEnvironmentVariable("SLATE_SERVER") is null) Preferences.Set("library-id", status.LibraryId.ToString());
             clientState = new ClientStateStore(FileSystem.AppDataDirectory, FileSystem.CacheDirectory, status.LibraryId, 500L * 1024 * 1024);
+            await WorkspaceNotes.MigrateBookmarksAsync(clientState, ServerEntry.Text ?? "");
+            await RefreshPinnedFoldersAsync();
             assetStore = new PendingAssetStore(FileSystem.AppDataDirectory, status.LibraryId);
+            OfflineReplayPump.Start(clientState, api);
+            await clientState.ReconcileOfflineAsync(api, cancellation);
             await new PendingCaptureProcessor(clientState).RetryAsync((asset, token) => PendingAssetStore.UploadAsync(api, asset, token), api.CaptureAsync, cancellation);
             await LoadChildren(root, 0, cancellation);
             RebuildRows();
-            Preferences.Set("server", ServerEntry.Text);
             var stored = true;
-            try { await SecureStorage.SetAsync("device-token", TokenEntry.Text ?? ""); } catch { stored = false; }
+            if (Environment.GetEnvironmentVariable("SLATE_SERVER") is null && Environment.GetEnvironmentVariable("SLATE_TOKEN") is null)
+            {
+                Preferences.Set("server", ServerEntry.Text);
+                try { await SecureStorage.SetAsync("device-token", TokenEntry.Text ?? ""); } catch { stored = false; }
+            }
             Status.Text = $"Connected · server {status.ServerVersion} · search {status.IndexState}" + (stored ? "" : " · token could not be saved");
             UpdateSyncState(GitLabel(status.Git));
             ConnectionPanel.IsVisible = false;
@@ -162,30 +200,56 @@ public partial class MainPage : ContentPage
 
     private void RebuildRows(string? selectPath = null)
     {
-        rebuilding = true; rows.Clear();
+        rebuilding = true; var desired = new List<TreeRow>();
         void Append(TreeRow node)
         {
-            foreach (var child in node.Children)
+            foreach (var child in node.Children.OrderByDescending(x => x.Entry.IsDirectory).ThenBy(x => x.Name, reverseSort ? Comparer<string>.Create((a, b) => StringComparer.OrdinalIgnoreCase.Compare(b, a)) : StringComparer.OrdinalIgnoreCase))
             {
-                rows.Add(child);
+                desired.Add(child);
                 if (child.Expanded) Append(child);
             }
-            if (node.NextPage.HasValue) rows.Add(new TreeRow { MoreFor = node, Depth = node.Depth + 1 });
+            if (node.NextPage.HasValue) desired.Add(new TreeRow { MoreFor = node, Depth = node.Depth + 1 });
         }
         Append(root);
+        // Remove collapsed descendants before inserting new rows. Moving siblings past
+        // descendants that are about to disappear made the native tree animation jump.
+        var retained = desired.ToHashSet();
+        for (var i = rows.Count - 1; i >= 0; i--)
+            if (!retained.Contains(rows[i])) rows.RemoveAt(i);
+        for (var i = 0; i < desired.Count; i++)
+        {
+            if (i < rows.Count && ReferenceEquals(rows[i], desired[i])) continue;
+            var existing = rows.IndexOf(desired[i]);
+            if (existing >= 0) rows.Move(existing, i);
+            else rows.Insert(i, desired[i]);
+        }
+        while (rows.Count > desired.Count) rows.RemoveAt(rows.Count - 1);
         SetSelectedRow(rows.FirstOrDefault(row => row.Entry.Path == selectPath) ??
                        rows.FirstOrDefault(row => !row.Entry.IsDirectory && row.Entry.Id == openedNoteId));
-        Tree.SelectedItem = selectedRow;
+        Tree.SelectedItem = selectedRow?.Entry.IsDirectory == false ? selectedRow : null;
         rebuilding = false;
     }
 
     private async Task ReloadTreeAsync(string? selectPath = null)
     {
         var expanded = rows.Where(x => x.Expanded).Select(x => x.Entry.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (selectPath is not null)
+        {
+            var segments = selectPath.Split('/');
+            for (var i = 1; i < segments.Length; i++) expanded.Add(string.Join('/', segments.Take(i)));
+        }
         root = new() { Depth = -1, Expanded = true };
         await LoadChildren(root, 0, connection.Token);
         async Task Restore(TreeRow parent)
         {
+            if (selectPath is not null && (parent.Entry.Path.Length == 0 || selectPath.StartsWith(parent.Entry.Path + "/", StringComparison.Ordinal)))
+            {
+                var relative = parent.Entry.Path.Length == 0 ? selectPath : selectPath[(parent.Entry.Path.Length + 1)..];
+                var name = relative.Split('/')[0];
+                var childPath = parent.Entry.Path.Length == 0 ? name : parent.Entry.Path + "/" + name;
+                while (parent.NextPage is { } page && !parent.Children.Any(x => x.Entry.Path == childPath))
+                    await LoadChildren(parent, page, connection.Token);
+            }
             foreach (var child in parent.Children.Where(x => x.Entry.IsDirectory && expanded.Contains(x.Entry.Path)))
             {
                 await LoadChildren(child, 0, connection.Token); child.Expanded = true; await Restore(child);
@@ -198,6 +262,7 @@ public partial class MainPage : ContentPage
     private async void SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (rebuilding || e.CurrentSelection.FirstOrDefault() is not TreeRow row) return;
+        if (HandleExplorerMultiSelection(row)) return;
         SetSelectedRow(row);
         if (row.MoreFor is null && !row.Entry.IsDirectory)
         {
@@ -212,13 +277,16 @@ public partial class MainPage : ContentPage
         {
             if (row.MoreFor is { } parent) await LoadChildren(parent, parent.NextPage!.Value, connection.Token);
             else { if (!row.Loaded) await LoadChildren(row, 0, connection.Token); row.Expanded = !row.Expanded; }
+
             RebuildRows(row.Entry.Path); Status.Text = "Connected";
+            rebuilding = true; Tree.SelectedItem = null; rebuilding = false;
+
         }
         catch (Exception exception) { ShowError(exception); }
         finally { browsing = false; }
     }
 
-    private async Task OpenNote(Func<CancellationToken, Task<LibraryNote>> fetch)
+    private async Task OpenNote(Func<CancellationToken, Task<LibraryNote>> fetch, bool offlineOnly = false)
     {
         reading?.Cancel(); reading?.Dispose(); reading = CancellationTokenSource.CreateLinkedTokenSource(connection.Token);
         var cancellation = reading.Token;
@@ -226,6 +294,7 @@ public partial class MainPage : ContentPage
         try
         {
             var note = await fetch(cancellation);
+            explicitOfflineRead = offlineOnly;
             SearchPanel.IsVisible = HistoryPanel.IsVisible = false;
             currentNote = note; openedNoteId = note.Id;
             pendingAssets.Clear();
@@ -239,19 +308,22 @@ public partial class MainPage : ContentPage
                 {
                     if (NoteDocument.NormalizeLineEndings(draft.Markdown) == NoteDocument.NormalizeLineEndings(note.Markdown))
                         await clientState.DeleteDraftAsync(draft.DraftId, cancellation);
-                    else if (await DisplayAlertAsync("Unsaved changes recovered", "Restore the local draft?", "Restore Draft", "Discard"))
+                    else if (await SlateDialogs.AlertAsync(this, "Unsaved changes recovered", "Restore the local draft?", "Restore Draft", "Discard"))
                     {
                         markdown = draft.Markdown; dirty = true;
                         pendingAssets.AddRange(draft.PendingAssets ?? []);
-                        if (!string.IsNullOrWhiteSpace(draft.BaseRevision)) currentNote = note with { Revision = draft.BaseRevision };
+                        if (!string.IsNullOrWhiteSpace(draft.BaseRevision)) currentNote = note with { Revision = draft.BaseRevision, Markdown = draft.BaseMarkdown ?? note.Markdown };
                     }
                     else await clientState.DeleteDraftAsync(draft.DraftId, cancellation);
                 }
             }
             settingEditor = true; MarkdownEditor.Text = markdown; settingEditor = false;
-            UpdateDocumentChrome(); SetMode(mode); await RenderPreviewAsync(markdown, cancellation);
+            TrackNote(note);
+            await RediscoveryBrowser.RecordAsync(clientState, note.Id);
+            UpdateDocumentChrome(); SetMode(mode, render: false); await RenderPreviewAsync(markdown, cancellation);
+            if (!offlineOnly && !rows.Any(row => row.Entry.Id == note.Id)) await ReloadTreeAsync(note.Path);
             rebuilding = true; SetSelectedRow(rows.FirstOrDefault(row => row.Entry.Id == note.Id)); Tree.SelectedItem = selectedRow; rebuilding = false;
-            Status.Text = "Connected";
+            Status.Text = offlineOnly ? "Downloaded copy · refresh when connected" : "Connected";
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception exception) { if (!cancellation.IsCancellationRequested) ShowError(exception); }
@@ -261,8 +333,8 @@ public partial class MainPage : ContentPage
     private void EditorTextChanged(object? sender, TextChangedEventArgs e)
     {
         if (settingEditor || currentNote is null) return;
-        dirty = true; UpdateDocumentChrome();
-        UpdateInfoPanel(e.NewTextValue ?? "");
+        if (!dirty && NoteDocument.NormalizeLineEndings(e.NewTextValue ?? "") == NoteDocument.NormalizeLineEndings(currentNote.Markdown)) return;
+        dirty = true; UpdateDocumentChrome(updateInfo: false);
         draftDebouncer?.Schedule(CurrentDraft(e.NewTextValue ?? ""));
         autosaveDelay?.Cancel(); autosaveDelay?.Dispose(); autosaveDelay = new();
         _ = AutosaveAsync(autosaveDelay.Token);
@@ -282,23 +354,45 @@ public partial class MainPage : ContentPage
 
     private async Task DebouncedPreviewAsync(string source, CancellationToken token)
     {
-        try { await Task.Delay(350, token); if (mode != ViewMode.Write) await RenderPreviewAsync(source, token); }
+        try { await Task.Delay(350, token); UpdateInfoPanel(source); if (mode != ViewMode.Write) await RenderPreviewAsync(source, token); }
         catch (OperationCanceledException) { }
         catch (Exception exception) { Status.Text = "Preview unavailable: " + exception.Message; }
     }
 
     private async Task RenderPreviewAsync(string source, CancellationToken cancellation)
     {
+        if (currentNote is null || mode == ViewMode.Write) return;
+        var generation = ++previewGeneration;
+        var key = $"{currentNote.Id}/{currentNote.Path}/{currentNote.Revision}/{lastLibraryVersion}/{source}";
+        await previewGate.WaitAsync(cancellation);
+        try
+        {
+            if (generation != previewGeneration || (key == renderedPreviewKey && pendingHeading is null)) return;
+            await RenderPreviewCoreAsync(source, cancellation, generation);
+            if (generation == previewGeneration) renderedPreviewKey = key;
+        }
+        finally { previewGate.Release(); }
+    }
+
+    private async Task RenderPreviewCoreAsync(string source, CancellationToken cancellation, int generation)
+    {
         if (currentNote is null) return;
         var draft = currentNote with { Markdown = NoteDocument.NormalizeLineEndings(source) };
-        NoteLinks? links = null; try { links = await api.LinksAsync(draft.Id, cancellation); } catch (HttpRequestException) { }
+        NoteLinks? links = null;
+        if (!explicitOfflineRead) try { links = await api.LinksAsync(draft.Id, cancellation); } catch (HttpRequestException) { }
         UpdateLinkSidebar(links);
         UpdateInfoPanel(draft.Markdown);
         var images = new Dictionary<Guid, string>();
         foreach (var id in AssetReferences.Extract(draft.Path, draft.Markdown))
         {
+            if (clientState is not null && await clientState.Offline.ReadAssetAsync(id) is { } localAsset)
+            {
+                if (localAsset.Metadata.InlineImage) images[id] = $"data:{localAsset.Metadata.ContentType};base64,{Convert.ToBase64String(localAsset.Bytes)}";
+                continue;
+            }
             try
             {
+                if (explicitOfflineRead) continue;
                 var metadata = await api.AssetMetadataAsync(id, cancellation);
                 if (!metadata.InlineImage) continue;
                 var bytes = await api.ReadAssetBytesAsync(id, cancellation);
@@ -306,8 +400,10 @@ public partial class MainPage : ContentPage
             }
             catch (HttpRequestException) { }
         }
-        var path = await renderer.WriteDocumentAsync(FileSystem.CacheDirectory, draft, links, images, cancellation);
+        var path = await renderer.WriteDocumentAsync(FileSystem.CacheDirectory, draft, links, images, cancellation, desktopAppearance: true);
         await webReady.Task.WaitAsync(TimeSpan.FromSeconds(15), cancellation);
+        cancellation.ThrowIfCancellationRequested();
+        if (generation != previewGeneration || currentNote?.Id != draft.Id) return;
         loadingDocument = true;
 #if WINDOWS
         var target = new Uri(path).AbsoluteUri + (pendingHeading ?? ""); pendingHeading = null;
@@ -326,14 +422,14 @@ public partial class MainPage : ContentPage
     private async Task InsertWikiLinkAsync()
     {
         if (currentNote is null) return;
-        var query = await DisplayPromptAsync("Insert wiki link", "Search by note title", placeholder: "PostgreSQL");
+        var query = await SlateDialogs.PromptAsync(this, "Insert wiki link", "Search by note title", placeholder: "PostgreSQL");
         if (string.IsNullOrWhiteSpace(query)) return;
         try
         {
             var hits = (await api.SearchAsync(query, 0, connection.Token)).Results.Take(8).ToArray();
             if (hits.Length == 0) { Status.Text = "No matching notes."; return; }
             var labels = hits.Select(x => x.Title + " — " + x.Path).ToArray();
-            var selected = await DisplayActionSheetAsync("Choose a note", "Cancel", null, labels);
+            var selected = await SlateDialogs.ChooseAsync(this, "Choose a note", "Cancel", null, labels);
             var index = Array.IndexOf(labels, selected); if (index < 0) return;
             var title = hits[index].Title.Replace("]", "", StringComparison.Ordinal);
             InsertMarkdown($"[[id:{hits[index].Id:D}|{title}]]");
@@ -343,6 +439,7 @@ public partial class MainPage : ContentPage
 
     private void InsertMarkdown(string markdown)
     {
+        if (mode == ViewMode.Preview) SetMode(ViewMode.Write);
         var source = MarkdownEditor.Text ?? ""; var position = Math.Clamp(MarkdownEditor.CursorPosition, 0, source.Length);
         MarkdownEditor.Text = source.Insert(position, markdown); MarkdownEditor.CursorPosition = position + markdown.Length;
     }
@@ -370,21 +467,31 @@ public partial class MainPage : ContentPage
         var source = MarkdownEditor.Text ?? ""; var position = Math.Clamp(MarkdownEditor.CursorPosition, 0, source.Length);
         MarkdownEditor.Text = source.Insert(position, markdown); MarkdownEditor.CursorPosition = position + markdown.Length;
         draftDebouncer?.Schedule(CurrentDraft(MarkdownEditor.Text));
+        if (mode == ViewMode.Preview) SetMode(ViewMode.Write);
     }
     private async Task<bool> SaveAsync()
+    {
+        await saveGate.WaitAsync();
+        try { return await SaveCoreAsync(); }
+        finally { saveGate.Release(); }
+    }
+
+    private async Task<bool> SaveCoreAsync()
     {
         if (currentNote is null || !dirty) return true;
         Busy.IsRunning = true; DocumentState.Text = "Saving…";
         try
         {
             var sent = NoteDocument.NormalizeLineEndings(MarkdownEditor.Text ?? "");
-            foreach (var asset in pendingAssets)
+            foreach (var asset in clientState is null ? pendingAssets : [])
             {
                 var metadata = await PendingAssetStore.UploadAsync(api, asset, connection.Token);
                 sent = sent.Replace($"asset-pending://{asset.Id:D}", AssetReferences.PathForNote(currentNote.Path, asset.Id, metadata.Extension), StringComparison.Ordinal);
             }
             if (sent != MarkdownEditor.Text) { settingEditor = true; MarkdownEditor.Text = sent; settingEditor = false; }
-            var saved = await api.UpdateNoteAsync(currentNote.Id, new(sent, currentNote.Revision), connection.Token);
+            var saved = clientState is null ? await api.UpdateNoteAsync(currentNote.Id, new(sent, currentNote.Revision), connection.Token)
+                : await OfflineActions.EditAsync(clientState, api, currentNote, sent, pendingAssets.ToArray(), connection.Token);
+            if (sent == MarkdownEditor.Text) { settingEditor = true; MarkdownEditor.Text = saved.Markdown; settingEditor = false; sent = saved.Markdown; }
             currentNote = saved;
             if (NoteDocument.NormalizeLineEndings(MarkdownEditor.Text ?? "") == sent)
             {
@@ -407,16 +514,16 @@ public partial class MainPage : ContentPage
         {
             if (draftDebouncer is not null) await draftDebouncer.FlushAsync();
             DocumentState.Text = "Needs attention";
-            var choice = await DisplayActionSheetAsync("This note changed elsewhere. Your draft was kept.", "Keep draft", null, "Open latest", "Save draft as new note");
-            if (choice == "Open latest")
+            try
             {
-                var latest = await api.ReadAsync(currentNote!.Id, connection.Token);
-                draftDebouncer?.Clear(); currentNote = latest; settingEditor = true; MarkdownEditor.Text = latest.Markdown; settingEditor = false; dirty = false;
-                await RenderPreviewAsync(latest.Markdown, connection.Token); UpdateDocumentChrome();
+                var merged = await MergeWorkbench.OpenAsync(this, api, clientState, currentNote!, MarkdownEditor.Text ?? "");
+                if (merged is null) return false;
+                currentNote = merged; settingEditor = true; MarkdownEditor.Text = merged.Markdown; settingEditor = false; dirty = false; draftDebouncer?.Clear();
+                await RenderPreviewAsync(merged.Markdown, connection.Token); UpdateDocumentChrome(); return true;
             }
-            else if (choice == "Save draft as new note") return await SaveConflictAsNewAsync();
-            return false;
+            catch (Exception failure) { ShowOperationError(failure, "The server changed again. Both versions remain preserved; reopen the merge workbench."); return false; }
         }
+        catch (OfflinePendingException exception) { DocumentState.Text = "Queued on this device"; Status.Text = exception.Message; return true; }
         catch (Exception exception) { if (draftDebouncer is not null) await draftDebouncer.FlushAsync(); ShowOperationError(exception, "Unable to save note."); UpdateDocumentChrome(); return false; }
         finally { Busy.IsRunning = false; }
     }
@@ -438,7 +545,7 @@ public partial class MainPage : ContentPage
     private async Task<bool> ResolveUnsavedAsync()
     {
         if (!dirty) return true;
-        var choice = await DisplayActionSheetAsync("Save changes?", "Cancel", null, "Save", "Discard");
+        var choice = await SlateDialogs.ChooseAsync(this, "Save changes?", "Cancel", null, "Save", "Discard");
         if (choice == "Save") return await SaveAsync();
         if (choice == "Discard")
         {
@@ -449,12 +556,12 @@ public partial class MainPage : ContentPage
         return false;
     }
 
-    private async void CloseNoteClicked(object? sender, EventArgs e) { if (await ResolveUnsavedAsync()) ResetDocument(); }
+    private async void CloseNoteClicked(object? sender, EventArgs e) { if (currentNote is not null) await CloseTabAsync(currentNote.Id); }
     private void ResetDocument()
     {
         currentNote = null; openedNoteId = null; dirty = false; settingEditor = true; MarkdownEditor.Text = ""; settingEditor = false; pendingAssets.Clear();
         draftDebouncer?.Clear(); draftDebouncer = null;
-        NoteTitle.Text = "Library"; Breadcrumb.Text = "HOME  /  LIBRARY";
+        NoteTitle.Text = "Your workspace"; Breadcrumb.Text = "Library";
         AttachImageButton.IsEnabled = AttachFileButton.IsEnabled = InsertLinkButton.IsEnabled = HistoryButton.IsEnabled = WriteButton.IsEnabled = PreviewButton.IsEnabled = SplitButton.IsEnabled = SaveButton.IsEnabled = false;
         CloseNoteButton.IsVisible = false; SaveButton.IsVisible = false; DocumentState.Text = "";
         SetDocumentChromeVisible(false);
@@ -462,21 +569,22 @@ public partial class MainPage : ContentPage
         ShowMessage("Choose a note", "Expand a folder or create a Markdown note.");
     }
 
-    private void UpdateDocumentChrome()
+    private void UpdateDocumentChrome(bool updateInfo = true)
     {
         if (currentNote is null) return;
         SetDocumentChromeVisible(true);
         NoteTitle.Text = currentNote.Title + (dirty ? "  •" : ""); Breadcrumb.Text = "Library  ›  " + currentNote.Path.Replace("/", "  ›  ");
         DocumentState.Text = dirty ? "Unsaved" : "Saved ✓";
         SaveButton.IsVisible = dirty;
-        UpdateInfoPanel(MarkdownEditor.Text ?? currentNote.Markdown);
+        if (updateInfo) UpdateInfoPanel(MarkdownEditor.Text ?? currentNote.Markdown);
         AttachImageButton.IsEnabled = AttachFileButton.IsEnabled = InsertLinkButton.IsEnabled = HistoryButton.IsEnabled = WriteButton.IsEnabled = PreviewButton.IsEnabled = SplitButton.IsEnabled = SaveButton.IsEnabled = true; CloseNoteButton.IsVisible = true;
+        RenderTabs();
     }
 
     private void WriteClicked(object? sender, EventArgs e) => SetMode(ViewMode.Write);
     private void PreviewClicked(object? sender, EventArgs e) => SetMode(ViewMode.Preview);
     private void SplitClicked(object? sender, EventArgs e) => SetMode(ViewMode.Split);
-    private void SetMode(ViewMode value)
+    private void SetMode(ViewMode value, bool render = true)
     {
         mode = value; MessagePanel.IsVisible = currentNote is null;
         EditorPane.IsVisible = currentNote is not null && value != ViewMode.Preview;
@@ -484,25 +592,24 @@ public partial class MainPage : ContentPage
         ReaderPane.IsVisible = Reader.IsVisible;
         Grid.SetColumn(EditorPane, 0); Grid.SetColumnSpan(EditorPane, value == ViewMode.Write ? 2 : 1);
         Grid.SetColumn(ReaderPane, value == ViewMode.Preview ? 0 : 1); Grid.SetColumnSpan(ReaderPane, value == ViewMode.Preview ? 2 : 1);
-        EditorPane.Margin = value == ViewMode.Write ? new Thickness(24, 0, 24, 16) : new Thickness(24, 0, 6, 16);
-        ReaderPane.Margin = value == ViewMode.Preview ? new Thickness(12, 0, 12, 16) : new Thickness(6, 0, 12, 16);
+        EditorPane.Margin = value == ViewMode.Write ? new Thickness(4, 0, 4, 6) : new Thickness(4, 0, 6, 6);
+        ReaderPane.Margin = value == ViewMode.Preview ? new Thickness(4, 0, 4, 6) : new Thickness(6, 0, 4, 6);
         SetModeButtonState(WriteButton, value == ViewMode.Write);
         SetModeButtonState(PreviewButton, value == ViewMode.Preview);
         SetModeButtonState(SplitButton, value == ViewMode.Split);
-        if (currentNote is not null && value != ViewMode.Write) _ = DebouncedPreviewAsync(MarkdownEditor.Text ?? "", CancellationToken.None);
+        if (render && currentNote is not null && value != ViewMode.Write) _ = DebouncedPreviewAsync(MarkdownEditor.Text ?? "", connection.Token);
         if (value != ViewMode.Preview) MarkdownEditor.Focus();
     }
 
     private static void SetModeButtonState(Button button, bool selected)
     {
-        button.BackgroundColor = selected ? Color.FromArgb("#29213D") : Colors.Transparent;
-        button.BorderColor = selected ? Color.FromArgb("#8B5CF6") : Color.FromArgb("#262B3D");
-        button.TextColor = selected ? Color.FromArgb("#F1F3F9") : Color.FromArgb("#9BA3B8");
+        button.BackgroundColor = selected ? Color.FromArgb("#334768") : Colors.Transparent;
+        button.TextColor = selected ? Color.FromArgb("#F2F3F7") : Color.FromArgb("#9C9EAE");
     }
 
-    private void SettingsClicked(object? sender, EventArgs e) => ConnectionPanel.IsVisible = !ConnectionPanel.IsVisible;
+    private async void SettingsClicked(object? sender, EventArgs e) => await OpenSettingsAsync();
     private void SyncStatusTapped(object? sender, TappedEventArgs e) => SyncClicked(sender, e);
-    private void SyncStatusPointerEntered(object? sender, Microsoft.Maui.Controls.PointerEventArgs e) => SyncStatusSurface.BackgroundColor = Color.FromArgb("#202436");
+    private void SyncStatusPointerEntered(object? sender, Microsoft.Maui.Controls.PointerEventArgs e) => SyncStatusSurface.BackgroundColor = Color.FromArgb("#333333");
     private void SyncStatusPointerExited(object? sender, Microsoft.Maui.Controls.PointerEventArgs e) => SyncStatusSurface.BackgroundColor = Colors.Transparent;
 
     private void LinksTabClicked(object? sender, EventArgs e) => SetRailTab(true);
@@ -510,21 +617,22 @@ public partial class MainPage : ContentPage
 
     private void SetRailTab(bool linksSelected)
     {
+        OutlineRail.IsVisible = false;
         LinksRail.IsVisible = linksSelected;
         InfoRail.IsVisible = !linksSelected;
         LinksTabIndicator.IsVisible = linksSelected;
         InfoTabIndicator.IsVisible = !linksSelected;
-        LinksTabButton.TextColor = linksSelected ? Color.FromArgb("#F1F3F9") : Color.FromArgb("#9BA3B8");
-        InfoTabButton.TextColor = linksSelected ? Color.FromArgb("#9BA3B8") : Color.FromArgb("#F1F3F9");
+        LinksTabButton.TextColor = linksSelected ? Color.FromArgb("#DADADA") : Color.FromArgb("#A0A0A0");
+        InfoTabButton.TextColor = linksSelected ? Color.FromArgb("#A0A0A0") : Color.FromArgb("#DADADA");
     }
 
     private void SetDocumentChromeVisible(bool visible)
     {
         NoteToolbar.IsVisible = visible;
-        RightRail.IsVisible = visible;
-        RailDivider.IsVisible = visible;
-        RailDividerColumn.Width = visible ? new GridLength(1) : new GridLength(0);
-        RailColumn.Width = visible ? new GridLength(276) : new GridLength(0);
+        RightRail.IsVisible = rightSidebarOpen;
+        RailDivider.IsVisible = rightSidebarOpen;
+        RailDividerColumn.Width = rightSidebarOpen ? new GridLength(1) : new GridLength(0);
+        RailColumn.Width = rightSidebarOpen ? new GridLength(260) : new GridLength(0);
     }
 
     private void UpdateLinkSidebar(NoteLinks? links)
@@ -541,8 +649,8 @@ public partial class MainPage : ContentPage
                 outgoingLinks.Add(new(link.TargetId, title, detail, link.State == "resolved"));
             }
         }
-        BacklinksHeading.Text = $"BACKLINKS · {backlinks.Count}";
-        OutgoingHeading.Text = $"OUTGOING LINKS · {outgoingLinks.Count}";
+        BacklinksHeading.Text = $"Linked mentions · {backlinks.Count}";
+        OutgoingHeading.Text = $"Outgoing links · {outgoingLinks.Count}";
     }
 
     private void UpdateInfoPanel(string markdown)
@@ -550,8 +658,13 @@ public partial class MainPage : ContentPage
         InfoPath.Text = currentNote?.Path ?? "No note selected";
         InfoRevision.Text = currentNote?.Revision ?? "—";
         var normalized = NoteDocument.NormalizeLineEndings(markdown);
-        var words = normalized.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+        var plain = normalized;
+        try { var document = NoteDocument.Parse(normalized, currentNote?.Path ?? "Untitled.md", allowMissingId: true); normalized = document.Body; plain = document.PlainText; }
+        catch (InvalidDataException) { }
+        var words = plain.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
         InfoWords.Text = $"{words} word{(words == 1 ? "" : "s")} · {normalized.Length} characters";
+        WorkspaceStats.Text = InfoWords.Text;
+        RenderTabs();
     }
 
     private async void BacklinkSelected(object? sender, SelectionChangedEventArgs e) => await NavigateFromRailAsync(BacklinksList, e);
@@ -574,19 +687,24 @@ public partial class MainPage : ContentPage
     private async void NewNoteClicked(object? sender, EventArgs e) => await NewNoteAsync(TargetFolder());
     private async void NewMenuClicked(object? sender, EventArgs e)
     {
-        var choice = await DisplayActionSheetAsync("New", "Cancel", null, "New note", "New folder", "Quick Thought");
+        var choice = await SlateDialogs.ChooseAsync(this, "New", "Cancel", null, "New note", "New folder", "Quick Thought", "Question", "Add Link");
         if (choice == "New note") await NewNoteAsync(TargetFolder());
         else if (choice == "New folder") await NewFolderAsync(TargetFolder());
         else if (choice == "Quick Thought") await QuickThoughtAsync();
+        else if (choice == "Question") await CreateKnowledgeAsync("question");
+        else if (choice == "Add Link") await CreateKnowledgeAsync("link");
     }
     private async Task NewNoteAsync(string folder)
     {
         if (!await ResolveUnsavedAsync()) return;
-        var name = await DisplayPromptAsync("New note", "Name", accept: "Create", cancel: "Cancel", placeholder: "My note");
+        var name = await SlateDialogs.PromptAsync(this, "New note", "Create in " + (folder.Length == 0 ? "Library" : folder), accept: "Create", cancel: "Cancel", placeholder: "My note");
         if (string.IsNullOrWhiteSpace(name)) return;
+        var id = Guid.NewGuid(); var template = await KnowledgeDialogs.TemplateAsync(this, api, id, Path.GetFileNameWithoutExtension(name));
+        if (template.Cancelled) return;
         await RunMutationAsync(async () =>
         {
-            var note = await api.CreateNoteAsync(new(folder, name, Path.GetFileNameWithoutExtension(name)), connection.Token);
+            var request = new CreateNoteRequest(folder, name, Path.GetFileNameWithoutExtension(name), id, template.Markdown);
+            var note = clientState is null ? await api.CreateNoteAsync(request, connection.Token) : await OfflineActions.CreateAsync(clientState, api, request, [], connection.Token);
             await ReloadTreeAsync(note.Path); await OpenNote(token => api.ReadAsync(note.Id, token));
         }, "Unable to create note.");
     }
@@ -594,7 +712,7 @@ public partial class MainPage : ContentPage
     private async void NewFolderClicked(object? sender, EventArgs e) => await NewFolderAsync(TargetFolder());
     private async Task NewFolderAsync(string parent)
     {
-        var name = await DisplayPromptAsync("New folder", "Name", accept: "Create", cancel: "Cancel", placeholder: "New folder");
+        var name = await SlateDialogs.PromptAsync(this, "New folder", "Name", accept: "Create", cancel: "Cancel", placeholder: "New folder");
         if (string.IsNullOrWhiteSpace(name)) return;
         await RunMutationAsync(async () => { var created = await api.CreateFolderAsync(new(parent, name), connection.Token); await ReloadTreeAsync(created.Path); }, "Unable to create folder.");
     }
@@ -602,30 +720,38 @@ public partial class MainPage : ContentPage
     private async Task RenameAsync(TreeRow row)
     {
         if (!await ResolveUnsavedAsync()) return;
-        var name = await DisplayPromptAsync("Rename", "New name", accept: "Rename", cancel: "Cancel", initialValue: row.Entry.Name);
+        var name = await SlateDialogs.PromptAsync(this, "Rename", "New name", accept: "Rename", cancel: "Cancel", initialValue: row.Entry.Name);
         if (string.IsNullOrWhiteSpace(name)) return;
         await RunMutationAsync(async () =>
         {
-            var changed = await api.RenameAsync(new(row.Entry.Path, name), connection.Token);
-            await ReloadTreeAsync(changed.Path);
+            var changed = await LinkManagementViews.MoveAsync(this, api, row.Entry.Path, "", name); if (changed is null) return;
+            if (row.Entry.IsDirectory && clientState is not null) { await clientState.Workspace.RemapFoldersAsync(changed.Items); await RefreshPinnedFoldersAsync(); }
+            await ReloadTreeAsync(changed.Items[0].DestinationPath);
             if (openedNoteId is { } id) await OpenNote(token => api.ReadAsync(id, token));
         }, "Unable to rename item.");
     }
 
     private void SetClipboard(TreeRow row, bool cut)
     {
+        if (explorerSelection.Count > 1 && explorerSelection.Paths.Contains(row.Entry.Path))
+        { explorerClipboard = explorerSelection.Paths.ToArray(); clipboardCut = cut; ClipboardStatus.Text = (cut ? "Cut: " : "Copied: ") + explorerClipboard.Length + " items"; return; }
+        explorerClipboard = null;
         clipboardPath = row.Entry.Path; clipboardCut = cut;
         ClipboardStatus.Text = (cut ? "Cut: " : "Copied: ") + row.Entry.Name;
     }
 
     private async Task PasteAsync(string folder)
     {
+        if (explorerClipboard is { } selected)
+        { await RunBulkAsync(clipboardCut ? "move" : "copy", folder, selected); return; }
         if (clipboardPath is null) { Status.Text = "Nothing has been copied or cut."; return; }
+        if (clipboardCut) { await RunBulkAsync("move", folder, [clipboardPath]); return; }
         if (!await ResolveUnsavedAsync()) return;
         await RunMutationAsync(async () =>
         {
             var request = new TransferItemRequest(clipboardPath, folder);
             var changed = clipboardCut ? await api.MoveAsync(request, connection.Token) : await api.CopyAsync(request, connection.Token);
+            if (clipboardCut && changed.IsDirectory && clientState is not null) { await clientState.Workspace.RemapFoldersAsync([new(clipboardPath, changed.Path, true)]); await RefreshPinnedFoldersAsync(); }
             if (clipboardCut) { clipboardPath = null; ClipboardStatus.Text = ""; }
             await ReloadTreeAsync(changed.Path);
             if (openedNoteId is { } id) await OpenNote(token => api.ReadAsync(id, token));
@@ -651,7 +777,7 @@ public partial class MainPage : ContentPage
             var description = details.IsDirectory && details.DescendantCount > 0
                 ? $"Permanently delete '{row.Entry.Name}' and its {details.DescendantCount} descendant item(s)?"
                 : $"Permanently delete '{row.Entry.Name}'?";
-            if (!await DisplayAlertAsync("Delete", description, "Delete", "Cancel")) return;
+            if (!await SlateDialogs.AlertAsync(this, "Delete", description, "Delete", "Cancel")) return;
             await api.DeleteAsync(new(row.Entry.Path, details.IsDirectory), connection.Token);
             if (openedNoteId == row.Entry.Id || (details.IsDirectory && currentNote?.Path.StartsWith(row.Entry.Path + "/", StringComparison.OrdinalIgnoreCase) == true)) ResetDocument();
             await ReloadTreeAsync(TargetFolder(row));
@@ -674,14 +800,14 @@ public partial class MainPage : ContentPage
     private void ContextCut(object? sender, EventArgs e) => SetClipboard(RowFrom(sender), true);
     private void ContextCopy(object? sender, EventArgs e) => SetClipboard(RowFrom(sender), false);
     private async void ContextPaste(object? sender, EventArgs e) => await PasteAsync(TargetFolder(RowFrom(sender)));
-    private async void ContextDuplicate(object? sender, EventArgs e) => await DuplicateAsync(RowFrom(sender));
-    private async void ContextDelete(object? sender, EventArgs e) => await DeleteAsync(RowFrom(sender));
+    private async void ContextDuplicate(object? sender, EventArgs e) { var row = RowFrom(sender); if (explorerSelection.Count > 1 && explorerSelection.Paths.Contains(row.Entry.Path)) await RunBulkAsync("duplicate"); else await DuplicateAsync(row); }
+    private async void ContextDelete(object? sender, EventArgs e) { var row = RowFrom(sender); if (explorerSelection.Count > 1 && explorerSelection.Paths.Contains(row.Entry.Path)) await RunBulkAsync("delete"); else await DeleteAsync(row); }
+    private async void ContextMove(object? sender, EventArgs e) { var row = RowFrom(sender); await RunBulkAsync("move", pathsOverride: explorerSelection.Paths.Contains(row.Entry.Path) ? null : [row.Entry.Path]); }
 
     private void SetSelectedRow(TreeRow? row)
     {
-        if (selectedRow is not null) selectedRow.Selected = false;
         selectedRow = row;
-        if (selectedRow is not null) selectedRow.Selected = true;
+        RefreshSelectionAppearance();
     }
 
     private void TreeRowPointerEntered(object? sender, Microsoft.Maui.Controls.PointerEventArgs e)
@@ -694,15 +820,39 @@ public partial class MainPage : ContentPage
         if (sender is PointerGestureRecognizer { BindingContext: TreeRow row }) row.Hovered = false;
     }
 
-    private void RowOverflowClicked(object? sender, EventArgs e)
+    private async void RowOverflowClicked(object? sender, EventArgs e)
     {
-#if WINDOWS
-        if (sender is ImageButton { Parent: VisualElement parent } &&
-            parent.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement element)
-            Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(element);
-#endif
+        if (sender is not ImageButton { BindingContext: TreeRow row }) return;
+        try
+        {
+            if (explorerSelection.Count > 1 && explorerSelection.Paths.Contains(row.Entry.Path)) { await SelectedActionsAsync(); return; }
+            var actions = new List<string> { "Open", "New note here", "New folder here", "Rename", "Cut", "Copy", "Paste here", "Duplicate", "Delete…" };
+            actions.Add(row.Entry.IsDirectory ? "Pin / unpin folder" : "Favorite / unfavorite");
+            var action = await SlateDialogs.ChooseAsync(this, row.Name, "Cancel", null, actions.ToArray());
+            switch (action)
+            {
+                case "Open":
+                    if (row.Entry.IsDirectory)
+                    {
+                        if (!row.Loaded) await LoadChildren(row, 0, connection.Token);
+                        row.Expanded = !row.Expanded; RebuildRows(row.Entry.Path);
+                    }
+                    else if (await ResolveUnsavedAsync()) await OpenNote(t => api.ReadAsync(row.Entry.Id!.Value, t));
+                    break;
+                case "New note here": await NewNoteAsync(TargetFolder(row)); break;
+                case "New folder here": await NewFolderAsync(TargetFolder(row)); break;
+                case "Rename": await RenameAsync(row); break;
+                case "Cut": SetClipboard(row, true); break;
+                case "Copy": SetClipboard(row, false); break;
+                case "Paste here": await PasteAsync(TargetFolder(row)); break;
+                case "Duplicate": await DuplicateAsync(row); break;
+                case "Delete…": await DeleteAsync(row); break;
+                case "Pin / unpin folder": await ToggleFolderPinAsync(row.Entry.Path); break;
+                case "Favorite / unfavorite": if (clientState is not null && row.Entry.Id is { } id) await clientState.Workspace.ToggleFavoriteAsync(id, row.Entry.Title ?? row.Entry.Name); break;
+            }
+        }
+        catch (Exception exception) { ShowOperationError(exception, "The item menu could not complete this action."); }
     }
-
     private void TreeHandlerChanged(object? sender, EventArgs e)
     {
 #if WINDOWS
@@ -715,11 +865,23 @@ public partial class MainPage : ContentPage
     {
         var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
         var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
-        if (ctrl && e.Key == VirtualKey.N) { e.Handled = true; if (shift) await NewFolderAsync(TargetFolder()); else await NewNoteAsync(TargetFolder()); }
+        if (e.Key is VirtualKey.Up or VirtualKey.Down)
+        {
+            e.Handled = true; var visible = rows.Where(r => r.MoreFor is null).ToArray(); if (visible.Length == 0) return;
+            var index = Array.IndexOf(visible, selectedRow); index = Math.Clamp(index + (e.Key == VirtualKey.Up ? -1 : 1), 0, visible.Length - 1);
+            selectedRow = visible[index]; explorerSelection.Select(selectedRow.Entry.Path, visible.Select(r => r.Entry.Path).ToArray(), ctrl && shift, shift);
+            RefreshSelectionAppearance(); Tree.ScrollTo(selectedRow);
+        }
+        else if (e.Key == VirtualKey.Enter && selectedRow is not null) { e.Handled = true; await OpenExplorerRowAsync(selectedRow); }
+        else if (ctrl && e.Key == VirtualKey.A) { e.Handled = true; explorerSelection.SelectAll(VisibleExplorerPaths()); RefreshSelectionAppearance(); }
+        else if (e.Key == VirtualKey.Escape && explorerSelection.Count > 0) { e.Handled = true; explorerSelection.Clear(); RefreshSelectionAppearance(); }
+        else if (e.Key == VirtualKey.Delete && explorerSelection.Count > 1) { e.Handled = true; await RunBulkAsync("delete"); }
+        else if (ctrl && e.Key == VirtualKey.N) { e.Handled = true; if (shift) await NewFolderAsync(TargetFolder()); else await NewNoteAsync(TargetFolder()); }
         else if (ctrl && e.Key == VirtualKey.C && selectedRow is not null) { e.Handled = true; SetClipboard(selectedRow, false); }
         else if (ctrl && e.Key == VirtualKey.X && selectedRow is not null) { e.Handled = true; SetClipboard(selectedRow, true); }
         else if (ctrl && e.Key == VirtualKey.V) { e.Handled = true; await PasteAsync(TargetFolder()); }
-        else if (e.Key == VirtualKey.F2 && selectedRow is not null) { e.Handled = true; await RenameAsync(selectedRow); }
+        else if (ctrl && e.Key == VirtualKey.D && selectedRow is not null) { e.Handled = true; await RunBulkAsync("duplicate"); }
+        else if (e.Key == VirtualKey.F2 && selectedRow is not null && explorerSelection.Count <= 1) { e.Handled = true; await RenameAsync(selectedRow); }
         else if (e.Key == VirtualKey.Delete && selectedRow is not null) { e.Handled = true; await DeleteAsync(selectedRow); }
     }
 #endif
@@ -734,8 +896,16 @@ public partial class MainPage : ContentPage
 #if WINDOWS
     private async void EditorKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (e.Handled) return;
         var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
-        if (ctrl && e.Key == VirtualKey.S) { e.Handled = true; await SaveAsync(); }
+        var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
+        var editingCommand = ctrl ? e.Key switch
+        {
+            VirtualKey.B => "bold", VirtualKey.I => "italic", VirtualKey.K => shift ? "wiki" : "link",
+            (VirtualKey)192 => "code", VirtualKey.Number7 when shift => "number", VirtualKey.Number8 when shift => "bullet", VirtualKey.Number9 when shift => "task", _ => null
+        } : null;
+        if (editingCommand is not null) { e.Handled = true; ApplyMarkdownCommand(editingCommand); }
+        else if (ctrl && e.Key == VirtualKey.S) { e.Handled = true; await SaveAsync(); }
         else if (ctrl && e.Key == VirtualKey.V)
         {
             var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
@@ -760,26 +930,58 @@ public partial class MainPage : ContentPage
 #if WINDOWS
         HookWindowClose();
         if (pageKeysHooked || Handler?.PlatformView is not Microsoft.UI.Xaml.FrameworkElement element) return;
-        element.KeyDown += PageKeyDown; pageKeysHooked = true;
+        element.PreviewKeyDown += PageKeyDown;
+        RegisterDesktopShortcuts(element);
+        pageKeysHooked = true;
 #endif
     }
 
 #if WINDOWS
-    private void PageKeyDown(object sender, KeyRoutedEventArgs e)
+    private async void PageKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (e.Handled) return;
+        if (e.Key == VirtualKey.Escape && SlateDialogs.TryDismiss(this)) { e.Handled = true; return; }
+        if (DesktopDialogs.IsOpen(this)) return;
+        if (SearchPanel.IsVisible && e.Key is VirtualKey.Down or VirtualKey.Up or VirtualKey.Enter)
+        {
+            var hits = SearchResults.ItemsSource?.Cast<SearchHit>().ToArray() ?? [];
+            if (hits.Length == 0) return;
+            e.Handled = true;
+            var index = Array.IndexOf(hits, SearchResults.SelectedItem as SearchHit);
+            if (e.Key == VirtualKey.Enter) await OpenSearchHitAsync(hits[Math.Max(0, index)]);
+            else
+            {
+                index = Math.Clamp(index + (e.Key == VirtualKey.Down ? 1 : -1), 0, hits.Length - 1);
+                searchKeyboardNavigating = true;
+                try { SearchResults.SelectedItem = hits[index]; SearchResults.ScrollTo(index); }
+                finally { searchKeyboardNavigating = false; }
+            }
+            return;
+        }
         var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
         var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
-        if (ctrl && shift && e.Key == VirtualKey.F) { e.Handled = true; OpenSearch(); }
+        if (ctrl && e.Key == VirtualKey.K && MarkdownEditor.IsFocused) { e.Handled = true; ApplyMarkdownCommand(shift ? "wiki" : "link"); }
+        else if (ctrl && (e.Key == VirtualKey.K || (shift && e.Key == VirtualKey.F))) { e.Handled = true; OpenSearch(); }
+        if (ctrl && e.Key == VirtualKey.P) { e.Handled = true; CommandPaletteClicked(this, EventArgs.Empty); }
+        if (ctrl && e.Key == VirtualKey.N) { e.Handled = true; if (shift) await NewFolderAsync(TargetFolder()); else await NewNoteAsync(TargetFolder()); }
+        if (ctrl && e.Key == VirtualKey.S) { e.Handled = true; await SaveAsync(); }
+        if (ctrl && e.Key == VirtualKey.W && currentNote is not null) { e.Handled = true; await CloseTabAsync(currentNote.Id); }
+        if (ctrl && e.Key == VirtualKey.E && currentNote is not null) { e.Handled = true; SetMode(mode == ViewMode.Preview ? ViewMode.Write : ViewMode.Preview); }
+        if (ctrl && e.Key == VirtualKey.Tab) { e.Handled = true; await CycleTabAsync(shift ? -1 : 1); }
+        if (e.Key == VirtualKey.Escape && SearchPanel.IsVisible) { e.Handled = true; CloseSearchClicked(this, EventArgs.Empty); }
+        else if (e.Key == VirtualKey.Escape && HistoryPanel.IsVisible) { e.Handled = true; CloseHistoryClicked(this, EventArgs.Empty); }
     }
     private void HookWindowClose()
     {
         if (closeHooked || Window?.Handler?.PlatformView is not Microsoft.UI.Xaml.Window native) return;
         var titleBar = native.AppWindow.TitleBar;
-        titleBar.BackgroundColor = Windows.UI.Color.FromArgb(255, 15, 17, 23);
+        var icon = Path.Combine(AppContext.BaseDirectory, "slateicon.ico");
+        if (File.Exists(icon)) native.AppWindow.SetIcon(icon);
+        titleBar.BackgroundColor = Windows.UI.Color.FromArgb(255, 34, 36, 45);
         titleBar.ForegroundColor = Windows.UI.Color.FromArgb(255, 241, 243, 249);
-        titleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(255, 15, 17, 23);
+        titleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(255, 34, 36, 45);
         titleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 155, 163, 184);
-        titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(255, 32, 36, 54);
+        titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(255, 55, 58, 72);
         titleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 241, 243, 249);
         native.AppWindow.Closing += WindowClosing;
         closeHooked = true;
@@ -808,10 +1010,32 @@ public partial class MainPage : ContentPage
 
     private async Task QuickThoughtAsync()
     {
-        var text = await DisplayPromptAsync("Quick Thought", "Save a thought to Inbox", accept: "Save", cancel: "Cancel", placeholder: "What are you thinking?");
+        var text = await SlateDialogs.PromptAsync(this, "Quick Thought", "Save a thought to Inbox", accept: "Save", cancel: "Cancel", placeholder: "What are you thinking?");
         if (string.IsNullOrWhiteSpace(text)) return;
         var capture = new CaptureNoteRequest(Guid.NewGuid(), text, CapturedAt: DateTimeOffset.UtcNow);
-        try { await api.CaptureAsync(capture, connection.Token); Status.Text = "Saved to Inbox"; await ReloadTreeAsync("inbox"); }
+        if (clientState is not null)
+        {
+            var action = await SlateDialogs.ChooseAsync(this, "Save thought", "Cancel", null, "Save to Inbox", "Append to note");
+            if (action == "Cancel") return;
+            if (action == "Append to note")
+            {
+                await clientState.SaveDraftAsync(new(capture.CaptureId, DraftKind.QuickThought, capture.Content, DateTimeOffset.UtcNow, PendingCapture: capture, ReadyToSubmit: false));
+                try
+                {
+                    var saved = await KnowledgeDialogs.AppendDraftAsync(this, api, clientState, capture, []);
+                    if (saved is not null) { await clientState.DeleteDraftAsync(capture.CaptureId); await OpenNote(_ => Task.FromResult(saved)); }
+                }
+                catch (Exception exception) { ShowOperationError(exception, "The append was not confirmed. Review the saved drafts before retrying."); }
+                return;
+            }
+        }
+        try
+        {
+            if (clientState is null) await api.CaptureAsync(capture, connection.Token);
+            else await OfflineActions.SaveAsync(clientState, api, new(capture.CaptureId, DraftKind.QuickThought, capture.Content, DateTimeOffset.UtcNow, PendingCapture: capture), new(Guid.NewGuid(), capture.CaptureId, "capture", capture.Content, Capture: capture), "inbox/capture.md", connection.Token);
+            if (clientState is not null) await clientState.DeleteDraftAsync(capture.CaptureId);
+            Status.Text = "Saved to Inbox"; await ReloadTreeAsync("inbox");
+        }
         catch (Exception exception)
         {
             if (clientState is not null)
@@ -827,27 +1051,39 @@ public partial class MainPage : ContentPage
     {
         try
         {
-            try { await api.CreateFolderAsync(new("", path), connection.Token); } catch (HttpRequestException exception) when (exception.StatusCode == HttpStatusCode.Conflict) { }
             var all = new List<SearchHit>(); var page = 0;
             do
             {
                 var folder = await api.ListAsync(path, page, connection.Token);
-                all.AddRange(folder.Entries.Where(x => !x.IsDirectory && x.Id.HasValue).Select(x => new SearchHit(x.Id!.Value, x.Title ?? x.Name, x.Path, "", 0, "")));
+                foreach (var entry in folder.Entries.Where(x => !x.IsDirectory && x.Id.HasValue))
+                {
+                    var note = await api.ReadAsync(entry.Id!.Value, connection.Token);
+                    var body = NoteDocument.Parse(note.Markdown, note.Path).PlainText;
+                    var heading = body.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim() ?? note.Title;
+                    if (heading.Length > 80) heading = heading[..80] + "…";
+                    all.Add(new(note.Id, heading, note.Path, body, 0, ""));
+                }
                 if (folder.NextPage is null) break; page = folder.NextPage.Value;
             } while (true);
             ShowResultView(title, all, all.Count == 0 ? "Inbox is empty." : "");
         }
+        catch (HttpRequestException exception) when (exception.StatusCode == HttpStatusCode.NotFound) { ShowResultView(title, [], "Inbox is empty."); }
         catch (Exception exception) { ShowOperationError(exception, "Unable to open Inbox."); }
     }
 
     private void ShowResultView(string title, IReadOnlyList<SearchHit> results, string empty)
     {
-        MessagePanel.IsVisible = EditorPane.IsVisible = Reader.IsVisible = ReaderPane.IsVisible = HistoryPanel.IsVisible = false;
+        searchDelay?.Cancel();
+        SearchEntry.IsVisible = false;
+        SearchPaging.IsVisible = false; SearchFilterButton.IsVisible = false; searchRequest++;
+        HistoryPanel.IsVisible = false;
         SearchPanel.IsVisible = true; SearchSummary.Text = title; SearchResults.ItemsSource = results; SearchEmpty.Text = empty;
     }
     private void OpenSearch()
     {
-        MessagePanel.IsVisible = EditorPane.IsVisible = Reader.IsVisible = ReaderPane.IsVisible = HistoryPanel.IsVisible = false;
+        SearchEntry.IsVisible = true; SearchSummary.Text = "Find a note";
+        SearchFilterButton.IsVisible = true;
+        HistoryPanel.IsVisible = false;
         SearchPanel.IsVisible = true;
         SearchEntry.Focus();
         if (!string.IsNullOrWhiteSpace(SearchEntry.Text)) _ = SearchAsync(SearchEntry.Text, CancellationToken.None);
@@ -857,7 +1093,7 @@ public partial class MainPage : ContentPage
     {
         searchDelay?.Cancel(); searchDelay?.Dispose(); searchDelay = new();
         var token = searchDelay.Token;
-        MessagePanel.IsVisible = EditorPane.IsVisible = Reader.IsVisible = ReaderPane.IsVisible = HistoryPanel.IsVisible = false;
+        HistoryPanel.IsVisible = false;
         SearchPanel.IsVisible = true;
         _ = DebouncedSearchAsync(e.NewTextValue ?? "", token);
     }
@@ -868,8 +1104,9 @@ public partial class MainPage : ContentPage
         catch (OperationCanceledException) { }
     }
 
-    private async Task SearchAsync(string query, CancellationToken token)
+    private async Task SearchAsync(string query, CancellationToken token, int requestedPage = 0)
     {
+        var request = ++searchRequest; SearchPaging.IsVisible = false;
         if (string.IsNullOrWhiteSpace(query))
         {
             SearchResults.ItemsSource = Array.Empty<SearchHit>(); SearchSummary.Text = "Search"; SearchEmpty.Text = "Type a query to search the Library."; return;
@@ -877,7 +1114,12 @@ public partial class MainPage : ContentPage
         SearchSummary.Text = "Searching…";
         try
         {
-            var page = await api.SearchAsync(query, 0, token);
+            var page = await api.SearchAsync(query, requestedPage, token);
+            if (request != searchRequest || token.IsCancellationRequested) return;
+            activeSearchQuery = query; searchPage = requestedPage;
+            SearchPaging.IsVisible = page.Total > 20; SearchPrevious.IsEnabled = searchPage > 0;
+            SearchNext.IsEnabled = (searchPage + 1) * 20 < page.Total && searchPage < 1999;
+            SearchPageLabel.Text = $"Page {searchPage + 1}";
             SearchResults.ItemsSource = page.Results;
             SearchSummary.Text = $"Search · {page.Total} result{(page.Total == 1 ? "" : "s")}";
             SearchEmpty.Text = "No matching notes.";
@@ -885,6 +1127,7 @@ public partial class MainPage : ContentPage
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
+            if (request != searchRequest) return;
             SearchResults.ItemsSource = Array.Empty<SearchHit>(); SearchSummary.Text = "Search needs attention";
             SearchEmpty.Text = exception is HttpRequestException ? exception.Message : "Search is temporarily unavailable.";
         }
@@ -892,7 +1135,13 @@ public partial class MainPage : ContentPage
 
     private async void SearchResultSelected(object? sender, SelectionChangedEventArgs e)
     {
+        if (searchKeyboardNavigating) return;
         if (e.CurrentSelection.FirstOrDefault() is not SearchHit hit) return;
+        await OpenSearchHitAsync(hit);
+    }
+
+    private async Task OpenSearchHitAsync(SearchHit hit)
+    {
         SearchResults.SelectedItem = null;
         if (await ResolveUnsavedAsync()) await OpenNote(async token =>
         {
@@ -932,21 +1181,9 @@ public partial class MainPage : ContentPage
     private async void HistoryClicked(object? sender, EventArgs e)
     {
         if (currentNote is null || !await ResolveUnsavedAsync()) return;
-        Busy.IsRunning = true;
-        try
-        {
-            var history = await api.HistoryAsync(currentNote.Id, connection.Token);
-            HistoryTitle.Text = "History — " + currentNote.Title;
-            HistoryList.ItemsSource = history;
-            HistoricalEditor.Text = "";
-            HistoricalLabel.Text = history.Count == 0 ? "No committed versions yet." : "Choose a version. Historical Markdown is read-only.";
-            MessagePanel.IsVisible = EditorPane.IsVisible = Reader.IsVisible = ReaderPane.IsVisible = SearchPanel.IsVisible = false;
-            HistoryPanel.IsVisible = true;
-        }
-        catch (Exception exception) { ShowOperationError(exception, "Unable to load note history."); }
-        finally { Busy.IsRunning = false; }
+        try { if (await HistoryBrowser.OpenAsync(this, api, currentNote.Id) is { } restored) await OpenNote(_ => Task.FromResult(restored)); }
+        catch (Exception exception) { ShowOperationError(exception, "History action could not be completed. Current content was preserved unless a new revision was already saved."); }
     }
-
     private async void HistorySelected(object? sender, SelectionChangedEventArgs e)
     {
         if (currentNote is null || e.CurrentSelection.FirstOrDefault() is not NoteHistoryEntry entry) return;
@@ -1012,13 +1249,14 @@ public partial class MainPage : ContentPage
                 ? Color.FromArgb("#EF6B73")
                 : label.Contains("Syncing", StringComparison.OrdinalIgnoreCase) || label.Contains("pending", StringComparison.OrdinalIgnoreCase)
                     ? Color.FromArgb("#F0B35A")
-                    : Color.FromArgb("#64748B");
+                    : Color.FromArgb("#808080");
     }
 
     private void ShowMessage(string title, string detail) { Reader.IsVisible = ReaderPane.IsVisible = EditorPane.IsVisible = SearchPanel.IsVisible = HistoryPanel.IsVisible = false; MessagePanel.IsVisible = true; MessageTitle.Text = title; MessageDetail.Text = detail; }
     private void ShowOperationError(Exception exception, string fallback)
     {
         Status.Text = exception is HttpRequestException ? exception.Message : fallback + " " + exception.Message;
+        FeedbackText.Text = Status.Text; FeedbackBanner.IsVisible = true;
         DocumentState.Text = dirty ? "Unsaved · needs attention" : DocumentState.Text;
     }
     private void ShowError(Exception exception)
@@ -1041,7 +1279,13 @@ public partial class MainPage : ContentPage
         e.Cancel = true;
         if (!Uri.TryCreate(e.Url, UriKind.Absolute, out var uri)) return;
         if (uri.Scheme == "file") { e.Cancel = false; return; }
-        if (uri.Scheme == "slate-note" && Guid.TryParse(uri.Host, out var id))
+        if (uri.Scheme == "slate-command")
+        {
+#if WINDOWS
+            await HandleReaderCommandAsync(uri.Host);
+#endif
+        }
+        else if (uri.Scheme == "slate-note" && Guid.TryParse(uri.Host, out var id))
         {
             pendingHeading = uri.Fragment;
             if (await ResolveUnsavedAsync()) await OpenNote(token => api.ReadAsync(id, token));
@@ -1050,10 +1294,12 @@ public partial class MainPage : ContentPage
         {
             try
             {
-                var metadata = await api.AssetMetadataAsync(assetId, connection.Token);
+                var local = clientState is null ? null : await clientState.Offline.ReadAssetAsync(assetId);
+                var metadata = local?.Metadata ?? await api.AssetMetadataAsync(assetId, connection.Token);
                 var directory = Path.Combine(FileSystem.CacheDirectory, "slate.lib", "open-assets"); Directory.CreateDirectory(directory);
                 var filename = assetId.ToString("D") + metadata.Extension; var destination = Path.Combine(directory, filename);
-                await api.DownloadAssetAsync(assetId, destination, connection.Token);
+                if (local is { } downloaded) await File.WriteAllBytesAsync(destination, downloaded.Bytes);
+                else await api.DownloadAssetAsync(assetId, destination, connection.Token);
                 await Microsoft.Maui.ApplicationModel.Launcher.Default.OpenAsync(new OpenFileRequest(metadata.OriginalFilename, new ReadOnlyFile(destination)));
             }
             catch { Status.Text = "The attachment could not be opened."; }
@@ -1076,6 +1322,7 @@ public partial class MainPage : ContentPage
         {
             await view.EnsureCoreWebView2Async(); var core = view.CoreWebView2;
             core.Settings.IsScriptEnabled = true; core.Settings.AreHostObjectsAllowed = false; core.Settings.IsWebMessageEnabled = false; core.Settings.AreDevToolsEnabled = false;
+            core.Settings.AreBrowserAcceleratorKeysEnabled = false;
             core.AddWebResourceRequestedFilter("http*", Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All);
             core.WebResourceRequested += (_, args) => args.Response = core.Environment.CreateWebResourceResponse(null, 403, "Blocked", "");
             core.NewWindowRequested += (_, args) => args.Handled = true; core.DownloadStarting += (_, args) => args.Cancel = true; webReady.TrySetResult();

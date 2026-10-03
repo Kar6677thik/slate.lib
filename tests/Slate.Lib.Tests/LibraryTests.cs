@@ -182,7 +182,7 @@ public sealed class LibraryTests
         var id = Guid.NewGuid();
         var markdown = $"---\nid: {id}\n---\n# Hello\n\n**bold**\n\n```sql\nSELECT 1;\n```\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n<script>alert(1)</script>\n\n[bad](javascript:alert%281%29)\n\n![remote](https://example.com/track.png)\n\n[local](Other.md)";
         var html = new MarkdownReader().Render(new(id, "Folder/Note.md", "Hello", markdown, "revision"));
-        Assert.Contains("<h1 id=\"hello\">Hello</h1>", html);
+        Assert.Contains("<h1 id=\"hello\" data-slate-heading=\"true\">Hello</h1>", html);
         Assert.Contains("<strong>bold</strong>", html);
         Assert.Contains("<table>", html);
         Assert.Contains("SELECT 1;", html);
@@ -489,6 +489,7 @@ public sealed class GitTests
         var remoteHead = RunGit(clone, "rev-parse", "HEAD").Trim();
         var result = await git.SynchronizeAsync(store);
         Assert.True(result.Status.State == "Conflict", result.Status.Detail);
+        await Assert.ThrowsAsync<LibraryConflictException>(() => git.PreviewSafeMergeAsync(store));
         Assert.Equal(localHead, RunGit(fixture.Root, "rev-parse", "HEAD").Trim());
         Assert.Equal(remoteHead, RunGit(clone, "rev-parse", "HEAD").Trim());
         Assert.Contains("local branch text", File.ReadAllText(Path.Combine(fixture.Root, "Science/Databases/Note.md")));

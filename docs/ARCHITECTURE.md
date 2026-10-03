@@ -1,6 +1,11 @@
 # slate.lib — Architecture
 
-Status: implementation notes through Phase 3D, 2026-09-25. [PRODUCT](PRODUCT.md) owns scope; [CONTENT_AND_SYNC](CONTENT_AND_SYNC.md) owns data and consistency rules; [UX](UX.md) owns interactions; [ROADMAP](ROADMAP.md) owns delivery order; [OPERATIONS](OPERATIONS.md) owns deployment and recovery procedures. MVP completes through phases 3A–3D.
+## Milestone A additions — 2026-10-02
+
+Core owns ExplorerSelection, MarkdownEditing, CommandRegistry and parsed PortableNoteLinks transformations. LibraryStore owns bounded bulk preview/apply/status. One durable operation journal records source fingerprints, transformed payloads and state; source trees moved into held storage remain recoverable. Startup rolls back interrupted applying operations before discovering/serving notes. Git checkpointing keeps the existing Git-before-library lock order. Clients share contracts and editing transforms; native selection/drag affordances stay in MAUI.
+
+
+Status: implementation through evolution milestones A–M, 2026-10-03. [PRODUCT](PRODUCT.md) owns scope; [CONTENT_AND_SYNC](CONTENT_AND_SYNC.md) owns data and consistency rules; [UX](UX.md) owns interactions; [ROADMAP](ROADMAP.md) owns delivery order; [OPERATIONS](OPERATIONS.md) owns deployment and recovery procedures. MVP completes through phases 3A–3D.
 
 ## System context
 
@@ -148,14 +153,48 @@ Before irreplaceable content enters the system, test restoring a backup onto an 
 
 Git failures are distinguished from disk failures. A failed push leaves local content/history intact. A broken Git repository disables sync and operations needing a history checkpoint, while ordinary atomic saves can continue if filesystem integrity is intact; a persistent warning explains that new history is unavailable. Preserve the entire data root before operator repair. Disk/permission/recovery failure blocks affected writes and never acknowledges Saved. Detailed recovery steps are in CONTENT_AND_SYNC.
 
-## Intentionally Deferred Complexity
+## Intentionally deferred complexity
 
-- Full offline-first replication, local search indexes, queued replay, client SQLite, tombstones and durable change feeds.
-- Automatic divergent Git merging, semantic conflict detection, in-app three-way merge tools and history/diff UI.
-- Cross-library automatic link-repair transactions, bulk explorer operations and full-library client downloads.
-- Zero-downtime reindexing/backups, deployment agents, public webhooks, extra Kubernetes services/operators and horizontal scaling.
-- Object-storage providers, asset deduplication/garbage collection across Git history, OCR/PDF extraction and plugin frameworks.
-- Semantic search, vectors/embeddings, AI, graph visualization, learning analytics and recommendations.
-- Multi-user support, collaboration, roles, organizations, billing and enterprise infrastructure.
+Full-library replication, client SQLite, durable change feeds, structural offline operations, cross-device preferences, overlapping-path Git merges, zero-downtime indexing, object storage, history-aware asset garbage collection, plugins, AI/embeddings, web clients and multi-user collaboration are not implemented. The offline queue, text merge workbench, bounded graph, deterministic recommendations, PDF/OCR workers and bulk explorer operations are implemented below.
+Milestone B: WorkspacePreferenceStore serializes device-local preferences independently of recents/drafts/cache. Per-path serialization prevents lost writes across reconnect-created instances. Unknown schemas are preserved and rejected. No server preference service or cross-device synchronization was added.
 
-The later product vision remains in PRODUCT and ROADMAP. Deferral is an instruction not to prebuild abstractions for it.
+Milestone C: KnowledgeWorkflows and FrontMatter perform deterministic source transformations. The API serializes daily creation and revision-checks answer/append actions. ShareInboxStore durably stages a bounded batch, promotes it into ClientStateStore before acknowledging the handoff, and retains handled records. Share copies run off the Android UI thread. Generic note updates apply reviewed draft appends; a merged local draft is persisted before submission.
+
+Milestone D implemented (2026-10-02): SearchIndex schema 2 indexes parsed fenced-code predicates and trustworthy created/updated/modified metadata. Reconcile upgrades old derived documents without changing Markdown. Incoming-link presence is refreshed when LinkIndex changes; view rendering never parses every note. Current orphan membership uses the existing wiki-link index; Markdown edges are added in milestone F.
+
+Current scope: milestones A–M are implemented. Dated phase/milestone records below are historical checkpoints, not statements that later completed features are still deferred. ROADMAP contains current verification and device limitations.
+
+
+Milestone E implemented (2026-10-02): Lucene schema 3 adds normalized exact-title/prefix ranking. Structured filters use term/numeric queries without passing user text to a Lucene query parser. Date bounds use inclusive UTC calendar days; missing dates never match. Existing title/alias/heading/body boosts remain. No recency boost obscures lexical relevance.
+
+
+Milestone F implemented (2026-10-02): LinkIndex resolves Markdown relative note links as well as wiki links. Path/name/alias lookups avoid per-link whole-library scans. Broken-link lists are cached and paged. Incoming repair payloads and retained originals participate in the same bulk journal as moves/renames and roll back together. Native structural flows use reviewed bulk routes; legacy endpoints remain compatible for older clients.
+
+
+Milestone G implemented (2026-10-02): outline entries come from the sanitized rendered heading elements and their exact generated IDs, avoiding a second client parser and excluding generated backlink headings. Reader geometry is cached on layout changes; scroll tracking uses binary search. Native current-section polling runs only while the outline is visible. Reader resource version changes materialize a new disposable bundle.
+
+
+Milestone H — derived attachment processing
+
+AssetStore maintains a metadata catalog; LibraryStore maintains asset-to-note references alongside registration/rebuild. Rare cleanup reparses canonical Markdown under the writer lock instead of trusting this derived index. AssetDerivatives serializes explicit extraction and thumbnail work; IAssetExtractor uses an isolated dotnet worker. PdfPig 0.1.16 extracts PDF text; SkiaSharp 3.119.4 decodes bounded image thumbnails; local Tesseract provides English OCR. No network OCR or canonical binary rewrites. Worker supervision limits each process to 45 seconds, 512 MiB observed working set, and 2 MiB output. Resource checks are sampled, not an OS sandbox.
+
+Milestone I — offline persistence and replay
+
+Versioned atomic JSON remains appropriate for bounded offline selections and one-record note+upload dependency transactions; no client database or canonical data migration is introduced. OfflineLibrary uses persistent app-data libraries/<UUID>/offline, separate from disposable cache and drafts. OfflineQueue persists one immutable request snapshot per operation, upload completion metadata, final rewritten request and retry outcome. Server /v1/offline/replay keeps preparation/result receipts outside managed Markdown and rejects request-ID payload changes and mismatched library IDs. Acknowledgement loss recovers the original result. Client reconciliation removes only a matching old draft, preserving newer edits.
+
+Milestone J — deterministic merge implementation
+
+Core TextMerge uses bounded line LCS with common prefix/suffix trimming (maximum 2,000,000 cells). Larger edits become one conservative block rather than a quadratic operation. Shared-position insertions, delete/edit and overlapping unequal replacements remain conflicts. GitMerge fetches through existing synchronization, checks accepted ancestry, rejects overlapping changed paths, builds/validates an unreferenced candidate merge commit, then requires the same local head, remote advertised head, library version and clean managed working tree before importing it through the existing import journal. Both parents remain in history; no force push or history rewrite.
+
+Milestone K — history services
+
+GitRestore extends the existing Git owner, holding Git then library-writer locks. Current restore calls the normal optimistic update; as-new assigns a new UUID; deleted recovery reuses the absent UUID. Both creation paths use normal containment/collision validation, and relative Markdown/attachment URLs are rebased to the destination. A normal commit checkpoints the restored state. Core TextMerge supplies deterministic bounded line diffs. Historical lookup remains a reachable-current-history operation.
+
+Milestone L — rediscovery (2026-10-02)
+Both clients expose Rediscover with random notes, older ideas/open questions, Something Forgotten, On This Day, explicit learning states, and a dated timeline. Results explain their eligibility. Unknown dates are omitted from date-driven views; templates are excluded. Date-based ordering is deterministic; Random Note is deliberately random. Results are paged in groups of 20 from cached parsed metadata.
+Reading history is opt-in and device-local: UUID plus last-opened timestamp, at most 1,000 entries retained for 180 days, never uploaded. Privacy controls enable/disable and clear it. Forgotten results exclude recently opened notes when tracking is enabled; when disabled, only explicit note age is used. No reading activity before opt-in is implied. No canonical metadata migration or production changes.
+
+Milestone M — graph and related notes (2026-10-02)
+Windows commands and Android note actions expose a current-note graph and up to eight related notes. Graph traversal is bidirectional over resolved wiki/Markdown links, with directed edges displayed, depths 1–3, folder/type filters, 40 client nodes (60 API maximum) and 240 edges. Limits are visible. Selecting a plotted node or its accessible numbered row opens it. Filters restrict traversal; the current note remains visible.
+Related scores are deterministic: direct link +12; shared incoming source +4 each (maximum 20); shared tag +3 each (maximum 15); title/heading term +1 each (maximum 4); same non-root folder +1. Every score has an explanation. Ties sort by path. Templates are excluded from suggestions. All data is rebuilt from the existing link index and cached parsed metadata; there are no embeddings, AI calls, graph database or canonical-data migrations.
+Full solution Windows/Android build: zero warnings/errors. All 181 tests pass, including graph edge direction, incoming traversal, filters, limits, invalidation, score explanations and deterministic ordering. L was verified with 179 passing tests before M. Native and physical-device acceptance remains separately reported.

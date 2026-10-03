@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "latestVersion": "0.4.1",
+  "releasedAt": "2026-09-27T14:14:28.3535615+00:00",
+  "releaseNotes": "See the GitHub release for Slate v0.4.1.",
+  "windows": {
+    "sha256": "415798fd07f5c2364b0e552dbe3e194251a98b0a74adfde62dc40aa2a32d210f",
+    "byteSize": 69431983,
+    "url": "/v1/releases/Slate-0.4.1.msix",
+    "fileName": "Slate-0.4.1.msix"
+  },
+  "android": {
+    "sha256": "cbf09e1bc32848b0eb49fa36a12019a560a2aa37e4e5a326b973d3caba22f483",
+    "byteSize": 39102106,
+    "url": "/v1/releases/Slate-0.4.1.apk",
+    "fileName": "Slate-0.4.1.apk"
+  }
+}

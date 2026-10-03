@@ -1,5 +1,10 @@
 # Slate operations
 
+## Milestone A recovery storage — 2026-10-02
+
+Bulk operation journals and retained originals use <Git:StatePath>/operations/<request-uuid>. Keep this on the same filesystem as the Library so tree renames remain atomic; production /data/state and /data/library already share the volume. No automatic recovery-directory deletion runs. Monitor free space and include this state in backups. Prepared previews may consume up to the bounded selection size. An interrupted applying operation rolls back before service startup; if destination bytes changed independently, startup stops for operator review and preserves both trees. Do not manually replace/delete either tree to clear the error. The authenticated operation-status endpoint distinguishes an acknowledged completion from a pending/rolled-back attempt.
+
+
 This runbook operates the Phase 3D single-user deployment. Commands assume the repository root, a Linux k3s node, and `/srv/slate/data` as the persistent data root.
 
 ## Data and recovery boundaries
@@ -207,3 +212,46 @@ The repository also contains `scripts/Test-DisasterRecovery.ps1`, which makes a 
 | Home-server SSH key/known hosts | GitHub Actions secrets | Rotate and limit the account/sudo commands |
 
 Required Actions secret names are `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `HOME_SERVER_HOST`, `HOME_SERVER_USER`, `HOME_SERVER_SSH_KEY`, `HOME_SERVER_KNOWN_HOSTS`, `WINDOWS_PFX_BASE64`, `WINDOWS_PFX_PASSWORD`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, and `ANDROID_STORE_PASSWORD`.
+
+Milestone B preferences are app-private device data, outside the knowledge repository. Preserve app data through updates. Unknown/corrupt preference schemas surface an error without replacement; drafts and cached content remain separate. Missing pins require the user to choose an existing Library folder or remove the pin; no filesystem repair is performed.
+
+Milestone C Share staging uses app-private incoming-shares JSON and incoming-assets bytes, preserving handled handoff records. On restart interrupted batches surface their copied subset with a warning; inaccessible original URIs are never retained as attachments. Existing drafts are preserved when a handoff is promoted again. No OCR, URL crawl or new server dependency is involved. Templates are created/edited as ordinary Markdown notes in templates/; no sample templates or notes are imported.
+
+Milestone D implemented (2026-10-02): Smart views require no additional service. Derived search schema upgrades automatically during reconciliation. Metadata dates are never inferred from filesystem timestamps. Existing Markdown and client drafts remain untouched. Saved searches are local preferences; back up workspace-preferences.json with client state.
+
+Current scope: milestones A–M are implemented. Dated phase/milestone records below are historical checkpoints, not statements that later completed features are still deferred. ROADMAP contains current verification and device limitations.
+
+
+Milestone E implemented (2026-10-02): schema 3 search documents reconcile automatically; no canonical-data migration is required. New search filters use existing authenticated endpoints. Index state remains disposable. A client can retrieve at most 50 results per page and 2,000 pages; narrow broad queries rather than increasing unbounded server allocations.
+
+
+Milestone F implemented (2026-10-02): operation journals also retain link-held originals and link-payload proposed source. Interrupted moves and approved link repairs recover together before serving. If independently changed bytes prevent safe recovery, startup stops with both versions retained. Do not remove journal contents to bypass that review. No new external dependency or canonical migration is needed.
+
+
+Milestone G implemented (2026-10-02): no server dependency or library migration. Clients use a versioned local renderer bundle with the navigation script; content security policy still prohibits remote scripts/connections. WebView sessions that disable storage gracefully omit scroll restoration. Device verification should cover long-note scrolling, drawer dismissal, anchors, and reduced motion.
+
+
+Milestone H — local extraction dependency and limits
+
+The application Docker image now installs tesseract-ocr and tesseract-ocr-eng. Other server installations need the tesseract executable with English data on PATH and the dotnet runtime. No deployment has been performed. Extraction is explicit, one worker at a time; busy requests return a retryable conflict. Failed/interrupted extraction is visible and can be retried. PDF and thumbnail paths have automated real-file and isolated-worker coverage. OCR requires validation on the target server; Tesseract is absent on this Windows development host. Cleanup checks current notes only, warns about history/pending-device references, and retains removal receipts; back up assets before operational cleanup.
+
+Milestone I — offline operation behavior
+
+The foreground client retries pending work on connection and at 30-second intervals while running; Android background execution is subject to the OS. Each replay verifies server library identity, sends attachments before the note, retains failures, and stops automatic retry on conflicts. Manual Retry is in Offline work. Downloads are explicit, not a background whole-library mirror. Offline downloads may become stale and need explicit refresh. Active queue records and server receipts must not be manually edited; retain them with app/server-state backups. No server deployment or canonical library migration was performed.
+
+Milestone J — operational recovery
+
+Use Review independent sync conflicts only after a divergent-state report. Preview creates a candidate Git object and a state receipt without changing HEAD. Apply checks both heads and newly created/untracked managed notes before changing the worktree. Existing pending-import recovery and safety refs protect interruption. After a successful combination, normal Sync publishes the new commit. Same-file changes, unrelated histories, malformed trees or remote rewrites remain untouched and require the documented separate-clone recovery. Native merge UX still needs device verification.
+
+Milestone K — restore operations
+
+Historical API restore revalidates current revision and history ancestry before writing; it commits through the existing Git owner. A commit failure can occur after a valid current revision was saved: inspect current state rather than retrying blindly. Recovery previews use the parent of a deletion commit and exclude UUIDs already present. Missing binary attachments cannot be recovered from Markdown Git; keep independent asset backups. No production recovery was executed.
+
+Milestone L — rediscovery (2026-10-02)
+Both clients expose Rediscover with random notes, older ideas/open questions, Something Forgotten, On This Day, explicit learning states, and a dated timeline. Results explain their eligibility. Unknown dates are omitted from date-driven views; templates are excluded. Date-based ordering is deterministic; Random Note is deliberately random. Results are paged in groups of 20 from cached parsed metadata.
+Reading history is opt-in and device-local: UUID plus last-opened timestamp, at most 1,000 entries retained for 180 days, never uploaded. Privacy controls enable/disable and clear it. Forgotten results exclude recently opened notes when tracking is enabled; when disabled, only explicit note age is used. No reading activity before opt-in is implied. No canonical metadata migration or production changes.
+
+Milestone M — graph and related notes (2026-10-02)
+Windows commands and Android note actions expose a current-note graph and up to eight related notes. Graph traversal is bidirectional over resolved wiki/Markdown links, with directed edges displayed, depths 1–3, folder/type filters, 40 client nodes (60 API maximum) and 240 edges. Limits are visible. Selecting a plotted node or its accessible numbered row opens it. Filters restrict traversal; the current note remains visible.
+Related scores are deterministic: direct link +12; shared incoming source +4 each (maximum 20); shared tag +3 each (maximum 15); title/heading term +1 each (maximum 4); same non-root folder +1. Every score has an explanation. Ties sort by path. Templates are excluded from suggestions. All data is rebuilt from the existing link index and cached parsed metadata; there are no embeddings, AI calls, graph database or canonical-data migrations.
+Full solution Windows/Android build: zero warnings/errors. All 181 tests pass, including graph edge direction, incoming traversal, filters, limits, invalidation, score explanations and deterministic ordering. L was verified with 179 passing tests before M. Native and physical-device acceptance remains separately reported.

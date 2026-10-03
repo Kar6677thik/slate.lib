@@ -5,4 +5,14 @@
     xmlns:maui="using:Microsoft.Maui"
     xmlns:local="using:Slate.Lib.App.WinUI">
 
+  <maui:MauiWinUIApplication.Resources>
+    <ResourceDictionary>
+      <SolidColorBrush x:Key="SystemControlHighlightAccentBrush" Color="#8FB6FF" />
+      <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent" />
+      <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="Transparent" />
+      <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="Transparent" />
+      <Thickness x:Key="TextControlBorderThemeThickness">0</Thickness>
+      <Thickness x:Key="TextControlBorderThemeThicknessFocused">0</Thickness>
+    </ResourceDictionary>
+  </maui:MauiWinUIApplication.Resources>
 </maui:MauiWinUIApplication>

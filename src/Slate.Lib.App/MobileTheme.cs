@@ -5,16 +5,16 @@ namespace Slate.Lib.App;
 
 internal static class MobileTheme
 {
-    internal static readonly Color Canvas = Color.FromArgb("#090A0F");
-    internal static readonly Color Surface = Color.FromArgb("#12141E");
-    internal static readonly Color Raised = Color.FromArgb("#181B28");
-    internal static readonly Color Control = Color.FromArgb("#202436");
-    internal static readonly Color Divider = Color.FromArgb("#262B3D");
-    internal static readonly Color Primary = Color.FromArgb("#F1F3F9");
-    internal static readonly Color Secondary = Color.FromArgb("#9BA3B8");
-    internal static readonly Color Muted = Color.FromArgb("#64748B");
-    internal static readonly Color Accent = Color.FromArgb("#8B5CF6");
-    internal static readonly Color AccentSoft = Color.FromArgb("#29213D");
+    internal static readonly Color Canvas = Color.FromArgb("#191B22");
+    internal static readonly Color Surface = Color.FromArgb("#22242D");
+    internal static readonly Color Raised = Color.FromArgb("#2C2F3B");
+    internal static readonly Color Control = Color.FromArgb("#343743");
+    internal static readonly Color Divider = Color.FromArgb("#363946");
+    internal static readonly Color Primary = Color.FromArgb("#F2F3F7");
+    internal static readonly Color Secondary = Color.FromArgb("#ADB3C5");
+    internal static readonly Color Muted = Color.FromArgb("#8B92A5");
+    internal static readonly Color Accent = Color.FromArgb("#3478F6");
+    internal static readonly Color AccentSoft = Color.FromArgb("#263A59");
     internal static readonly Color Success = Color.FromArgb("#34D399");
 
     internal static void Apply(ContentPage page)
@@ -27,15 +27,17 @@ internal static class MobileTheme
         Text = text,
         FontSize = size,
         TextColor = color ?? Primary,
-        FontAttributes = weight
+        FontAttributes = weight,
+        VerticalTextAlignment = TextAlignment.Center,
+        VerticalOptions = LayoutOptions.Center
     };
 
     internal static Label Section(string text) => new()
     {
         Text = text.ToUpperInvariant(),
-        FontFamily = "monospace",
         FontSize = 11,
-        CharacterSpacing = 1.3,
+        FontAttributes = FontAttributes.Bold,
+        CharacterSpacing = 0.8,
         TextColor = Secondary
     };
 
@@ -48,28 +50,31 @@ internal static class MobileTheme
             ContentLayout = icon is null
                 ? new Microsoft.Maui.Controls.Button.ButtonContentLayout(Microsoft.Maui.Controls.Button.ButtonContentLayout.ImagePosition.Left, 0)
                 : new Microsoft.Maui.Controls.Button.ButtonContentLayout(Microsoft.Maui.Controls.Button.ButtonContentLayout.ImagePosition.Left, 8),
-            BackgroundColor = primary ? Accent : Control,
+            BackgroundColor = primary ? Accent : Colors.Transparent,
             TextColor = Primary,
             BorderColor = primary ? Accent : Divider,
-            BorderWidth = 1,
-            CornerRadius = 6,
+            BorderWidth = 0,
+            CornerRadius = 12,
             FontSize = compact ? 12 : 14,
             FontAttributes = primary ? FontAttributes.Bold : FontAttributes.None,
             Padding = compact ? new Thickness(11, 6) : new Thickness(14, 10),
-            HeightRequest = compact ? 38 : 46
+            HeightRequest = 46
         };
+        SemanticProperties.SetDescription(button, text);
+        ToolTipProperties.SetText(button, text);
         return button;
     }
 
     internal static ImageButton IconButton(string source, string description, bool primary = false, double size = 42)
     {
+        size = Math.Max(44, size);
         var button = new ImageButton
         {
             Source = source,
-            BackgroundColor = primary ? Accent : Control,
+            BackgroundColor = primary ? Accent : Colors.Transparent,
             BorderColor = primary ? Accent : Divider,
-            BorderWidth = 1,
-            CornerRadius = (int)(size / 2),
+            BorderWidth = 0,
+            CornerRadius = 12,
             Padding = primary ? 13 : 10,
             WidthRequest = size,
             HeightRequest = size
@@ -82,11 +87,12 @@ internal static class MobileTheme
     {
         input.TextColor = Primary;
         input.PlaceholderColor = Muted;
-        input.BackgroundColor = Raised;
+        input.BackgroundColor = Colors.Transparent;
         input.FontSize = 14;
+        if (input is Entry) input.MinimumHeightRequest = 48;
     }
 
-    internal static Border Frame(View content, Thickness? padding = null, float radius = 8)
+    internal static Border Frame(View content, Thickness? padding = null, float radius = 14)
     {
         return new Border
         {

@@ -5,52 +5,52 @@
              xmlns:core="clr-namespace:Slate.Lib.Core;assembly=Slate.Lib.Core"
              x:Class="Slate.Lib.App.MainPage"
              HandlerChanged="PageHandlerChanged"
-             BackgroundColor="#090A0F">
+             BackgroundColor="#191B22">
   <ContentPage.Resources>
-    <Color x:Key="PageBackground">#090A0F</Color>
-    <Color x:Key="PanelBackground">#12141E</Color>
-    <Color x:Key="RaisedBackground">#202436</Color>
-    <Color x:Key="Divider">#262B3D</Color>
-    <Color x:Key="PrimaryText">#F1F3F9</Color>
-    <Color x:Key="SecondaryText">#9BA3B8</Color>
-    <Color x:Key="Accent">#8B5CF6</Color>
+    <Color x:Key="PageBackground">#191B22</Color>
+    <Color x:Key="PanelBackground">#22242D</Color>
+    <Color x:Key="RaisedBackground">#2C2F3B</Color>
+    <Color x:Key="Divider">#363946</Color>
+    <Color x:Key="PrimaryText">#F2F3F7</Color>
+    <Color x:Key="SecondaryText">#9C9EAE</Color>
+    <Color x:Key="Accent">#8FB6FF</Color>
     <Color x:Key="Success">#34D399</Color>
 
     <Style TargetType="Label">
       <Setter Property="TextColor" Value="{StaticResource PrimaryText}" />
-      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="FontFamily" Value="Segoe UI Variable" />
     </Style>
     <Style TargetType="Entry">
       <Setter Property="TextColor" Value="{StaticResource PrimaryText}" />
-      <Setter Property="PlaceholderColor" Value="#64748B" />
+      <Setter Property="PlaceholderColor" Value="#777C90" />
       <Setter Property="BackgroundColor" Value="{StaticResource RaisedBackground}" />
-      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="FontFamily" Value="Segoe UI Variable" />
       <Setter Property="FontSize" Value="14" />
       <Setter Property="HeightRequest" Value="34" />
     </Style>
     <Style TargetType="Editor">
       <Setter Property="TextColor" Value="{StaticResource PrimaryText}" />
-      <Setter Property="PlaceholderColor" Value="#64748B" />
+      <Setter Property="PlaceholderColor" Value="#777C90" />
       <Setter Property="BackgroundColor" Value="{StaticResource PageBackground}" />
     </Style>
     <Style TargetType="Button">
       <Setter Property="BackgroundColor" Value="Transparent" />
       <Setter Property="TextColor" Value="{StaticResource PrimaryText}" />
       <Setter Property="BorderWidth" Value="0" />
-      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="CornerRadius" Value="9" />
       <Setter Property="Padding" Value="10,5" />
-      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="FontFamily" Value="Segoe UI Variable" />
       <Setter Property="FontSize" Value="13" />
       <Setter Property="HeightRequest" Value="34" />
     </Style>
     <Style x:Key="PrimaryButton" TargetType="Button">
-      <Setter Property="BackgroundColor" Value="#7C3AED" />
+      <Setter Property="BackgroundColor" Value="#3478F6" />
       <Setter Property="TextColor" Value="White" />
       <Setter Property="FontAttributes" Value="Bold" />
-      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="FontFamily" Value="Segoe UI Variable" />
       <Setter Property="FontSize" Value="13" />
       <Setter Property="BorderWidth" Value="0" />
-      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="CornerRadius" Value="9" />
       <Setter Property="HeightRequest" Value="34" />
       <Setter Property="Padding" Value="12,5" />
     </Style>
@@ -58,16 +58,16 @@
       <Setter Property="BackgroundColor" Value="Transparent" />
       <Setter Property="BorderWidth" Value="0" />
       <Setter Property="TextColor" Value="{StaticResource SecondaryText}" />
-      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="CornerRadius" Value="9" />
       <Setter Property="HeightRequest" Value="32" />
       <Setter Property="Padding" Value="9,4" />
-      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="FontFamily" Value="Segoe UI Variable" />
       <Setter Property="FontSize" Value="13" />
       <Setter Property="VisualStateManager.VisualStateGroups">
         <VisualStateGroupList><VisualStateGroup Name="CommonStates">
           <VisualState Name="Normal" />
-          <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#202436" /></VisualState.Setters></VisualState>
-          <VisualState Name="Pressed"><VisualState.Setters><Setter Property="BackgroundColor" Value="#2A2D43" /></VisualState.Setters></VisualState>
+          <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#2C2F3B" /></VisualState.Setters></VisualState>
+          <VisualState Name="Pressed"><VisualState.Setters><Setter Property="BackgroundColor" Value="#393D4A" /></VisualState.Setters></VisualState>
           <VisualState Name="Disabled"><VisualState.Setters><Setter Property="Opacity" Value="0.4" /></VisualState.Setters></VisualState>
         </VisualStateGroup></VisualStateGroupList>
       </Setter>
@@ -82,14 +82,14 @@
     <Style x:Key="NavRow" TargetType="Border">
       <Setter Property="BackgroundColor" Value="Transparent" />
       <Setter Property="StrokeThickness" Value="0" />
-      <Setter Property="StrokeShape" Value="RoundRectangle 5" />
+      <Setter Property="StrokeShape" Value="RoundRectangle 9" />
       <Setter Property="Padding" Value="12,8" />
       <Setter Property="HeightRequest" Value="38" />
       <Setter Property="VisualStateManager.VisualStateGroups">
         <VisualStateGroupList><VisualStateGroup Name="CommonStates">
           <VisualState Name="Normal" />
-          <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#202436" /></VisualState.Setters></VisualState>
-          <VisualState Name="Pressed"><VisualState.Setters><Setter Property="BackgroundColor" Value="#2A2D43" /></VisualState.Setters></VisualState>
+          <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#2C2F3B" /></VisualState.Setters></VisualState>
+          <VisualState Name="Pressed"><VisualState.Setters><Setter Property="BackgroundColor" Value="#393D4A" /></VisualState.Setters></VisualState>
         </VisualStateGroup></VisualStateGroupList>
       </Setter>
     </Style>
@@ -99,34 +99,34 @@
       <Setter Property="TextColor" Value="{StaticResource SecondaryText}" />
       <Setter Property="HeightRequest" Value="32" />
       <Setter Property="Padding" Value="9,4" />
-      <Setter Property="CornerRadius" Value="5" />
-      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="FontFamily" Value="Segoe UI Variable" />
       <Setter Property="FontSize" Value="13" />
       <Setter Property="VisualStateManager.VisualStateGroups">
         <VisualStateGroupList><VisualStateGroup Name="CommonStates">
           <VisualState Name="Normal" />
-          <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#202436" /></VisualState.Setters></VisualState>
-          <VisualState Name="Pressed"><VisualState.Setters><Setter Property="BackgroundColor" Value="#2A2D43" /></VisualState.Setters></VisualState>
+          <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#2C2F3B" /></VisualState.Setters></VisualState>
+          <VisualState Name="Pressed"><VisualState.Setters><Setter Property="BackgroundColor" Value="#393D4A" /></VisualState.Setters></VisualState>
           <VisualState Name="Disabled"><VisualState.Setters><Setter Property="Opacity" Value="0.4" /></VisualState.Setters></VisualState>
         </VisualStateGroup></VisualStateGroupList>
       </Setter>
     </Style>
     <Style x:Key="ModeButton" TargetType="Button" BasedOn="{StaticResource ToolButton}">
       <Setter Property="ContentLayout" Value="Left,7" />
-      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="CornerRadius" Value="9" />
     </Style>
     <Style x:Key="IconButton" TargetType="ImageButton">
       <Setter Property="BackgroundColor" Value="Transparent" />
       <Setter Property="BorderWidth" Value="0" />
-      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="CornerRadius" Value="9" />
       <Setter Property="Padding" Value="7" />
       <Setter Property="WidthRequest" Value="32" />
       <Setter Property="HeightRequest" Value="32" />
       <Setter Property="VisualStateManager.VisualStateGroups">
         <VisualStateGroupList><VisualStateGroup Name="CommonStates">
           <VisualState Name="Normal" />
-          <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#202436" /></VisualState.Setters></VisualState>
-          <VisualState Name="Pressed"><VisualState.Setters><Setter Property="BackgroundColor" Value="#2A2D43" /></VisualState.Setters></VisualState>
+          <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#2C2F3B" /></VisualState.Setters></VisualState>
+          <VisualState Name="Pressed"><VisualState.Setters><Setter Property="BackgroundColor" Value="#393D4A" /></VisualState.Setters></VisualState>
           <VisualState Name="Disabled"><VisualState.Setters><Setter Property="Opacity" Value="0.4" /></VisualState.Setters></VisualState>
         </VisualStateGroup></VisualStateGroupList>
       </Setter>
@@ -139,40 +139,51 @@
     </Style>
   </ContentPage.Resources>
 
-  <Grid RowDefinitions="54,Auto,*">
-    <Grid Grid.Row="0" RowDefinitions="*,1" BackgroundColor="#0F1117">
-      <Grid Padding="16,7" ColumnDefinitions="240,*,Auto,Auto" ColumnSpacing="14">
-        <HorizontalStackLayout Spacing="9" VerticalOptions="Center">
-          <Image Source="slate_logo.png" WidthRequest="28" HeightRequest="28" />
-          <Label Text="Slate" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" CharacterSpacing="0.3" />
-          <Border BackgroundColor="#211C33" Stroke="#44336B" StrokeThickness="1" StrokeShape="RoundRectangle 4" Padding="6,2" VerticalOptions="Center">
-            <Label Text="VAULT" FontFamily="Consolas" FontSize="9" TextColor="#A78BFA" CharacterSpacing="1.1" />
-          </Border>
-        </HorizontalStackLayout>
-        <Border Grid.Column="1" MaximumWidthRequest="580" HorizontalOptions="Center" BackgroundColor="{StaticResource RaisedBackground}" Stroke="{StaticResource Divider}" StrokeThickness="1" StrokeShape="RoundRectangle 6" WidthRequest="520">
-          <Grid ColumnDefinitions="Auto,*,Auto" Padding="10,0" ColumnSpacing="7">
-            <Image Source="search_20_regular.png" WidthRequest="17" HeightRequest="17" VerticalOptions="Center" />
-            <Entry x:Name="SearchEntry" Grid.Column="1" BackgroundColor="Transparent" Placeholder="Search library…" TextChanged="SearchTextChanged" />
-            <Label Grid.Column="2" Text="CTRL  K" FontFamily="Consolas" FontSize="10" TextColor="{StaticResource SecondaryText}" VerticalOptions="Center" />
-          </Grid>
-        </Border>
-        <Border x:Name="SyncStatusSurface" Grid.Column="2" BackgroundColor="Transparent" StrokeThickness="0" StrokeShape="RoundRectangle 5" Padding="7,3" ToolTipProperties.Text="Synchronize the Library with Git">
-          <Border.GestureRecognizers>
-            <TapGestureRecognizer Tapped="SyncStatusTapped" />
-            <PointerGestureRecognizer PointerEntered="SyncStatusPointerEntered" PointerExited="SyncStatusPointerExited" />
-          </Border.GestureRecognizers>
-          <HorizontalStackLayout Spacing="7" VerticalOptions="Center">
-            <Image Source="arrow_sync_20_regular.png" WidthRequest="16" HeightRequest="16" />
-            <BoxView x:Name="SyncIndicator" WidthRequest="7" HeightRequest="7" CornerRadius="4" Color="#64748B" VerticalOptions="Center" />
-            <Label x:Name="SyncState" Text="Git not initialized" FontSize="12" TextColor="{StaticResource SecondaryText}" VerticalOptions="Center" />
-          </HorizontalStackLayout>
-        </Border>
-        <ImageButton Grid.Column="3" Source="settings_20_regular.png" Style="{StaticResource IconButton}" Clicked="SettingsClicked" ToolTipProperties.Text="Connection settings" SemanticProperties.Description="Connection settings" />
-      </Grid>
-      <BoxView Grid.Row="1" Color="{StaticResource Divider}" />
+  <Grid x:Name="DesktopRoot" RowDefinitions="54,Auto,*,30" ColumnDefinitions="0,*">
+    <Grid Grid.ColumnSpan="2" BackgroundColor="#22242D" Padding="4,4,10,4">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="44" />
+        <ColumnDefinition x:Name="HeaderExplorerColumn" Width="216" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <ImageButton Source="panel_left.png" Style="{StaticResource IconButton}" Clicked="ToggleLeftClicked" ToolTipProperties.Text="Toggle file explorer" SemanticProperties.Description="Toggle file explorer" />
+      <HorizontalStackLayout x:Name="HeaderExplorerTools" Grid.Column="1" Spacing="10" Padding="9,0" VerticalOptions="Center">
+        <Image Source="slate_brand.png" WidthRequest="26" HeightRequest="26" />
+        <Label Text="Slate" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" />
+      </HorizontalStackLayout>
+      <ScrollView Grid.Column="2" Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
+        <HorizontalStackLayout x:Name="NoteTabs" Spacing="6" VerticalOptions="Center" />
+      </ScrollView>
+      <HorizontalStackLayout Grid.Column="3" Spacing="5" VerticalOptions="Center">
+        <ImageButton Source="search_20_regular.png" Style="{StaticResource IconButton}" Clicked="SearchClicked" ToolTipProperties.Text="Find a note · Ctrl+K" SemanticProperties.Description="Find a note" />
+        <ImageButton Source="command.png" Style="{StaticResource IconButton}" Clicked="CommandPaletteClicked" ToolTipProperties.Text="Commands · Ctrl+P" SemanticProperties.Description="Commands" />
+        <ImageButton Source="add_20_regular.png" Style="{StaticResource IconButton}" Clicked="NewNoteClicked" ToolTipProperties.Text="New note" SemanticProperties.Description="New note" />
+        <ImageButton Source="panel_right.png" Style="{StaticResource IconButton}" Clicked="ToggleRightClicked" ToolTipProperties.Text="Toggle right sidebar" SemanticProperties.Description="Toggle right sidebar" />
+      </HorizontalStackLayout>
     </Grid>
-
-    <Border x:Name="ConnectionPanel" Grid.Row="1" IsVisible="False" BackgroundColor="#141721" Stroke="{StaticResource Divider}" StrokeThickness="0,0,0,1" Padding="18,9">
+    <Grid Grid.Row="2" RowDefinitions="*,Auto" BackgroundColor="{StaticResource PanelBackground}">
+      <VerticalStackLayout Spacing="9" Padding="5,12">
+        <ImageButton Source="search_20_regular.png" Style="{StaticResource IconButton}" Clicked="SearchClicked" ToolTipProperties.Text="Search" SemanticProperties.Description="Search" />
+        <ImageButton Source="calendar.png" Style="{StaticResource IconButton}" Clicked="DailyNoteClicked" ToolTipProperties.Text="Daily note" SemanticProperties.Description="Daily note" />
+        <ImageButton Source="flash_20_regular.png" Style="{StaticResource IconButton}" Clicked="QuickThoughtClicked" ToolTipProperties.Text="Quick capture" SemanticProperties.Description="Quick Thought" />
+        <ImageButton Source="command.png" Style="{StaticResource IconButton}" Clicked="CommandPaletteClicked" ToolTipProperties.Text="Commands" SemanticProperties.Description="Commands" />
+        <ImageButton Source="history_20_regular.png" Style="{StaticResource IconButton}" Clicked="RecentClicked" ToolTipProperties.Text="Recent notes" SemanticProperties.Description="Recent notes" />
+        <ImageButton Source="mail_inbox_20_regular.png" Style="{StaticResource IconButton}" Clicked="InboxClicked" ToolTipProperties.Text="Inbox" SemanticProperties.Description="Inbox" />
+      </VerticalStackLayout>
+      <ImageButton Grid.Row="1" Source="settings_20_regular.png" Style="{StaticResource IconButton}" Clicked="SettingsClicked" Margin="5,8" ToolTipProperties.Text="Settings" SemanticProperties.Description="Settings" />
+    </Grid>
+    <Grid Grid.Row="3" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" BackgroundColor="{StaticResource PageBackground}" Padding="18,4">
+      <Label x:Name="WorkspaceStats" Text="Slate" FontSize="11" TextColor="{StaticResource SecondaryText}" />
+      <Border x:Name="SyncStatusSurface" Grid.Column="1" StrokeThickness="0" VerticalOptions="Center">
+        <Border.GestureRecognizers><TapGestureRecognizer Tapped="SyncStatusTapped" /></Border.GestureRecognizers>
+        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+          <BoxView x:Name="SyncIndicator" Color="#777777" CornerRadius="3" WidthRequest="6" HeightRequest="6" VerticalOptions="Center" />
+          <Label x:Name="SyncState" Text="Not connected" FontSize="11" VerticalOptions="Center" TextColor="{StaticResource SecondaryText}" />
+        </HorizontalStackLayout>
+      </Border>
+    </Grid>
+    <Border x:Name="ConnectionPanel" Grid.Row="1" Grid.ColumnSpan="2" IsVisible="False" BackgroundColor="#141721" Stroke="{StaticResource Divider}" StrokeThickness="0,0,0,1" Padding="18,9">
       <Grid ColumnDefinitions="Auto,*,*,Auto,Auto,Auto" ColumnSpacing="10">
         <VerticalStackLayout WidthRequest="180" Spacing="1" VerticalOptions="Center">
           <Label Text="Connection" FontAttributes="Bold" FontSize="14" />
@@ -186,20 +197,29 @@
       </Grid>
     </Border>
 
-    <Grid Grid.Row="2">
+    <Border x:Name="FeedbackBanner" Grid.Row="1" Grid.ColumnSpan="2" IsVisible="False" BackgroundColor="#393040" Stroke="#63506B" StrokeThickness="0,0,0,1" Padding="18,8">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+        <Label x:Name="FeedbackText" FontSize="13" VerticalOptions="Center" />
+        <ImageButton Grid.Column="1" Source="dismiss_20_regular.png" Style="{StaticResource IconButton}" Clicked="DismissFeedbackClicked" SemanticProperties.Description="Dismiss notification" />
+      </Grid>
+    </Border>
+    <Grid x:Name="WorkspaceGrid" Grid.Row="2" Grid.Column="1">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="270" />
+        <ColumnDefinition x:Name="ExplorerColumn" Width="260" />
         <ColumnDefinition Width="1" />
         <ColumnDefinition Width="*" />
         <ColumnDefinition x:Name="RailDividerColumn" Width="0" />
         <ColumnDefinition x:Name="RailColumn" Width="0" />
       </Grid.ColumnDefinitions>
-      <Grid Grid.Column="0" RowDefinitions="Auto,Auto,1,Auto,*,Auto" BackgroundColor="{StaticResource PanelBackground}">
-        <Grid Padding="14,14,14,9" ColumnDefinitions="*,Auto" ColumnSpacing="6">
-          <Button Text="New" ImageSource="add_20_regular.png" ContentLayout="Left,8" Style="{StaticResource PrimaryButton}" Clicked="NewMenuClicked" HorizontalOptions="Fill" ToolTipProperties.Text="Create a note, folder, or Quick Thought" />
-          <ImageButton Grid.Column="1" Source="flash_20_regular.png" Style="{StaticResource IconButton}" Clicked="QuickThoughtClicked" ToolTipProperties.Text="Quick Thought" SemanticProperties.Description="Quick Thought" />
-        </Grid>
-        <VerticalStackLayout Grid.Row="1" Padding="10,2,10,10" Spacing="0">
+      <Grid x:Name="ExplorerPanel" Grid.Column="0" RowDefinitions="Auto,Auto,1,Auto,*,Auto" BackgroundColor="{StaticResource PanelBackground}">
+        <HorizontalStackLayout Padding="16,14,16,10" Spacing="5">
+          <Label Text="WORKSPACE" Style="{StaticResource SectionLabel}" FontSize="10" WidthRequest="70" VerticalOptions="Center" />
+          <ImageButton Source="edit_20_regular.png" Style="{StaticResource IconButton}" Clicked="NewNoteClicked" ToolTipProperties.Text="New note" SemanticProperties.Description="New note" />
+          <ImageButton Source="folder_add.png" Style="{StaticResource IconButton}" Clicked="NewFolderClicked" ToolTipProperties.Text="New folder" SemanticProperties.Description="New folder" />
+          <ImageButton Source="sort.png" Style="{StaticResource IconButton}" Clicked="SortTreeClicked" ToolTipProperties.Text="Reverse sort order" SemanticProperties.Description="Reverse sort order" />
+          <ImageButton Source="collapse.png" Style="{StaticResource IconButton}" Clicked="CollapseFoldersClicked" ToolTipProperties.Text="Collapse all folders" SemanticProperties.Description="Collapse all folders" />
+        </HorizontalStackLayout>
+        <VerticalStackLayout Grid.Row="1" Padding="12,0,12,16" Spacing="3">
           <Border Style="{StaticResource NavRow}">
             <Border.GestureRecognizers><TapGestureRecognizer Tapped="InboxClicked" /></Border.GestureRecognizers>
             <HorizontalStackLayout Spacing="11"><Image Source="mail_inbox_20_regular.png" WidthRequest="18" HeightRequest="18" /><Label Text="Inbox" FontSize="14" VerticalOptions="Center" /></HorizontalStackLayout>
@@ -210,15 +230,25 @@
           </Border>
           <Border Style="{StaticResource NavRow}">
             <Border.GestureRecognizers><TapGestureRecognizer Tapped="QuickThoughtClicked" /></Border.GestureRecognizers>
-            <HorizontalStackLayout Spacing="11"><Image Source="flash_20_regular.png" WidthRequest="18" HeightRequest="18" /><Label Text="Quick Thought" FontSize="14" VerticalOptions="Center" /></HorizontalStackLayout>
+            <HorizontalStackLayout Spacing="11"><Image Source="flash_20_regular.png" WidthRequest="18" HeightRequest="18" /><Label Text="Quick capture" FontSize="14" VerticalOptions="Center" /></HorizontalStackLayout>
           </Border>
+          <Border Style="{StaticResource NavRow}">
+            <Border.GestureRecognizers><TapGestureRecognizer Tapped="DailyNoteClicked" /></Border.GestureRecognizers>
+            <HorizontalStackLayout Spacing="11"><Image Source="calendar.png" WidthRequest="18" HeightRequest="18" /><Label Text="Daily note" FontSize="14" VerticalOptions="Center" /></HorizontalStackLayout>
+          </Border>
+          <Border Style="{StaticResource NavRow}">
+            <Border.GestureRecognizers><TapGestureRecognizer Tapped="BookmarksClicked" /></Border.GestureRecognizers>
+            <HorizontalStackLayout Spacing="11"><Image Source="bookmark.png" WidthRequest="18" HeightRequest="18" /><Label Text="Favorites" FontSize="14" VerticalOptions="Center" /></HorizontalStackLayout>
+          </Border>
+          <Button Text="Smart views" Style="{StaticResource NavButton}" Clicked="SmartViewsClicked" ImageSource="search_20_regular.png" SemanticProperties.Description="Smart views and saved searches" />
+          <VerticalStackLayout x:Name="PinnedFolders" Spacing="2" IsVisible="False" />
         </VerticalStackLayout>
         <BoxView Grid.Row="2" Margin="20,0" Color="{StaticResource Divider}" />
-        <Grid Grid.Row="3" Padding="18,13,12,6" ColumnDefinitions="*,Auto">
-          <Label Text="LIBRARY" Style="{StaticResource SectionLabel}" VerticalOptions="Center" />
+        <Grid Grid.Row="3" Padding="22,15,14,10" ColumnDefinitions="*,Auto">
+          <HorizontalStackLayout Spacing="8"><Label Text="FILES" Style="{StaticResource SectionLabel}" VerticalOptions="Center" /><Label x:Name="SelectionCount" FontSize="10" VerticalOptions="Center" TextColor="{StaticResource SecondaryText}" /></HorizontalStackLayout>
           <ImageButton Grid.Column="1" Source="add_20_regular.png" Style="{StaticResource IconButton}" Clicked="NewMenuClicked" ToolTipProperties.Text="Create in Library" SemanticProperties.Description="Create in Library" />
         </Grid>
-        <CollectionView x:Name="Tree" Grid.Row="4" Margin="7,0,6,0" SelectionMode="Single" SelectionChanged="SelectionChanged" HandlerChanged="TreeHandlerChanged">
+        <CollectionView x:Name="Tree" Grid.Row="4" ItemsUpdatingScrollMode="KeepScrollOffset" Margin="12,0,12,0" SelectionMode="Single" SelectionChanged="SelectionChanged" HandlerChanged="TreeHandlerChanged">
           <CollectionView.EmptyView>
             <VerticalStackLayout Margin="14,22" Spacing="6">
               <Label Text="Your library will appear here." FontSize="13" />
@@ -227,98 +257,206 @@
           </CollectionView.EmptyView>
           <CollectionView.ItemTemplate>
             <DataTemplate x:DataType="local:TreeRow">
-              <Grid Padding="0,5,4,5" Margin="0,1" ColumnDefinitions="3,*,30" ColumnSpacing="5">
-                <VisualStateManager.VisualStateGroups>
-                  <VisualStateGroup Name="CommonStates">
-                    <VisualState Name="Normal"><VisualState.Setters><Setter Property="BackgroundColor" Value="Transparent" /></VisualState.Setters></VisualState>
-                    <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#1A1D2B" /></VisualState.Setters></VisualState>
-                    <VisualState Name="Selected"><VisualState.Setters><Setter Property="BackgroundColor" Value="#29213D" /></VisualState.Setters></VisualState>
-                  </VisualStateGroup>
-                </VisualStateManager.VisualStateGroups>
+              <Grid HandlerChanged="ExplorerRowHandlerChanged" Padding="0,3,5,3" Margin="0,2" HeightRequest="38" BackgroundColor="{Binding RowBackground}" ColumnDefinitions="0,*,30" ColumnSpacing="5">
+                <VisualStateManager.VisualStateGroups><VisualStateGroup Name="CommonStates"><VisualState Name="Normal" /><VisualState Name="PointerOver" /><VisualState Name="Selected" /></VisualStateGroup></VisualStateManager.VisualStateGroups>
                 <Grid.GestureRecognizers>
-                  <PointerGestureRecognizer PointerEntered="TreeRowPointerEntered" PointerExited="TreeRowPointerExited" />
+                  <PointerGestureRecognizer PointerEntered="TreeRowPointerEntered" PointerExited="TreeRowPointerExited" /><DragGestureRecognizer DragStarting="ExplorerDragStarting" DropCompleted="ExplorerDragCompleted" /><DropGestureRecognizer AllowDrop="True" DragOver="ExplorerDragOver" DragLeave="ExplorerDragLeave" Drop="ExplorerDrop" />
                 </Grid.GestureRecognizers>
                 <BoxView Grid.Column="0" WidthRequest="2" Color="{StaticResource Accent}" IsVisible="{Binding Selected}" />
                 <Grid Grid.Column="1" ColumnDefinitions="16,20,*" ColumnSpacing="5" Margin="{Binding Indent}">
+                  <Grid.GestureRecognizers><TapGestureRecognizer Tapped="ExplorerRowTapped" /></Grid.GestureRecognizers>
                   <Image Source="{Binding ChevronIcon}" IsVisible="{Binding ShowChevron}" WidthRequest="13" HeightRequest="13" />
                   <Image Grid.Column="1" Source="{Binding IconSource}" WidthRequest="17" HeightRequest="17" />
                   <Label Grid.Column="2" Text="{Binding Name}" FontSize="13" LineBreakMode="TailTruncation" VerticalOptions="Center" />
                 </Grid>
-                <ImageButton Grid.Column="2" Source="more_horizontal_20_regular.png" Style="{StaticResource IconButton}" WidthRequest="28" HeightRequest="28" Padding="6" IsVisible="{Binding ShowOverflow}" Clicked="RowOverflowClicked" ToolTipProperties.Text="More actions" SemanticProperties.Description="More actions" />
+                <ImageButton Grid.Column="2" Source="more_horizontal_20_regular.png" Style="{StaticResource IconButton}" WidthRequest="28" HeightRequest="28" Padding="6" Opacity="{Binding OverflowOpacity}" Clicked="RowOverflowClicked" ToolTipProperties.Text="More actions" SemanticProperties.Description="More actions" />
                 <FlyoutBase.ContextFlyout>
                   <MenuFlyout>
-                    <MenuFlyoutItem Text="Open" Clicked="ContextOpen" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="Open" IsEnabled="{Binding SingleSelection}" Clicked="ContextOpen" CommandParameter="{Binding .}" />
                     <MenuFlyoutSeparator />
-                    <MenuFlyoutItem Text="New note here" Clicked="ContextNewNote" CommandParameter="{Binding .}" />
-                    <MenuFlyoutItem Text="New folder here" Clicked="ContextNewFolder" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="New note here" IsEnabled="{Binding SingleSelection}" Clicked="ContextNewNote" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="New folder here" IsEnabled="{Binding SingleSelection}" Clicked="ContextNewFolder" CommandParameter="{Binding .}" />
                     <MenuFlyoutSeparator />
-                    <MenuFlyoutItem Text="Rename" Clicked="ContextRename" CommandParameter="{Binding .}" />
-                    <MenuFlyoutItem Text="Cut" Clicked="ContextCut" CommandParameter="{Binding .}" />
-                    <MenuFlyoutItem Text="Copy" Clicked="ContextCopy" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="Move…" Clicked="ContextMove" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="Pin / unpin folder" IsEnabled="{Binding Entry.IsDirectory}" Clicked="ContextPin" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="Rename" IsEnabled="{Binding SingleSelection}" Clicked="ContextRename" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="{Binding CutCaption}" Clicked="ContextCut" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="{Binding CopyCaption}" Clicked="ContextCopy" CommandParameter="{Binding .}" />
                     <MenuFlyoutItem Text="Paste here" Clicked="ContextPaste" CommandParameter="{Binding .}" />
                     <MenuFlyoutItem Text="Duplicate" Clicked="ContextDuplicate" CommandParameter="{Binding .}" />
                     <MenuFlyoutSeparator />
-                    <MenuFlyoutItem Text="Delete…" Clicked="ContextDelete" CommandParameter="{Binding .}" />
+                    <MenuFlyoutItem Text="{Binding DeleteCaption}" Clicked="ContextDelete" CommandParameter="{Binding .}" />
                   </MenuFlyout>
                 </FlyoutBase.ContextFlyout>
               </Grid>
             </DataTemplate>
           </CollectionView.ItemTemplate>
         </CollectionView>
-        <Grid Grid.Row="5" Padding="18,12" RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*" ColumnSpacing="9">
+        <Grid Grid.Row="5" Padding="18,12" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*" ColumnSpacing="9">
           <ActivityIndicator x:Name="Busy" WidthRequest="16" HeightRequest="16" Color="{StaticResource Accent}" />
           <Label x:Name="Status" Grid.Column="1" Text="Not connected" FontSize="11" TextColor="{StaticResource SecondaryText}" LineBreakMode="TailTruncation" />
+          <HorizontalStackLayout Grid.Row="2" Grid.ColumnSpan="2" Spacing="8" Margin="0,10,0,0"><ImageButton Source="settings_20_regular.png" Style="{StaticResource IconButton}" Clicked="SettingsClicked" ToolTipProperties.Text="Settings" SemanticProperties.Description="Settings" /><Button Text="Settings" Clicked="SettingsClicked" Style="{StaticResource ChromeButton}" /><ImageButton Source="arrow_sync_20_regular.png" Style="{StaticResource IconButton}" Clicked="SyncClicked" ToolTipProperties.Text="Sync library" SemanticProperties.Description="Sync library" /></HorizontalStackLayout>
           <Label x:Name="ClipboardStatus" Grid.Row="1" Grid.ColumnSpan="2" FontSize="11" TextColor="{StaticResource Accent}" LineBreakMode="TailTruncation" />
         </Grid>
       </Grid>
 
-      <BoxView Grid.Column="1" Color="{StaticResource Divider}" />
+      <BoxView Grid.Column="1" Color="{StaticResource PageBackground}" />
 
-      <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*" BackgroundColor="{StaticResource PageBackground}">
-        <Grid Padding="26,14,24,9" ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="9">
-          <Label x:Name="Breadcrumb" Text="HOME  /  LIBRARY" FontFamily="Consolas" CharacterSpacing="0.8" FontSize="11" TextColor="{StaticResource SecondaryText}" />
-          <Label x:Name="DocumentState" Grid.Row="1" Grid.Column="1" Text="" FontSize="11" TextColor="{StaticResource SecondaryText}" VerticalOptions="Center" />
-          <Label x:Name="NoteTitle" Grid.Row="1" Text="Library" FontSize="27" FontAttributes="Bold" Margin="0,5,0,0" LineBreakMode="TailTruncation" />
-          <ImageButton x:Name="CloseNoteButton" Grid.Row="1" Grid.Column="2" Source="dismiss_20_regular.png" Style="{StaticResource IconButton}" Clicked="CloseNoteClicked" IsVisible="False" ToolTipProperties.Text="Close note" SemanticProperties.Description="Close note" />
+      <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*" BackgroundColor="{StaticResource PageBackground}" Margin="16,8,12,0">
+        <Grid Padding="4,8,4,12" ColumnDefinitions="Auto,Auto,*,Auto,Auto" RowDefinitions="Auto,Auto" RowSpacing="4">
+          <ImageButton x:Name="BackButton" Source="arrow_left_20_regular.png" Style="{StaticResource IconButton}" Clicked="NavigateBackClicked" IsEnabled="False" ToolTipProperties.Text="Back" SemanticProperties.Description="Back" />
+          <ImageButton x:Name="ForwardButton" Grid.Column="1" Source="arrow_right.png" Style="{StaticResource IconButton}" Clicked="NavigateForwardClicked" IsEnabled="False" ToolTipProperties.Text="Forward" SemanticProperties.Description="Forward" />
+          <Label x:Name="NoteTitle" Grid.Column="2" Text="Slate" FontSize="16" FontAttributes="Bold" HorizontalTextAlignment="Center" VerticalOptions="Center" LineBreakMode="TailTruncation" />
+          <ImageButton x:Name="CloseNoteButton" Grid.Column="3" Source="dismiss_20_regular.png" Style="{StaticResource IconButton}" Clicked="CloseNoteClicked" IsVisible="False" ToolTipProperties.Text="Close note" SemanticProperties.Description="Close note" />
+          <ImageButton Grid.Column="4" Source="more_horizontal_20_regular.png" Style="{StaticResource IconButton}" Clicked="NoteActionsClicked" ToolTipProperties.Text="Note actions" SemanticProperties.Description="Note actions" />
+          <Label x:Name="Breadcrumb" Grid.Row="1" Grid.Column="2" Text="Library" FontSize="11" HorizontalTextAlignment="Center" TextColor="{StaticResource SecondaryText}" />
+          <Label x:Name="DocumentState" Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="2" FontSize="10" TextColor="{StaticResource SecondaryText}" />
         </Grid>
-
-        <Border x:Name="NoteToolbar" Grid.Row="1" Margin="24,0,24,9" Stroke="{StaticResource Divider}" StrokeThickness="1" BackgroundColor="#0F1117" StrokeShape="RoundRectangle 6" Padding="5" IsVisible="False">
+        <Border x:Name="NoteToolbar" Grid.Row="1" Margin="4,0,4,12" Stroke="{StaticResource Divider}" StrokeThickness="0" BackgroundColor="#22242D" StrokeShape="RoundRectangle 12" Padding="6" IsVisible="False">
           <Grid ColumnDefinitions="Auto,12,Auto,Auto,Auto,Auto,*" ColumnSpacing="3">
             <Border BackgroundColor="{StaticResource RaisedBackground}" StrokeThickness="0" StrokeShape="RoundRectangle 5" Padding="2">
               <HorizontalStackLayout Spacing="0">
-                <Button x:Name="WriteButton" Text="Write" ImageSource="edit_20_regular.png" Style="{StaticResource ModeButton}" Clicked="WriteClicked" IsEnabled="False" />
-                <Button x:Name="PreviewButton" Text="Preview" ImageSource="eye_20_regular.png" Style="{StaticResource ModeButton}" Clicked="PreviewClicked" IsEnabled="False" />
-                <Button x:Name="SplitButton" Text="Split" ImageSource="split_vertical_20_regular.png" Style="{StaticResource ModeButton}" Clicked="SplitClicked" IsEnabled="False" />
+                <Button x:Name="WriteButton" Text="Write" ToolTipProperties.Text="Write" SemanticProperties.Description="Write" ImageSource="edit_20_regular.png" Style="{StaticResource ModeButton}" Clicked="WriteClicked" IsEnabled="False" />
+                <Button x:Name="PreviewButton" Text="Read" ToolTipProperties.Text="Preview" SemanticProperties.Description="Preview" ImageSource="eye_20_regular.png" Style="{StaticResource ModeButton}" Clicked="PreviewClicked" IsEnabled="False" />
+                <Button x:Name="SplitButton" Text="" ToolTipProperties.Text="Split" SemanticProperties.Description="Split" ImageSource="split_vertical_20_regular.png" Style="{StaticResource ModeButton}" Clicked="SplitClicked" IsEnabled="False" />
               </HorizontalStackLayout>
             </Border>
             <BoxView Grid.Column="1" WidthRequest="1" Margin="5,5" Color="{StaticResource Divider}" />
             <ImageButton x:Name="AttachImageButton" Grid.Column="2" Source="image_20_regular.png" Style="{StaticResource IconButton}" Clicked="AttachImageClicked" IsEnabled="False" ToolTipProperties.Text="Insert image" SemanticProperties.Description="Insert image" />
             <ImageButton x:Name="AttachFileButton" Grid.Column="3" Source="attach_20_regular.png" Style="{StaticResource IconButton}" Clicked="AttachFileClicked" IsEnabled="False" ToolTipProperties.Text="Attach file" SemanticProperties.Description="Attach file" />
             <ImageButton x:Name="InsertLinkButton" Grid.Column="4" Source="link_20_regular.png" Style="{StaticResource IconButton}" Clicked="InsertLinkClicked" IsEnabled="False" ToolTipProperties.Text="Insert wiki link" SemanticProperties.Description="Insert wiki link" />
-            <Button x:Name="HistoryButton" Grid.Column="5" Text="History" ImageSource="history_20_regular.png" ContentLayout="Left,7" Style="{StaticResource ToolButton}" Clicked="HistoryClicked" IsEnabled="False" ToolTipProperties.Text="Note history" />
-            <Button x:Name="SaveButton" Grid.Column="6" Text="Save" ImageSource="save_20_regular.png" ContentLayout="Left,7" Style="{StaticResource PrimaryButton}" Clicked="SaveClicked" IsEnabled="False" IsVisible="False" HorizontalOptions="End" MinimumWidthRequest="72" />
+            <Button x:Name="HistoryButton" Grid.Column="5" Text="" ToolTipProperties.Text="History" SemanticProperties.Description="History" ImageSource="history_20_regular.png" ContentLayout="Left,7" Style="{StaticResource ToolButton}" Clicked="HistoryClicked" IsEnabled="False" />
+            <Button x:Name="SaveButton" Grid.Column="6" Text="Save" ToolTipProperties.Text="Save" SemanticProperties.Description="Save" ImageSource="save_20_regular.png" ContentLayout="Left,7" Style="{StaticResource PrimaryButton}" Clicked="SaveClicked" IsEnabled="False" IsVisible="False" HorizontalOptions="End" MinimumWidthRequest="72" />
           </Grid>
         </Border>
 
         <Grid x:Name="WorkArea" Grid.Row="2" ColumnDefinitions="*,*">
-          <Border x:Name="EditorPane" Grid.Column="0" Margin="24,0,6,16" Stroke="#262B3D" StrokeThickness="1" BackgroundColor="#0F1117" StrokeShape="RoundRectangle 5" IsVisible="False">
-            <Editor x:Name="MarkdownEditor" TextChanged="EditorTextChanged" HandlerChanged="EditorHandlerChanged" FontFamily="Consolas" FontSize="14" AutoSize="Disabled" Placeholder="Write Markdown…" Margin="12" />
+          <Border x:Name="EditorPane" Grid.Column="0" Margin="24,0,6,16" Stroke="#363946" StrokeThickness="1" BackgroundColor="#1D2029" StrokeShape="RoundRectangle 14" IsVisible="False">
+            <Editor x:Name="MarkdownEditor" TextChanged="EditorTextChanged" HandlerChanged="EditorHandlerChanged" FontFamily="Cascadia Code" FontSize="14" AutoSize="Disabled" Placeholder="Write Markdown…" Margin="20" BackgroundColor="#1D2029" />
           </Border>
-          <Border x:Name="ReaderPane" Grid.Column="1" Margin="6,0,12,16" Stroke="#262B3D" StrokeThickness="1" BackgroundColor="#0F1117" StrokeShape="RoundRectangle 5" IsVisible="False">
+          <Border x:Name="ReaderPane" Grid.Column="1" Margin="6,0,12,16" Stroke="#363946" StrokeThickness="1" BackgroundColor="#1D2029" StrokeShape="RoundRectangle 14" IsVisible="False">
             <WebView x:Name="Reader" IsVisible="False" Navigating="ReaderNavigating" HandlerChanged="ReaderHandlerChanged" />
           </Border>
-          <VerticalStackLayout x:Name="MessagePanel" Grid.ColumnSpan="2" HorizontalOptions="Center" VerticalOptions="Center" MaximumWidthRequest="480" Padding="30" Spacing="10">
-            <Image Source="slate_logo.png" WidthRequest="48" HeightRequest="48" HorizontalOptions="Center" />
-            <Label x:Name="MessageTitle" Text="Open a note" FontSize="24" FontAttributes="Bold" HorizontalTextAlignment="Center" Margin="0,8,0,0" />
+          <VerticalStackLayout x:Name="MessagePanel" Grid.ColumnSpan="2" HorizontalOptions="Center" VerticalOptions="Center" MaximumWidthRequest="480" Padding="40" Spacing="15">
+            <Image Source="slate_brand.png" WidthRequest="56" HeightRequest="56" HorizontalOptions="Center" />
+            <Label x:Name="MessageTitle" Text="Your next idea starts here" FontSize="30" FontAttributes="Bold" HorizontalTextAlignment="Center" Margin="0,8,0,0" />
             <Label x:Name="MessageDetail" Text="Choose a note from the library or create a new one." FontSize="14" TextColor="{StaticResource SecondaryText}" HorizontalTextAlignment="Center" />
+            <HorizontalStackLayout HorizontalOptions="Center" Spacing="10" Margin="0,16,0,0">
+              <Button Text="Create a note" ImageSource="add_20_regular.png" Style="{StaticResource PrimaryButton}" Clicked="NewNoteClicked" />
+              <Button Text="Find a note" ImageSource="search_20_regular.png" Style="{StaticResource ChromeButton}" Clicked="SearchClicked" />
+            </HorizontalStackLayout>
+            <Label Text="Ctrl+N to create   ·   Ctrl+K to find" FontSize="11" TextColor="{StaticResource SecondaryText}" HorizontalTextAlignment="Center" Margin="0,6,0,0" />
           </VerticalStackLayout>
 
-          <Grid x:Name="SearchPanel" Grid.ColumnSpan="2" IsVisible="False" BackgroundColor="{StaticResource PageBackground}" RowDefinitions="Auto,*" Padding="30,10,30,24">
+          <Grid x:Name="HistoryPanel" Grid.ColumnSpan="2" IsVisible="False" BackgroundColor="{StaticResource PageBackground}" RowDefinitions="Auto,*" ColumnDefinitions="300,*" Padding="30,10,30,24">
+            <Grid Grid.ColumnSpan="2" ColumnDefinitions="*,Auto">
+              <Label x:Name="HistoryTitle" Text="History" FontSize="21" FontAttributes="Bold" VerticalOptions="Center" />
+              <Button Grid.Column="1" Text="Back to current" ImageSource="arrow_left_20_regular.png" ContentLayout="Left,7" Style="{StaticResource ChromeButton}" Clicked="CloseHistoryClicked" />
+            </Grid>
+            <CollectionView x:Name="HistoryList" Grid.Row="1" SelectionMode="Single" SelectionChanged="HistorySelected" Margin="0,14,12,0">
+              <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="core:NoteHistoryEntry">
+                  <VerticalStackLayout Padding="12" Spacing="3">
+                    <Label Text="{Binding Message}" FontAttributes="Bold" LineBreakMode="TailTruncation" />
+                    <Label Text="{Binding Timestamp}" FontSize="11" TextColor="{StaticResource SecondaryText}" />
+                    <Label Text="{Binding Commit}" FontSize="10" TextColor="#777C90" LineBreakMode="TailTruncation" />
+                  </VerticalStackLayout>
+                </DataTemplate>
+              </CollectionView.ItemTemplate>
+            </CollectionView>
+            <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,*" Margin="12,14,0,0">
+              <Label x:Name="HistoricalLabel" Text="Choose a version. Historical Markdown is read-only." FontSize="12" TextColor="{StaticResource SecondaryText}" />
+              <Editor x:Name="HistoricalEditor" Grid.Row="1" IsReadOnly="True" FontFamily="Cascadia Mono,Consolas" FontSize="13" Margin="0,8,0,0" />
+            </Grid>
+          </Grid>
+        </Grid>
+      </Grid>
+
+      <BoxView x:Name="RailDivider" Grid.Column="3" Color="{StaticResource PageBackground}" IsVisible="False" />
+
+      <Grid x:Name="RightRail" Grid.Column="4" Margin="0" RowDefinitions="Auto,1,*" BackgroundColor="{StaticResource PanelBackground}" IsVisible="False">
+        <Grid Padding="14,10,14,0" ColumnDefinitions="*,*,*" RowDefinitions="Auto,2" ColumnSpacing="4">
+          <Button x:Name="LinksTabButton" Text="" ToolTipProperties.Text="Links" SemanticProperties.Description="Links" ImageSource="link_20_regular.png" ContentLayout="Left,7" Style="{StaticResource ChromeButton}" Clicked="LinksTabClicked" />
+          <Button x:Name="InfoTabButton" Grid.Column="1" Text="" ToolTipProperties.Text="Info" SemanticProperties.Description="Info" ImageSource="info_20_regular.png" ContentLayout="Left,7" Style="{StaticResource ChromeButton}" Clicked="InfoTabClicked" />
+          <ImageButton Grid.Column="2" Source="outline.png" Style="{StaticResource IconButton}" Clicked="OutlineClicked" ToolTipProperties.Text="Outline" SemanticProperties.Description="Outline" />
+          <BoxView x:Name="LinksTabIndicator" Grid.Row="1" Color="{StaticResource Accent}" HeightRequest="2" Margin="10,0" />
+          <BoxView x:Name="InfoTabIndicator" Grid.Row="1" Grid.Column="1" Color="{StaticResource Accent}" HeightRequest="2" Margin="10,0" IsVisible="False" />
+        </Grid>
+        <BoxView Grid.Row="1" Color="{StaticResource Divider}" />
+        <ScrollView x:Name="LinksRail" Grid.Row="2">
+          <VerticalStackLayout Padding="16,16,16,24" Spacing="10">
+            <Label x:Name="BacklinksHeading" Text="Linked mentions · 0" Style="{StaticResource SectionLabel}" />
+            <CollectionView x:Name="BacklinksList" SelectionMode="Single" SelectionChanged="BacklinkSelected" HeightRequest="120">
+              <CollectionView.EmptyView><Label Text="Connections will appear as your library grows." FontSize="12" TextColor="{StaticResource SecondaryText}" Margin="2,8" /></CollectionView.EmptyView>
+              <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="local:LinkSidebarItem">
+                  <Grid Padding="5,7" RowDefinitions="Auto,Auto" ColumnDefinitions="20,*" ColumnSpacing="7">
+                    <VisualStateManager.VisualStateGroups><VisualStateGroup Name="CommonStates">
+                      <VisualState Name="Normal"><VisualState.Setters><Setter Property="BackgroundColor" Value="Transparent" /></VisualState.Setters></VisualState>
+                      <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#2C2F3B" /></VisualState.Setters></VisualState>
+                      <VisualState Name="Selected"><VisualState.Setters><Setter Property="BackgroundColor" Value="#2C3D59" /></VisualState.Setters></VisualState>
+                    </VisualStateGroup></VisualStateManager.VisualStateGroups>
+                    <Image Source="document_20_regular.png" WidthRequest="16" HeightRequest="16" VerticalOptions="Center" />
+                    <Label Grid.Column="1" Text="{Binding Title}" FontSize="13" TextColor="{StaticResource Accent}" LineBreakMode="TailTruncation" />
+                    <Label Grid.Row="1" Grid.Column="1" Text="{Binding Detail}" FontSize="11" TextColor="{StaticResource SecondaryText}" LineBreakMode="TailTruncation" />
+                  </Grid>
+                </DataTemplate>
+              </CollectionView.ItemTemplate>
+            </CollectionView>
+            <BoxView HeightRequest="1" Color="{StaticResource Divider}" Margin="0,4" />
+            <Label x:Name="OutgoingHeading" Text="Outgoing links · 0" Style="{StaticResource SectionLabel}" />
+            <CollectionView x:Name="OutgoingList" SelectionMode="Single" SelectionChanged="OutgoingLinkSelected" HeightRequest="160">
+              <CollectionView.EmptyView><Label Text="Link another note with [[double brackets]]." FontSize="12" TextColor="{StaticResource SecondaryText}" Margin="2,8" /></CollectionView.EmptyView>
+              <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="local:LinkSidebarItem">
+                  <Grid Padding="5,7" RowDefinitions="Auto,Auto" ColumnDefinitions="20,*" ColumnSpacing="7">
+                    <VisualStateManager.VisualStateGroups><VisualStateGroup Name="CommonStates">
+                      <VisualState Name="Normal"><VisualState.Setters><Setter Property="BackgroundColor" Value="Transparent" /></VisualState.Setters></VisualState>
+                      <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#2C2F3B" /></VisualState.Setters></VisualState>
+                      <VisualState Name="Selected"><VisualState.Setters><Setter Property="BackgroundColor" Value="#2C3D59" /></VisualState.Setters></VisualState>
+                    </VisualStateGroup></VisualStateManager.VisualStateGroups>
+                    <Image Source="document_20_regular.png" WidthRequest="16" HeightRequest="16" VerticalOptions="Center" />
+                    <Label Grid.Column="1" Text="{Binding Title}" FontSize="13" TextColor="{StaticResource Accent}" LineBreakMode="TailTruncation" />
+                    <Label Grid.Row="1" Grid.Column="1" Text="{Binding Detail}" FontSize="11" TextColor="{StaticResource SecondaryText}" LineBreakMode="TailTruncation" />
+                  </Grid>
+                </DataTemplate>
+              </CollectionView.ItemTemplate>
+            </CollectionView>
+          </VerticalStackLayout>
+        </ScrollView>
+        <ScrollView x:Name="OutlineRail" Grid.Row="2" IsVisible="False"><VerticalStackLayout x:Name="OutlineItems" Padding="6,10" Spacing="0" /></ScrollView>
+        <VerticalStackLayout x:Name="InfoRail" Grid.Row="2" IsVisible="False" Padding="20,20" Spacing="18">
+          <VerticalStackLayout Spacing="4">
+            <Label Text="Location" Style="{StaticResource SectionLabel}" />
+            <Label x:Name="InfoPath" Text="No note selected" FontSize="13" LineBreakMode="WordWrap" />
+          </VerticalStackLayout>
+          <VerticalStackLayout Spacing="4">
+            <Label Text="Revision" Style="{StaticResource SectionLabel}" />
+            <Label x:Name="InfoRevision" Text="—" FontFamily="Consolas" FontSize="11" TextColor="{StaticResource SecondaryText}" LineBreakMode="TailTruncation" />
+          </VerticalStackLayout>
+          <VerticalStackLayout Spacing="4">
+            <Label Text="Document" Style="{StaticResource SectionLabel}" />
+            <Label x:Name="InfoWords" Text="0 words · 0 characters" FontSize="13" />
+          </VerticalStackLayout>
+          <BoxView HeightRequest="1" Color="{StaticResource Divider}" />
+          <Label Text="Tip: right-click a library item for rename, move, copy, or delete." FontSize="12" TextColor="{StaticResource SecondaryText}" LineBreakMode="WordWrap" />
+        </VerticalStackLayout>
+      </Grid>
+    </Grid>
+<Grid x:Name="SearchPanel" Grid.ColumnSpan="2" Grid.RowSpan="4" ZIndex="10" IsVisible="False" BackgroundColor="#88000000">
+  <BoxView Color="Transparent"><BoxView.GestureRecognizers><TapGestureRecognizer Tapped="CloseSearchClicked" /></BoxView.GestureRecognizers></BoxView>
+  <Border WidthRequest="680" HeightRequest="460" Margin="32" HorizontalOptions="Center" VerticalOptions="Center" BackgroundColor="{StaticResource PanelBackground}" Stroke="#444857" StrokeThickness="1" StrokeShape="RoundRectangle 18" Padding="24">
+    <Border.Shadow><Shadow Brush="Black" Offset="0,12" Radius="24" Opacity="0.4" /></Border.Shadow>
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
             <Grid ColumnDefinitions="*,Auto">
               <Label x:Name="SearchSummary" Text="Search" FontSize="21" FontAttributes="Bold" VerticalOptions="Center" />
               <ImageButton Grid.Column="1" Source="dismiss_20_regular.png" Style="{StaticResource IconButton}" Clicked="CloseSearchClicked" ToolTipProperties.Text="Close search" SemanticProperties.Description="Close search" />
             </Grid>
-            <CollectionView x:Name="SearchResults" Grid.Row="1" SelectionMode="Single" SelectionChanged="SearchResultSelected" Margin="0,14,0,0">
+            <Border Grid.Row="1" Margin="0,12" Padding="12,0" Stroke="{StaticResource Divider}" StrokeThickness="1" StrokeShape="RoundRectangle 9" BackgroundColor="{StaticResource RaisedBackground}">
+              <Grid ColumnDefinitions="*,Auto"><Entry x:Name="SearchEntry" Placeholder="Search notes or type:question status:open…" TextChanged="SearchTextChanged" HeightRequest="42" BackgroundColor="Transparent" />
+              <ImageButton x:Name="SearchFilterButton" Grid.Column="1" Source="add_20_regular.png" Style="{StaticResource IconButton}" Clicked="SearchFiltersClicked" ToolTipProperties.Text="Add search filter" SemanticProperties.Description="Add search filter" /></Grid>
+            </Border>
+            <CollectionView x:Name="SearchResults" Grid.Row="2" SelectionMode="Single" SelectionChanged="SearchResultSelected" Margin="0,14,0,0">
               <CollectionView.EmptyView><Label x:Name="SearchEmpty" Text="Type a query to search the Library." Margin="8,20" TextColor="{StaticResource SecondaryText}" /></CollectionView.EmptyView>
               <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="core:SearchHit">
@@ -332,100 +470,11 @@
                 </DataTemplate>
               </CollectionView.ItemTemplate>
             </CollectionView>
-          </Grid>
-
-          <Grid x:Name="HistoryPanel" Grid.ColumnSpan="2" IsVisible="False" BackgroundColor="{StaticResource PageBackground}" RowDefinitions="Auto,*" ColumnDefinitions="300,*" Padding="30,10,30,24">
-            <Grid Grid.ColumnSpan="2" ColumnDefinitions="*,Auto">
-              <Label x:Name="HistoryTitle" Text="History" FontSize="21" FontAttributes="Bold" VerticalOptions="Center" />
-              <Button Grid.Column="1" Text="Back to current" ImageSource="arrow_left_20_regular.png" ContentLayout="Left,7" Style="{StaticResource ChromeButton}" Clicked="CloseHistoryClicked" />
+            <Grid x:Name="SearchPaging" Grid.Row="3" ColumnDefinitions="Auto,*,Auto" IsVisible="False">
+              <Button x:Name="SearchPrevious" Text="Previous" Style="{StaticResource ChromeButton}" Clicked="SearchPreviousClicked" />
+              <Label x:Name="SearchPageLabel" Grid.Column="1" HorizontalTextAlignment="Center" VerticalOptions="Center" TextColor="{StaticResource SecondaryText}" />
+              <Button x:Name="SearchNext" Grid.Column="2" Text="Next" Style="{StaticResource ChromeButton}" Clicked="SearchNextClicked" />
             </Grid>
-            <CollectionView x:Name="HistoryList" Grid.Row="1" SelectionMode="Single" SelectionChanged="HistorySelected" Margin="0,14,12,0">
-              <CollectionView.ItemTemplate>
-                <DataTemplate x:DataType="core:NoteHistoryEntry">
-                  <VerticalStackLayout Padding="12" Spacing="3">
-                    <Label Text="{Binding Message}" FontAttributes="Bold" LineBreakMode="TailTruncation" />
-                    <Label Text="{Binding Timestamp}" FontSize="11" TextColor="{StaticResource SecondaryText}" />
-                    <Label Text="{Binding Commit}" FontSize="10" TextColor="#64748B" LineBreakMode="TailTruncation" />
-                  </VerticalStackLayout>
-                </DataTemplate>
-              </CollectionView.ItemTemplate>
-            </CollectionView>
-            <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,*" Margin="12,14,0,0">
-              <Label x:Name="HistoricalLabel" Text="Choose a version. Historical Markdown is read-only." FontSize="12" TextColor="{StaticResource SecondaryText}" />
-              <Editor x:Name="HistoricalEditor" Grid.Row="1" IsReadOnly="True" FontFamily="Cascadia Mono,Consolas" FontSize="13" Margin="0,8,0,0" />
-            </Grid>
-          </Grid>
-        </Grid>
-      </Grid>
-
-      <BoxView x:Name="RailDivider" Grid.Column="3" Color="{StaticResource Divider}" IsVisible="False" />
-
-      <Grid x:Name="RightRail" Grid.Column="4" RowDefinitions="Auto,1,*" BackgroundColor="{StaticResource PanelBackground}" IsVisible="False">
-        <Grid Padding="14,10,14,0" ColumnDefinitions="*,*" RowDefinitions="Auto,2" ColumnSpacing="4">
-          <Button x:Name="LinksTabButton" Text="Links" ImageSource="link_20_regular.png" ContentLayout="Left,7" Style="{StaticResource ChromeButton}" Clicked="LinksTabClicked" />
-          <Button x:Name="InfoTabButton" Grid.Column="1" Text="Info" ImageSource="info_20_regular.png" ContentLayout="Left,7" Style="{StaticResource ChromeButton}" Clicked="InfoTabClicked" />
-          <BoxView x:Name="LinksTabIndicator" Grid.Row="1" Color="{StaticResource Accent}" HeightRequest="2" Margin="10,0" />
-          <BoxView x:Name="InfoTabIndicator" Grid.Row="1" Grid.Column="1" Color="{StaticResource Accent}" HeightRequest="2" Margin="10,0" IsVisible="False" />
-        </Grid>
-        <BoxView Grid.Row="1" Color="{StaticResource Divider}" />
-        <ScrollView x:Name="LinksRail" Grid.Row="2">
-          <VerticalStackLayout Padding="16,16,16,24" Spacing="10">
-            <Label x:Name="BacklinksHeading" Text="BACKLINKS · 0" Style="{StaticResource SectionLabel}" />
-            <CollectionView x:Name="BacklinksList" SelectionMode="Single" SelectionChanged="BacklinkSelected" HeightRequest="178">
-              <CollectionView.EmptyView><Label Text="No notes link here yet." FontSize="12" TextColor="{StaticResource SecondaryText}" Margin="2,8" /></CollectionView.EmptyView>
-              <CollectionView.ItemTemplate>
-                <DataTemplate x:DataType="local:LinkSidebarItem">
-                  <Grid Padding="5,7" RowDefinitions="Auto,Auto" ColumnDefinitions="20,*" ColumnSpacing="7">
-                    <VisualStateManager.VisualStateGroups><VisualStateGroup Name="CommonStates">
-                      <VisualState Name="Normal"><VisualState.Setters><Setter Property="BackgroundColor" Value="Transparent" /></VisualState.Setters></VisualState>
-                      <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#202436" /></VisualState.Setters></VisualState>
-                      <VisualState Name="Selected"><VisualState.Setters><Setter Property="BackgroundColor" Value="#29213D" /></VisualState.Setters></VisualState>
-                    </VisualStateGroup></VisualStateManager.VisualStateGroups>
-                    <Image Source="document_20_regular.png" WidthRequest="16" HeightRequest="16" VerticalOptions="Center" />
-                    <Label Grid.Column="1" Text="{Binding Title}" FontSize="13" TextColor="{StaticResource Accent}" LineBreakMode="TailTruncation" />
-                    <Label Grid.Row="1" Grid.Column="1" Text="{Binding Detail}" FontSize="11" TextColor="{StaticResource SecondaryText}" LineBreakMode="TailTruncation" />
-                  </Grid>
-                </DataTemplate>
-              </CollectionView.ItemTemplate>
-            </CollectionView>
-            <BoxView HeightRequest="1" Color="{StaticResource Divider}" Margin="0,4" />
-            <Label x:Name="OutgoingHeading" Text="OUTGOING LINKS · 0" Style="{StaticResource SectionLabel}" />
-            <CollectionView x:Name="OutgoingList" SelectionMode="Single" SelectionChanged="OutgoingLinkSelected" HeightRequest="230">
-              <CollectionView.EmptyView><Label Text="No wiki links in this note." FontSize="12" TextColor="{StaticResource SecondaryText}" Margin="2,8" /></CollectionView.EmptyView>
-              <CollectionView.ItemTemplate>
-                <DataTemplate x:DataType="local:LinkSidebarItem">
-                  <Grid Padding="5,7" RowDefinitions="Auto,Auto" ColumnDefinitions="20,*" ColumnSpacing="7">
-                    <VisualStateManager.VisualStateGroups><VisualStateGroup Name="CommonStates">
-                      <VisualState Name="Normal"><VisualState.Setters><Setter Property="BackgroundColor" Value="Transparent" /></VisualState.Setters></VisualState>
-                      <VisualState Name="PointerOver"><VisualState.Setters><Setter Property="BackgroundColor" Value="#202436" /></VisualState.Setters></VisualState>
-                      <VisualState Name="Selected"><VisualState.Setters><Setter Property="BackgroundColor" Value="#29213D" /></VisualState.Setters></VisualState>
-                    </VisualStateGroup></VisualStateManager.VisualStateGroups>
-                    <Image Source="document_20_regular.png" WidthRequest="16" HeightRequest="16" VerticalOptions="Center" />
-                    <Label Grid.Column="1" Text="{Binding Title}" FontSize="13" TextColor="{StaticResource Accent}" LineBreakMode="TailTruncation" />
-                    <Label Grid.Row="1" Grid.Column="1" Text="{Binding Detail}" FontSize="11" TextColor="{StaticResource SecondaryText}" LineBreakMode="TailTruncation" />
-                  </Grid>
-                </DataTemplate>
-              </CollectionView.ItemTemplate>
-            </CollectionView>
-          </VerticalStackLayout>
-        </ScrollView>
-        <VerticalStackLayout x:Name="InfoRail" Grid.Row="2" IsVisible="False" Padding="20,20" Spacing="18">
-          <VerticalStackLayout Spacing="4">
-            <Label Text="PATH" Style="{StaticResource SectionLabel}" />
-            <Label x:Name="InfoPath" Text="No note selected" FontSize="13" LineBreakMode="WordWrap" />
-          </VerticalStackLayout>
-          <VerticalStackLayout Spacing="4">
-            <Label Text="REVISION" Style="{StaticResource SectionLabel}" />
-            <Label x:Name="InfoRevision" Text="—" FontFamily="Consolas" FontSize="11" TextColor="{StaticResource SecondaryText}" LineBreakMode="TailTruncation" />
-          </VerticalStackLayout>
-          <VerticalStackLayout Spacing="4">
-            <Label Text="DOCUMENT" Style="{StaticResource SectionLabel}" />
-            <Label x:Name="InfoWords" Text="0 words · 0 characters" FontSize="13" />
-          </VerticalStackLayout>
-          <BoxView HeightRequest="1" Color="{StaticResource Divider}" />
-          <Label Text="Tip: right-click a library item for rename, move, copy, or delete." FontSize="12" TextColor="{StaticResource SecondaryText}" LineBreakMode="WordWrap" />
-        </VerticalStackLayout>
-      </Grid>
-    </Grid>
+          </Grid></Border></Grid>
   </Grid>
 </ContentPage>

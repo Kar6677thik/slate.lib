@@ -6,6 +6,7 @@ public static class MauiProgram
 {
     public static MauiApp CreateMauiApp()
     {
+        ClientControls.Configure();
 #if WINDOWS
         Environment.SetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "slate.lib", "WebView2"));
 #endif

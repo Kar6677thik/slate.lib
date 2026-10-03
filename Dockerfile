@@ -14,7 +14,7 @@ RUN dotnet publish src/Slate.Lib.Api/Slate.Lib.Api.csproj -c Release --no-restor
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y ca-certificates git openssh-client \
+    && apt-get install --no-install-recommends -y ca-certificates git openssh-client tesseract-ocr tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /out/ ./

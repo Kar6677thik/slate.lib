@@ -19,11 +19,11 @@ public static class UpdateCoordinator
             Preferences.Set("last-update-check", DateTimeOffset.UtcNow.ToString("O"));
             if (!update.UpdateAvailable)
             {
-                if (manual) await page.DisplayAlertAsync("Slate is current", $"Version {current} is installed.", "OK");
+                if (manual) await SlateDialogs.AlertAsync(page, "Slate is current", $"Version {current} is installed.", "OK");
                 return;
             }
             if (!manual && Preferences.Get("dismissed-update", "") == update.LatestVersion) return;
-            var install = await page.DisplayAlertAsync($"Slate {update.LatestVersion} is available",
+            var install = await SlateDialogs.AlertAsync(page, $"Slate {update.LatestVersion} is available",
                 update.ReleaseNotes + "\n\nThe package checksum will be verified before the normal system installer opens.", "Update", "Later");
             if (!install) { Preferences.Set("dismissed-update", update.LatestVersion); return; }
             var directory = Path.Combine(FileSystem.CacheDirectory, "slate.lib", "updates", update.LatestVersion);
@@ -35,7 +35,7 @@ public static class UpdateCoordinator
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (manual) await page.DisplayAlertAsync("Update check unavailable", exception is HttpRequestException
+            if (manual) await SlateDialogs.AlertAsync(page, "Update check unavailable", exception is HttpRequestException
                 ? "Slate is still usable. The release service could not be reached." : exception.Message, "OK");
         }
         finally { Gate.Release(); }

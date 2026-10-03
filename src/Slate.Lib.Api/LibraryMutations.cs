@@ -415,6 +415,8 @@ public sealed partial class LibraryStore
     private void RebuildIndex()
     {
         notes.Clear();
+        assetNoteIndex.Clear();
+        assetReferences.Clear();
         foreach (var relative in Discover(paths)) Register(relative, ReadFile(relative));
     }
 }

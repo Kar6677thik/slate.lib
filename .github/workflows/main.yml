@@ -22,7 +22,7 @@ jobs:
         with:
           dotnet-version: 10.0.401
           cache: true
-          cache-dependency-path: '**/*.csproj'
+          cache-dependency-path: "**/*.csproj"
       - name: Restore
         run: dotnet restore slate.lib.sln
       - name: Build
@@ -32,6 +32,18 @@ jobs:
       - name: Render Kubernetes manifests
         shell: pwsh
         run: kubectl kustomize deploy/k3s | Out-File -Encoding utf8 $env:RUNNER_TEMP/slate.yaml
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: slate.lib.web/pnpm-lock.yaml
+      - name: Install web dependencies
+        run: pnpm --dir slate.lib.web install --frozen-lockfile
+      - name: Check web client
+        run: pnpm --dir slate.lib.web check
 
   publish-and-deploy:
     if: github.event_name == 'push'
@@ -48,8 +60,10 @@ jobs:
           repository="${GITHUB_REPOSITORY,,}"
           echo "IMAGE=ghcr.io/$repository:$GITHUB_SHA" >> "$GITHUB_ENV"
           echo "BACKUP_IMAGE=ghcr.io/$repository-backup:$GITHUB_SHA" >> "$GITHUB_ENV"
+          echo "WEB_IMAGE=ghcr.io/$repository-web:$GITHUB_SHA" >> "$GITHUB_ENV"
           echo "MAIN_IMAGE=ghcr.io/$repository:main" >> "$GITHUB_ENV"
           echo "BACKUP_MAIN_IMAGE=ghcr.io/$repository-backup:main" >> "$GITHUB_ENV"
+          echo "WEB_MAIN_IMAGE=ghcr.io/$repository-web:main" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -75,6 +89,16 @@ jobs:
           tags: |
             ${{ env.BACKUP_IMAGE }}
             ${{ env.BACKUP_MAIN_IMAGE }}
+      - name: Build and publish web client
+        uses: docker/build-push-action@v6
+        with:
+          context: ./slate.lib.web
+          push: true
+          tags: |
+            ${{ env.WEB_IMAGE }}
+            ${{ env.WEB_MAIN_IMAGE }}
+          build-args: |
+            NEXT_PUBLIC_SLATE_DEFAULT_SERVER=https://lib.karthiksurkanti.in
       - name: Render deployment bundle with exact image
         shell: bash
         run: |
@@ -84,6 +108,15 @@ jobs:
             deploy/k3s/storage.yaml \
             deploy/k3s/config.yaml \
             deploy/k3s/deployment.yaml
+      - name: Render web deployment bundle with exact image
+        shell: bash
+        run: |
+          BUNDLE_ROOT="$RUNNER_TEMP/slate-web-bundle"
+          mkdir -p "$BUNDLE_ROOT/slate.lib.web/deploy/k3s"
+          printf '%s\n' "$WEB_IMAGE" > "$BUNDLE_ROOT/slate.lib.web/deploy/k3s/image.txt"
+          tar -czf "$RUNNER_TEMP/slate-web-k3s.tgz" \
+            -C "$BUNDLE_ROOT" \
+            slate.lib.web/deploy/k3s/image.txt
       - uses: tailscale/github-action@v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
@@ -108,3 +141,8 @@ jobs:
           scp "$RUNNER_TEMP/slate-k3s.tgz" "$DEPLOY_USER@$DEPLOY_HOST:$REMOTE_DIR/slate-k3s.tgz"
           ssh "$DEPLOY_USER@$DEPLOY_HOST" "tar -xzf '$REMOTE_DIR/slate-k3s.tgz' -C '$REMOTE_DIR'"
           ssh "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n /usr/local/sbin/slate-deploy '$REMOTE_DIR'"
+          WEB_REMOTE_DIR="/home/kar_thik/slate-ci/web/${GITHUB_SHA}"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$WEB_REMOTE_DIR'"
+          scp "$RUNNER_TEMP/slate-web-k3s.tgz" "$DEPLOY_USER@$DEPLOY_HOST:$WEB_REMOTE_DIR/slate-web-k3s.tgz"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "tar -xzf '$WEB_REMOTE_DIR/slate-web-k3s.tgz' -C '$WEB_REMOTE_DIR'"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n /usr/local/sbin/slate-deploy-web '$WEB_REMOTE_DIR'"

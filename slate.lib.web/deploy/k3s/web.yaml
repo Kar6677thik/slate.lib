@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: slate-web
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slate-web-config
+  namespace: slate-web
+data:
+  SLATE_ALLOWED_SERVERS: "https://megatron.tailf67d61.ts.net,https://lib.karthiksurkanti.in"
+  SLATE_UPSTREAM_URL: "http://slate.slate.svc.cluster.local:8080"
+  SLATE_PUBLIC_ORIGIN: "https://lib.karthiksurkanti.in"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slate-web
+  namespace: slate-web
+  labels:
+    app.kubernetes.io/name: slate-web
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: slate-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: slate-web
+    spec:
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: slate-registry
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: slate-web
+          image: ghcr.io/kar6677thik/slate.lib-web:replace-me
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: slate-web-config
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /manifest.webmanifest
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /manifest.webmanifest
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: slate-web
+  namespace: slate-web
+  labels:
+    app.kubernetes.io/name: slate-web
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: slate-web
+  ports:
+    - name: http
+      protocol: TCP
+      port: 3000
+      targetPort: http
+      nodePort: 30519

@@ -41,6 +41,7 @@ public sealed partial class LibraryStore
         if (identity is null || identity.SchemaVersion != 1 || identity.LibraryId == Guid.Empty)
             throw new InvalidDataException("Unsupported or invalid .slate/library.json.");
         LibraryId = identity.LibraryId;
+        RecoverBulkOperations();
         foreach (var path in Discover(paths)) Register(path, ReadFile(path));
         ReconcileSearch();
         ReconcileLinks();
@@ -144,6 +145,7 @@ public sealed partial class LibraryStore
         if (notes.TryGetValue(id, out var previous) && !string.Equals(previous, path, comparison) && File.Exists(paths.Resolve(previous)))
             throw new InvalidDataException($"Duplicate note ID: {previous} and {path}");
         notes[id] = path;
+        IndexAssetReferences(path, source, parsed);
         return parsed;
     }
 
@@ -154,6 +156,8 @@ public sealed partial class LibraryStore
 
     public SearchPage Search(string query, int page, int pageSize) =>
         search?.Search(query, page, pageSize) ?? throw new InvalidOperationException("Search is not configured.");
+    public SearchPage SmartView(string view, int page, int pageSize) =>
+        search?.Search("", page, pageSize, view) ?? throw new InvalidOperationException("Search is not configured.");
 
     public NoteLinks Links(Guid id) =>
         links?.Read(id) ?? throw new InvalidOperationException("Links are not configured.");
@@ -181,14 +185,14 @@ public sealed partial class LibraryStore
     private void ReconcileLinks()
     {
         if (links is null) return;
-        try { links.Reconcile(notes.Keys.Select(Read).ToArray()); }
+        try { links.Reconcile(notes.Keys.Select(Read).ToArray()); search?.UpdateBacklinks(links.WithBacklinks()); }
         catch { /* Link metadata is derived and must never make note storage unavailable. */ }
     }
 
     private void IndexNote(LibraryNote note)
     {
         if (search is not null) try { search.Upsert(note); } catch { search.MarkFailed(); }
-        if (links is not null) try { links.Upsert(note); } catch { ReconcileLinks(); }
+        if (links is not null) try { links.Upsert(note); search?.UpdateBacklinks(links.WithBacklinks()); } catch { ReconcileLinks(); }
         git?.MarkPending();
         Interlocked.Increment(ref mutationVersion);
     }

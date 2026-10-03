@@ -176,6 +176,21 @@ public sealed class LinkTests
 
 public sealed class RichRendererTests
 {
+    [Theory]
+    [InlineData("# Plain note\nA short paragraph.", false, false, false)]
+    [InlineData("```csharp\nvar x = 1;\n```", true, false, false)]
+    [InlineData("Inline $x^2$", false, true, false)]
+    [InlineData("```mermaid\ngraph TD\nA-->B\n```", false, false, true)]
+    public void LoadsOnlyRendererEnginesNeededByTheNote(string body, bool code, bool math, bool diagram)
+    {
+        var id = Guid.NewGuid();
+        var html = new MarkdownReader().Render(new(id, "Test.md", "Test", $"---\nid: {id}\n---\n{body}", "r"));
+        Assert.Equal(code, html.Contains("src=\"highlight.min.js\"", StringComparison.Ordinal));
+        Assert.Equal(math, html.Contains("src=\"katex/katex.min.js\"", StringComparison.Ordinal));
+        Assert.Equal(diagram, html.Contains("src=\"mermaid.min.js\"", StringComparison.Ordinal));
+        Assert.Contains("src=\"slate-render.js\"", html);
+    }
+
     [Fact]
     public void RendersRichSemanticsWithStableSafetyBoundary()
     {
@@ -199,6 +214,26 @@ public sealed class RichRendererTests
         Assert.True(File.Exists(Path.Combine(path, "katex", "katex.min.js")));
         Assert.True(File.Exists(Path.Combine(path, "highlight.min.js")));
         Assert.True(File.Exists(Path.Combine(path, "slate-render.js")));
+    }
+
+    [Fact]
+    public async Task DesktopAppearanceIsOptInAndKeepsReaderSecurityPolicy()
+    {
+        using var fixture = new TestLibrary();
+        var id = Guid.NewGuid();
+        var note = new LibraryNote(id, "Test.md", "Test", $"---\nid: {id}\n---\n# Test\n\n```csharp\nvar x = 1;\n```", "r");
+        var reader = new MarkdownReader();
+        var desktopPath = await reader.WriteDocumentAsync(fixture.DerivedRoot, note, desktopAppearance: true);
+        var desktop = await File.ReadAllTextAsync(desktopPath);
+        Assert.Contains("Segoe UI Variable", desktop);
+        Assert.Contains("slate-desktop.js", desktop);
+        Assert.Contains("script-src 'self'", desktop);
+        Assert.Contains("connect-src 'none'", desktop);
+        var defaultPath = await reader.WriteDocumentAsync(fixture.DerivedRoot, note);
+        var mobile = await File.ReadAllTextAsync(defaultPath);
+        Assert.DoesNotContain("Segoe UI Variable", mobile);
+        Assert.DoesNotContain("slate-desktop.js", mobile);
+        Assert.Contains("script-src 'self'", mobile);
     }
 
     private static string FileBootstrap()

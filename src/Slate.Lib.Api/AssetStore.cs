@@ -12,7 +12,7 @@ public sealed record AssetOptions
     public long MaximumBytes { get; init; } = 25L * 1024 * 1024;
 }
 
-public sealed class AssetStore
+public sealed partial class AssetStore
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private readonly string objects;
@@ -29,6 +29,7 @@ public sealed class AssetStore
         objects = Path.Combine(root, "objects"); metadata = Path.Combine(root, "metadata"); staging = Path.Combine(root, "staging");
         Directory.CreateDirectory(objects); Directory.CreateDirectory(metadata); Directory.CreateDirectory(staging);
         maximumBytes = configured.MaximumBytes;
+        InitializeCatalog(root);
     }
 
     public long MaximumBytes => maximumBytes;
@@ -68,11 +69,13 @@ public sealed class AssetStore
             await gate.WaitAsync(token);
             try
             {
+                if (IsRemoved(id)) throw new LibraryConflictException("This attachment was explicitly removed. Upload it with a new identity.");
                 if (ReadMetadataUnsafe(id) is { } existing)
                 {
                     if (existing.Sha256 == sha && existing.ByteSize == length) return existing;
                     throw new LibraryConflictException("That asset ID already belongs to different bytes.");
                 }
+                if (File.Exists(Path.Combine(cleanup, id.ToString("D") + ".json"))) throw new LibraryConflictException("This attachment was explicitly removed. Upload it with a new identity.");
                 var destination = ObjectPath(id, extension);
                 var existingObject = Directory.EnumerateFiles(objects, id.ToString("D") + ".*").SingleOrDefault();
                 if (existingObject is not null)
@@ -84,6 +87,7 @@ public sealed class AssetStore
                 }
                 else File.Move(temporary, destination);
                 await AtomicJson.WriteAsync(MetadataPath(id), record, Json, token);
+                lock (catalogGate) { catalog[id] = record; catalogOrder = null; }
                 return record;
             }
             finally { gate.Release(); }
@@ -94,6 +98,7 @@ public sealed class AssetStore
     public AssetMetadata ReadMetadata(Guid id)
     {
         if (id == Guid.Empty) throw new ArgumentException("Invalid asset ID.");
+        if (IsRemoved(id)) throw new FileNotFoundException();
         return ReadMetadataUnsafe(id) ?? throw new FileNotFoundException();
     }
 
@@ -110,7 +115,7 @@ public sealed class AssetStore
         var path = MetadataPath(id);
         if (!File.Exists(path)) return null;
         var value = JsonSerializer.Deserialize<AssetMetadata>(File.ReadAllText(path), Json);
-        if (value is null || value.Id != id || value.ByteSize < 0 || !Regex.IsMatch(value.Sha256, "^[0-9a-f]{64}$"))
+        if (value is null || value.Id != id || value.ByteSize < 0 || !Regex.IsMatch(value.Sha256, "^[0-9a-f]{64}$") || !Regex.IsMatch(value.Extension, @"^\.[a-z0-9]{1,8}$"))
             throw new InvalidDataException("Asset metadata is invalid.");
         return value;
     }

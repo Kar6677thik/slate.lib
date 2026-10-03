@@ -1,6 +1,11 @@
 # slate.lib — Implementation roadmap
 
-Status: implementation notes through phase 3D, 2026-09-25. Read [PRODUCT](PRODUCT.md), [ARCHITECTURE](ARCHITECTURE.md), [CONTENT_AND_SYNC](CONTENT_AND_SYNC.md), [UX](UX.md), and [OPERATIONS](OPERATIONS.md) as one contract. MVP ends at phase 3D. Every phase leaves a coherent runnable slice; no calendar estimates are implied.
+## Evolution verification record — 2026-10-02
+
+Milestone A implements shared selection/Markdown transforms, reviewed journaled bulk operations, immutable copy identities/internal-link rebasing, Windows selection/keyboard/drag integration, Android long-press actions/insertion toolbar, and the Windows searchable command registry. Real-file and authenticated HTTP tests cover preconditions, collisions, retries, rollback after interruption and retained deletion bytes. Both native targets compile. Pointer/long-press/keyboard qualification on physical devices remains required. Commands dependent on favorites/pins and knowledge workflows are completed with B/C; subsequent completion records appear below.
+
+
+Status: evolution A–M implemented; final verification recorded 2026-10-03. Read [PRODUCT](PRODUCT.md), [ARCHITECTURE](ARCHITECTURE.md), [CONTENT_AND_SYNC](CONTENT_AND_SYNC.md), [UX](UX.md), and [OPERATIONS](OPERATIONS.md) as one contract. MVP ends at phase 3D. Every phase leaves a coherent runnable slice; no calendar estimates are implied.
 
 ## Phase 1 — Connect, browse, read
 
@@ -176,3 +181,58 @@ Before implementation begins:
 - [x] This review changed documentation only; no project, production code, deployment or pipeline files were scaffolded.
 
 Specification readiness permits phase 1 to begin; it does not claim that unbuilt software has passed the phase tests.
+
+Milestone B verification: versioned library-scoped preferences, one-time legacy bookmark import, Favorites navigation, folder pins and missing-pin recovery are implemented. Five behavioral tests cover moves, external missing pins, restart, migration preservation, schema rejection and concurrent instances. All 118 tests pass.
+
+Milestone C verification: dedicated question/answer/link capture, serialized daily creation, template expansion, reviewed draft/saved-capture append, durable multi-file Share and explicit submission state are implemented. Nine new behavioral/HTTP tests cover unknown metadata preservation, stale answer/append rejection, search membership, concurrent daily creation, templates, active-scheme rejection, interrupted Share recovery and no implicit submission. All 127 tests pass; both native targets compile. Legacy uppercase Daily folders are deliberately reused without an unreviewed rename; new folders use lowercase daily.
+
+Milestone D verified (2026-10-02): seven indexed smart views plus Favorites and saved-search create/rename/delete are connected to Windows and Android. Full solution build: 0 warnings/errors. All 133 tests pass, including real Lucene paging, date order, changing orphan/question membership, index reopening, preference restart, and authenticated HTTP. Native interaction checks remain outstanding. Subsequent milestone completion is recorded below.
+
+Current scope: milestones A–M are implemented. Dated phase/milestone records below are historical checkpoints, not statements that later completed features are still deferred. ROADMAP contains current verification and device limitations.
+
+
+Milestone E verification (2026-10-02): advanced filters, title ranking, compact builders, and client pagination implemented. Both native targets built without warnings/errors; all 142 tests passed before the final tolerant-date compatibility adjustment, which subsequently passed. Offline search remains part of I. Subsequent milestone completion is recorded below.
+
+
+Milestone F verified (2026-10-02): reviewed incoming repairs, missing/ambiguous link management, Markdown edges, wiki conversion, and case-only rename integration implemented. 150 tests passed; full solution builds Windows and Android with 0 warnings/errors. Tests cover stale source/target rejection, interrupted move+repair recovery, portable fragments, ambiguity, case-only rename, and Markdown-derived backlinks. E compatibility recheck also passed. Subsequent milestone completion is recorded below.
+
+
+Milestone G verified (2026-10-02): reading outline/navigation/disclosures implemented; full solution builds both native targets with 0 warnings/errors and all 154 tests pass. New renderer tests cover six levels, duplicate IDs, fenced-code exclusion, callout body preservation/default state, raw-HTML safety, and local asset materialization. Subsequent milestone completion is recorded below.
+
+Milestone H verified (2026-10-02): attachment catalog/references, isolated PDF extraction, bounded thumbnails, local OCR integration, and explicitly reviewed cleanup implemented. Full solution builds both clients with 0 warnings/errors; all 161 tests pass. OCR engine and native-device interaction require operational verification; no production deployment performed. Subsequent milestone completion is recorded below.
+Milestone I verified (2026-10-02): explicit offline note/folder/pin downloads, persistent quota-managed copies/assets, plain-term offline search, durable save/upload dependencies, receipt-based replay, safe cancellation and pending-work controls implemented. Both native targets build with 0 warnings/errors; all 168 tests pass, including real HTTP lost-acknowledgement/restart tests. Legacy JSON is retained; no SQLite migration. Subsequent milestone completion is recorded below. Airplane-mode/Tailscale transitions and suspended-device behavior require manual verification.
+
+Milestone J verified (2026-10-02): shared three-way workbench and controlled independent-file history merge implemented. Full solution builds both clients with 0 warnings/errors; all 173 tests pass. Tests cover random diff reconstruction, insertion/delete/edit ambiguity, bounded large comparisons, parent preservation and stale previews; existing same-file divergence test now verifies controlled merge refusal. Windows native image-file lifetime regression found during the full suite was corrected. Subsequent milestone completion is recorded below.
+
+Milestone K verified (2026-10-02): comparison, bounded history metadata, current/as-new restore and deleted recovery implemented. Both clients build with 0 warnings/errors; all 177 tests pass. Real Git tests cover new commit ancestry, stale revisions, collision rejection, stable deleted identities, original history preservation and rebased attachment URLs. Subsequent milestone completion is recorded below.
+
+Milestone L — rediscovery (2026-10-02)
+Both clients expose Rediscover with random notes, older ideas/open questions, Something Forgotten, On This Day, explicit learning states, and a dated timeline. Results explain their eligibility. Unknown dates are omitted from date-driven views; templates are excluded. Date-based ordering is deterministic; Random Note is deliberately random. Results are paged in groups of 20 from cached parsed metadata.
+Reading history is opt-in and device-local: UUID plus last-opened timestamp, at most 1,000 entries retained for 180 days, never uploaded. Privacy controls enable/disable and clear it. Forgotten results exclude recently opened notes when tracking is enabled; when disabled, only explicit note age is used. No reading activity before opt-in is implied. No canonical metadata migration or production changes.
+
+Milestone M — graph and related notes (2026-10-02)
+Windows commands and Android note actions expose a current-note graph and up to eight related notes. Graph traversal is bidirectional over resolved wiki/Markdown links, with directed edges displayed, depths 1–3, folder/type filters, 40 client nodes (60 API maximum) and 240 edges. Limits are visible. Selecting a plotted node or its accessible numbered row opens it. Filters restrict traversal; the current note remains visible.
+Related scores are deterministic: direct link +12; shared incoming source +4 each (maximum 20); shared tag +3 each (maximum 15); title/heading term +1 each (maximum 4); same non-root folder +1. Every score has an explanation. Ties sort by path. Templates are excluded from suggestions. All data is rebuilt from the existing link index and cached parsed metadata; there are no embeddings, AI calls, graph database or canonical-data migrations.
+Full solution Windows/Android build: zero warnings/errors. All 181 tests pass, including graph edge direction, incoming traversal, filters, limits, invalidation, score explanations and deterministic ordering. L was verified with 179 passing tests before M. Native and physical-device acceptance remains separately reported.
+
+## Final evolution verification — 2026-10-03
+
+Milestones A–M are implemented across Core, API and both MAUI clients. Final dependency restore succeeded; the full solution built with zero warnings/errors; all **182 automated tests passed** (zero skipped). Tests exercise real temporary libraries, local Git remotes, HTTP authentication/receipts, restart recovery, derived indexing and renderer fixtures. An initial final build was blocked by the running audit server's file locks; stopping that isolated server allowed the clean rebuild.
+
+A 10,000-note synthetic graph workload on this workstation measured 5,725 ms for initial link indexing and 437 ms for graph plus related-note generation during the full test run. Output stayed bounded at 40 graph nodes and eight recommendations. This is a synthetic measurement, not a mobile performance guarantee.
+
+Windows native walkthrough used only a separate local fixture library and local bare remote: connected, opened the command palette with Ctrl+Shift+P, filtered and ran Rediscover, read its explanation, opened the result, rendered the local graph, clicked its node to open another tab, and opened the note overflow menu without a crash. The walkthrough found that drag-enabled explorer rows swallowed normal folder clicks; explicit row activation corrected that behavior. Offline download opening now skips remote link/asset metadata calls, local search runs its disk reads off the UI thread, and pending edit conflicts offer Resolve conflict directly.
+
+Remaining qualification: no Android device/emulator was connected in this final session. Physical touch/IME, share-sheet delivery, process death/suspension, real Tailscale disconnection/reconnection, long-lived offline queue behavior, all display scales/accessibility and signed in-place update installation need device verification. Local Tesseract OCR requires the server's configured engine and is not claimed tested on this Windows machine. Production was not accessed or deployed.
+
+Storage/migrations: canonical Markdown/library schema and asset identities are unchanged. Search schema 3 is derived/rebuildable. New workspace preferences, offline manifests/operation records and opt-in reading activity use versioned JSON beside existing drafts/cache; legacy data is retained. There is no SQLite or automatic destructive migration. Journals and replay receipts have no automatic expiry; plan disk capacity. Assets remain outside Git.
+
+Shortcuts: Ctrl+Shift+P commands; Ctrl+N note; Ctrl+Shift+N folder; Ctrl+A in explorer selects visible rows; Ctrl/Shift click controls selection; Ctrl+B/I/K in the editor inserts emphasis/links; Ctrl+Shift+K inserts a wiki link. Server filters include `type:question status:open postgres`, `has:code`, `has:diagram`, `has:file`, `created:2026-01-01..2026-10-03`, `modified:*..2026-10-03`, `tag:` and `path:`. Offline search is plain-term matching over deliberately downloaded notes.
+
+Intentionally excluded: full-library replication, offline structural mutations, cross-device preference synchronization, overlapping-file automatic Git merging, history-aware automatic asset cleanup, AI/embeddings and a web client. No push, tag, release publication, production deployment or signing-policy change was performed.
+
+### Final local build handoff
+
+The final modal adjustment bounds dialog content to the window height and lets long merge/action content scroll. Both platform targets were rebuilt after that change. Windows native folder-label expansion and collapse were also rechecked after the row-activation fix.
+
+Local artifacts are under `artifacts/evolution-20261003/`: `windows/Slate.Lib.App.exe` is the self-contained unpackaged Release build (keep the entire sibling folder), and `android/dev.slate.lib-Signed.apk` is a standalone Debug/development-signed APK with embedded assemblies. These are local verification builds, not published production releases; a development APK does not establish compatibility with an installed production signing identity. Version and production signing configuration remain unchanged. New API-backed features require the matching backend implementation; the production backend was not updated.

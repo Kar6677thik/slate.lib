@@ -1,0 +1,82 @@
+#!/bin/sh
+set -eu
+
+bundle="${1:-}"
+
+if [ -z "$bundle" ]; then
+  echo "Usage: slate-deploy-web <deployment-bundle-directory>" >&2
+  exit 2
+fi
+
+resolved=$(readlink -f "$bundle" 2>/dev/null || true)
+parent=$(dirname "$resolved")
+revision=$(basename "$resolved")
+
+if [ "$parent" != "/home/kar_thik/slate-ci/web" ] || \
+   ! printf '%s' "$revision" | grep -Eq '^[0-9a-f]{40}$'; then
+  echo "Refusing bundle outside /home/kar_thik/slate-ci/web/<40-character-sha>" >&2
+  exit 2
+fi
+
+image_file="$resolved/slate.lib.web/deploy/k3s/image.txt"
+template=/usr/local/lib/slate-web/web.yaml
+
+if [ ! -f "$image_file" ] || [ -L "$image_file" ]; then
+  echo "Missing or unsafe image reference file." >&2
+  exit 2
+fi
+if [ ! -f "$template" ]; then
+  echo "Root-owned Slate web manifest template is missing." >&2
+  exit 2
+fi
+
+line_count=$(wc -l < "$image_file")
+image=$(cat "$image_file")
+expected_image="ghcr.io/kar6677thik/slate.lib-web:$revision"
+if [ "$line_count" -ne 1 ] || [ "$image" != "$expected_image" ]; then
+  echo "Refusing unexpected web image reference: $image" >&2
+  exit 2
+fi
+
+filesystem_type=$(findmnt -n -o FSTYPE --target /srv/slate/data)
+case "$filesystem_type" in
+  ntfs|ntfs3|fuseblk)
+    echo "Refusing deployment because /srv/slate/data uses $filesystem_type." >&2
+    exit 2
+    ;;
+esac
+
+free_kib=$(df -Pk /srv/slate/data | awk 'NR == 2 { print $4 }')
+echo "Free space immediately before web deployment: $free_kib KiB on $filesystem_type"
+if [ "$free_kib" -lt 15728640 ]; then
+  echo "Refusing deployment with less than 15 GiB free." >&2
+  exit 2
+fi
+
+if ! k3s kubectl -n slate-web get secret slate-registry >/dev/null 2>&1; then
+  echo "Slate web registry pull secret is missing." >&2
+  exit 2
+fi
+
+echo "Applying the root-owned Slate web resources with immutable image $image"
+sed "s|ghcr.io/kar6677thik/slate.lib-web:replace-me|$image|" "$template" | \
+  k3s kubectl apply -f -
+
+k3s kubectl -n slate-web rollout status deployment/slate-web --timeout=180s
+
+status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+  -X POST \
+  -H 'Origin: https://lib.karthiksurkanti.in' \
+  -H 'X-Slate-Server: https://lib.karthiksurkanti.in' \
+  -H 'Authorization: Bearer deliberately-invalid-verification-token' \
+  -H 'Content-Type: application/json' \
+  --data '{}' \
+  http://127.0.0.1:30519/api/slate/v1/sync)
+
+if [ "$status" != 401 ]; then
+  echo "Slate web verification failed: expected 401 authentication boundary, received $status." >&2
+  exit 1
+fi
+
+echo "Slate web deployment completed and verified."
+
