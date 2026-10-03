@@ -64,14 +64,34 @@ sed "s|ghcr.io/kar6677thik/slate.lib-web:replace-me|$image|" "$template" | \
 
 k3s kubectl -n slate-web rollout status deployment/slate-web --timeout=180s
 
-status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
-  -X POST \
-  -H 'Origin: https://lib.karthiksurkanti.in' \
-  -H 'X-Slate-Server: https://lib.karthiksurkanti.in' \
-  -H 'Authorization: Bearer deliberately-invalid-verification-token' \
-  -H 'Content-Type: application/json' \
-  --data '{}' \
-  http://127.0.0.1:30519/api/slate/v1/sync)
+# A completed rollout can precede the node's NodePort rule becoming reachable
+# by a few seconds. Retry only connection and transient gateway failures; an
+# unexpected application response still fails immediately.
+attempt=1
+max_attempts=15
+status=000
+while [ "$attempt" -le "$max_attempts" ]; do
+  status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+    -X POST \
+    -H 'Origin: https://lib.karthiksurkanti.in' \
+    -H 'X-Slate-Server: https://lib.karthiksurkanti.in' \
+    -H 'Authorization: Bearer deliberately-invalid-verification-token' \
+    -H 'Content-Type: application/json' \
+    --data '{}' \
+    http://127.0.0.1:30519/api/slate/v1/sync) || status=000
+
+  [ "$status" = 401 ] && break
+  case "$status" in
+    000|502|503|504)
+      if [ "$attempt" -lt "$max_attempts" ]; then
+        echo "Waiting for Slate web verification endpoint (attempt $attempt/$max_attempts, HTTP $status)."
+        sleep 2
+      fi
+      ;;
+    *) break ;;
+  esac
+  attempt=$((attempt + 1))
+done
 
 if [ "$status" != 401 ]; then
   echo "Slate web verification failed: expected 401 authentication boundary, received $status." >&2

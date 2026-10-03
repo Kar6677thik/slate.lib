@@ -16,6 +16,7 @@ import {
   Inbox,
   Clock3,
   Plus,
+  Zap,
 } from "lucide-react";
 import {
   Group,
@@ -68,6 +69,7 @@ export function Shell({
     [mobileRight, setMobileRight] = useState(false);
   const {
     active,
+    tabs,
     settingsOpen: settings,
     setSettingsOpen: setSettings,
   } = useWorkspace();
@@ -100,14 +102,35 @@ export function Shell({
       <span>{label}</span>
     </button>
   ));
+  const activeTitle =
+    active != null
+      ? (tabs.find((tab) => tab.id === active)?.title ?? "Note")
+      : nav === "library"
+        ? "Library"
+        : nav.charAt(0).toUpperCase() + nav.slice(1).replaceAll("-", " ");
+  const activityNavigation = (
+    [
+      ["library", FolderOpen, "Library"],
+      ["search", Search, "Search"],
+      ["inbox", Inbox, "Inbox"],
+      ["recent", Clock3, "Recent"],
+    ] as const
+  ).map(([key, Icon, label]) => (
+    <IconButton
+      key={key}
+      label={label}
+      className={`activity-button ${nav === key && !active ? "active" : ""}`}
+      onClick={() => onNav(key)}
+    >
+      <Icon size={18} />
+    </IconButton>
+  ));
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
           <img src="/icons/slate-192.png" width="26" height="26" alt="" />
-          <strong>
-            slate<span>.lib</span>
-          </strong>
+          <strong>Slate</strong>
         </div>
         <div className="history-nav">
           <IconButton label="Back" onClick={() => history.back()}>
@@ -123,23 +146,55 @@ export function Shell({
           aria-label="Search your library"
         >
           <Search size={17} />
-          <span>Search your library</span>
+          <span>Find or create a note…</span>
           <kbd>Ctrl K</kbd>
         </button>
         <div className="topbar-end">
           {sync}
-          <IconButton
-            label="Change theme"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            {theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
-          </IconButton>
-          <IconButton label="Settings" onClick={() => setSettings(true)}>
-            <Settings size={18} />
-          </IconButton>
+          {!desktop && (
+            <>
+              <IconButton
+                label="Change theme"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              >
+                {theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
+              </IconButton>
+              <IconButton label="Settings" onClick={() => setSettings(true)}>
+                <Settings size={18} />
+              </IconButton>
+            </>
+          )}
         </div>
       </header>
       <div className="shell-body">
+        {desktop && (
+          <nav className="activity-rail" aria-label="Workspace destinations">
+            <div className="activity-main">{activityNavigation}</div>
+            <div className="activity-bottom">
+              <IconButton
+                label="Quick Thought"
+                className="activity-button"
+                onClick={onCapture}
+              >
+                <Zap size={18} />
+              </IconButton>
+              <IconButton
+                label="Change theme"
+                className="activity-button"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              >
+                {theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
+              </IconButton>
+              <IconButton
+                label="Settings"
+                className="activity-button"
+                onClick={() => setSettings(true)}
+              >
+                <Settings size={18} />
+              </IconButton>
+            </div>
+          </nav>
+        )}
         <Group
           orientation="horizontal"
           defaultLayout={layout.defaultLayout}
@@ -155,7 +210,7 @@ export function Shell({
               >
                 <aside className="sidebar" aria-label="Library navigation">
                   <div className="sidebar-heading">
-                    <span className="eyebrow">WORKSPACE</span>
+                    <strong>Files</strong>
                     <IconButton
                       label="Collapse navigation"
                       onClick={() => setLeft(false)}
@@ -163,19 +218,10 @@ export function Shell({
                       <PanelLeft size={16} />
                     </IconButton>
                   </div>
-                  <nav className="primary-nav">{navigation}</nav>
-                  <Button
-                    className="capture-button"
-                    variant="outline"
-                    onClick={onCapture}
-                  >
-                    <Plus size={16} />
-                    Quick Thought
-                  </Button>
                   {sidebar}
                   <footer className="sidebar-footer">
                     <span className="server-dot" />
-                    <span>Private workspace</span>
+                    <span>Connected</span>
                     <IconButton label="New note" onClick={onNew}>
                       <Plus size={16} />
                     </IconButton>
@@ -197,7 +243,7 @@ export function Shell({
                 >
                   <PanelLeft size={17} />
                 </IconButton>
-                <span>Knowledge library</span>
+                <span className="pane-title">{activeTitle}</span>
                 <IconButton
                   label="Toggle details"
                   onClick={() => {

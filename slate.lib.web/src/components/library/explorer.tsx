@@ -257,91 +257,19 @@ export function Explorer() {
   });
   return (
     <section className="explorer">
-      <div className="knowledge-actions">
-        <button disabled={daily.isPending} onClick={() => daily.mutate()}>
-          <CalendarDays size={15} />
-          <span>{daily.isPending ? "Opening today…" : "Daily note"}</span>
-        </button>
-        <button onClick={() => setQuestionOpen(true)}>
-          <CircleHelp size={15} />
-          <span>New question</span>
-        </button>
-      </div>
-      {(daily.error || createQuestion.error) && (
-        <ErrorMessage error={daily.error ?? createQuestion.error} />
-      )}
-      {(local.preferences.favorites.length > 0 ||
-        local.preferences.pins.length > 0 ||
-        local.preferences.searches.length > 0) && (
-        <div className="personal-nav" aria-label="Personal shortcuts">
-          <span className="eyebrow">SHORTCUTS</span>
-          {local.preferences.favorites.map((favorite) => (
-            <button key={favorite.id} onClick={() => w.open(favorite.id)}>
-              <Star size={14} fill="currentColor" />
-              <span>{favorite.title}</span>
-            </button>
-          ))}
-          {local.preferences.pins.map((pin) => (
-            <PinnedFolder key={pin.path} pin={pin} />
-          ))}
-          {local.preferences.searches.map((search) => (
-            <div className="personal-nav-row" key={search.id}>
-              <button
-                onClick={() => {
-                  w.setQuery(search.query);
-                  w.navigate("search");
-                }}
-              >
-                <Search size={14} />
-                <span>{search.name}</span>
-              </button>
-              <IconButton
-                label={`Remove saved search ${search.name}`}
-                onClick={() => local.deleteSearch(search.id)}
-              >
-                <X size={13} />
-              </IconButton>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="smart-view-nav" aria-label="Smart views">
-        <span className="eyebrow">VIEWS</span>
-        {SMART_VIEWS.map(({ id, title, icon: Icon }) => (
-          <button
-            key={id}
-            className={w.nav === id ? "active" : ""}
-            onClick={() => w.navigate(id)}
-          >
-            <Icon size={15} />
-            <span>{title}</span>
-          </button>
-        ))}
-        <button
-          className={w.nav === "rediscover" ? "active" : ""}
-          onClick={() => w.navigate("rediscover")}
-        >
-          <Compass size={15} />
-          <span>Rediscover</span>
-        </button>
-        <button
-          className={w.nav === "recovery" ? "active" : ""}
-          onClick={() => w.navigate("recovery")}
-        >
-          <ArchiveRestore size={15} />
-          <span>Deleted notes</span>
-        </button>
-        <button
-          className={w.nav === "link-health" ? "active" : ""}
-          onClick={() => w.navigate("link-health")}
-        >
-          <Unlink size={15} />
-          <span>Link health</span>
-        </button>
-      </div>
-      <div className="sidebar-heading">
-        <span className="eyebrow">LIBRARY</span>
+      <div className="sidebar-heading explorer-toolbar">
+        <span className="eyebrow">VAULT</span>
         <div className="inline-actions">
+          <IconButton
+            label="Daily note"
+            disabled={daily.isPending}
+            onClick={() => daily.mutate()}
+          >
+            <CalendarDays size={15} />
+          </IconButton>
+          <IconButton label="New question" onClick={() => setQuestionOpen(true)}>
+            <CircleHelp size={15} />
+          </IconButton>
           <IconButton
             label={selecting ? "Stop selecting" : "Select items"}
             className={selecting ? "active" : ""}
@@ -375,6 +303,9 @@ export function Explorer() {
           </IconButton>
         </div>
       </div>
+      {(daily.error || createQuestion.error) && (
+        <ErrorMessage error={daily.error ?? createQuestion.error} />
+      )}
       {refresh.error && <ErrorMessage error={refresh.error} />}
       <div
         className="tree-scroll"
@@ -418,6 +349,79 @@ export function Explorer() {
           }
         />
       </div>
+      {(local.preferences.favorites.length > 0 ||
+        local.preferences.pins.length > 0 ||
+        local.preferences.searches.length > 0) && (
+        <details className="explorer-disclosure">
+          <summary>Bookmarks</summary>
+          <div className="personal-nav" aria-label="Personal shortcuts">
+            {local.preferences.favorites.map((favorite) => (
+              <button key={favorite.id} onClick={() => w.open(favorite.id)}>
+                <Star size={14} fill="currentColor" />
+                <span>{favorite.title}</span>
+              </button>
+            ))}
+            {local.preferences.pins.map((pin) => (
+              <PinnedFolder key={pin.path} pin={pin} />
+            ))}
+            {local.preferences.searches.map((search) => (
+              <div className="personal-nav-row" key={search.id}>
+                <button
+                  onClick={() => {
+                    w.setQuery(search.query);
+                    w.navigate("search");
+                  }}
+                >
+                  <Search size={14} />
+                  <span>{search.name}</span>
+                </button>
+                <IconButton
+                  label={`Remove saved search ${search.name}`}
+                  onClick={() => local.deleteSearch(search.id)}
+                >
+                  <X size={13} />
+                </IconButton>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+      <details className="explorer-disclosure" open>
+        <summary>Views</summary>
+        <div className="smart-view-nav" aria-label="Smart views">
+          {SMART_VIEWS.map(({ id, title, icon: Icon }) => (
+            <button
+              key={id}
+              className={w.nav === id ? "active" : ""}
+              onClick={() => w.navigate(id)}
+            >
+              <Icon size={15} />
+              <span>{title}</span>
+            </button>
+          ))}
+          <button
+            className={w.nav === "rediscover" ? "active" : ""}
+            onClick={() => w.navigate("rediscover")}
+          >
+            <Compass size={15} />
+            <span>Rediscover</span>
+          </button>
+          <button
+            className={w.nav === "recovery" ? "active" : ""}
+            onClick={() => w.navigate("recovery")}
+          >
+            <ArchiveRestore size={15} />
+            <span>Deleted notes</span>
+          </button>
+          <button
+            className={w.nav === "link-health" ? "active" : ""}
+            onClick={() => w.navigate("link-health")}
+          >
+            <Unlink size={15} />
+            <span>Link health</span>
+          </button>
+        </div>
+      </details>
       {selecting && (
         <BulkActions
           paths={[...selected]}
