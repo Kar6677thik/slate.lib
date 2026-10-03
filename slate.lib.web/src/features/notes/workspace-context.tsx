@@ -29,6 +29,8 @@ type State = {
   tabs: Tab[];
   active: string | null;
   nav: Destination;
+  projectPath: string;
+  projectSection: string | null;
   query: string;
   searchOpen: boolean;
   commandInitialQuery: string;
@@ -40,6 +42,7 @@ type State = {
   closePath: (path: string) => void;
   update: (note: Pick<Note, "id" | "title" | "path">, dirty?: boolean) => void;
   navigate: (nav: Destination) => void;
+  openProjectBrain: (path: string, section?: string) => void;
   setQuery: (query: string) => void;
   setSearchOpen: (v: boolean) => void;
   openCommandCenter: (query?: string) => void;
@@ -58,6 +61,8 @@ export function WorkspaceProvider({
   const [tabs, setTabs] = useState<Tab[]>([]),
     [active, setActive] = useState<string | null>(null),
     [nav, setNav] = useState<Destination>("library"),
+    [projectPath, setProjectPath] = useState(""),
+    [projectSection, setProjectSection] = useState<string | null>(null),
     [query, setQuery] = useState(""),
     [searchOpen, setSearchOpen] = useState(false),
     [commandInitialQuery, setCommandInitialQuery] = useState(""),
@@ -71,6 +76,8 @@ export function WorkspaceProvider({
     const id = url.searchParams.get("note");
     setActive(id && /^[0-9a-f-]{36}$/i.test(id) ? id : null);
     const view = url.searchParams.get("view");
+    setProjectPath(url.searchParams.get("project") ?? "");
+    setProjectSection(url.searchParams.get("section"));
     setNav(
       view === "inbox" ||
         view === "recent" ||
@@ -79,6 +86,7 @@ export function WorkspaceProvider({
         view === "rediscover" ||
         view === "link-health" ||
         view === "favorites" ||
+        view === "project-brain" ||
         isSmartView(view)
         ? view
         : "library",
@@ -137,6 +145,8 @@ export function WorkspaceProvider({
     else url.searchParams.delete("note");
     if (q) url.searchParams.set("q", q);
     else url.searchParams.delete("q");
+    if (view === "project-brain" && projectPath) url.searchParams.set("project", projectPath);
+    else if (view !== "project-brain") url.searchParams.delete("section");
     history.pushState({}, "", url);
   }
   function open(id: string) {
@@ -190,6 +200,8 @@ export function WorkspaceProvider({
         tabs,
         active,
         nav,
+        projectPath,
+        projectSection,
         query,
         searchOpen,
         commandInitialQuery,
@@ -218,6 +230,20 @@ export function WorkspaceProvider({
             view,
             new URL(location.href).searchParams.get("q") ?? "",
           );
+        },
+        openProjectBrain(path, section) {
+          const normalized = path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+          setProjectPath(normalized);
+          setProjectSection(section ?? null);
+          setNav("project-brain");
+          setActive(null);
+          const url = new URL(location.href);
+          url.searchParams.set("view", "project-brain");
+          url.searchParams.set("project", normalized);
+          url.searchParams.delete("note");
+          if (section) url.searchParams.set("section", section);
+          else url.searchParams.delete("section");
+          history.pushState({}, "", url);
         },
         setQuery(q) {
           setQuery(q);

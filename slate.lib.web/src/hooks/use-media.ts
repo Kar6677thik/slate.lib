@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 export function useMedia(query: string) {
   const [matches, setMatches] = useState(false);
   useEffect(() => {
-    const media = matchMedia(query);
+    if (typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia(query);
     const update = () => setMatches(media.matches);
     update();
     media.addEventListener("change", update);

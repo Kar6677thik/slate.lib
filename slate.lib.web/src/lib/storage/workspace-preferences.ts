@@ -19,6 +19,7 @@ export interface WorkspacePreferences {
   schemaVersion: 1;
   favorites: FavoriteNote[];
   pins: FolderPin[];
+  projects: FolderPin[];
   searches: SavedSearch[];
 }
 
@@ -26,9 +27,11 @@ const empty: WorkspacePreferences = {
   schemaVersion: 1,
   favorites: [],
   pins: [],
+  projects: [],
   searches: [],
 };
 const cache = new Map<string, WorkspacePreferences>();
+const cachedStorage = new Map<string, string | null>();
 const eventName = "slate-workspace-preferences";
 const key = (scope: string) => `slate.workspace-preferences.${scope}`;
 
@@ -60,6 +63,11 @@ function parse(value: string | null): WorkspacePreferences {
             )
             .slice(0, 200)
         : [],
+      projects: Array.isArray(raw.projects)
+        ? raw.projects
+            .filter((item) => validString(item?.path, 500) && validString(item?.label, 200))
+            .slice(0, 100)
+        : [],
       searches: Array.isArray(raw.searches)
         ? raw.searches
             .filter(
@@ -79,15 +87,18 @@ export function readWorkspacePreferences(scope: string) {
   if (typeof localStorage === "undefined") return empty;
   const saved = localStorage.getItem(key(scope));
   const current = cache.get(scope);
-  if (current && JSON.stringify(current) === saved) return current;
+  if (current && cachedStorage.get(scope) === saved) return current;
   const next = parse(saved);
   cache.set(scope, next);
+  cachedStorage.set(scope, saved);
   return next;
 }
 function write(scope: string, change: (current: WorkspacePreferences) => WorkspacePreferences) {
   const next = change(readWorkspacePreferences(scope));
-  localStorage.setItem(key(scope), JSON.stringify(next));
+  const saved = JSON.stringify(next);
+  localStorage.setItem(key(scope), saved);
   cache.set(scope, next);
+  cachedStorage.set(scope, saved);
   window.dispatchEvent(new CustomEvent(eventName, { detail: scope }));
 }
 function subscribe(scope: string, callback: () => void) {
@@ -127,6 +138,14 @@ export function useWorkspacePreferences(scope: string) {
               (item) => item.path.toLowerCase() !== pin.path.toLowerCase(),
             )
           : [...current.pins, pin],
+      }));
+    },
+    toggleProject(project: FolderPin) {
+      write(scope, (current) => ({
+        ...current,
+        projects: current.projects.some((item) => item.path.toLowerCase() === project.path.toLowerCase())
+          ? current.projects.filter((item) => item.path.toLowerCase() !== project.path.toLowerCase())
+          : [...current.projects, project],
       }));
     },
     saveSearch(search: SavedSearch) {

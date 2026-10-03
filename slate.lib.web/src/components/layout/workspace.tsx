@@ -20,6 +20,7 @@ import { Document, Tabs } from "@/components/editor/document";
 import { ErrorMessage } from "@/components/common/primitives";
 import { CommandRuntimeProvider } from "@/features/commands/runtime";
 import { CommandCenter } from "@/features/commands/command-center";
+import { ProjectBrain } from "@/components/project/project-brain";
 export function Workspace() {
   const { ready, api } = useAuth();
   if (!ready) return <Loading />;
@@ -70,6 +71,8 @@ function LibraryWorkspace() {
         <Document key={w.active} id={w.active} />
       ) : w.nav === "search" ? (
         <SearchPage />
+      ) : w.nav === "project-brain" && w.projectPath ? (
+        <ProjectBrain path={w.projectPath} initialSection={w.projectSection} />
       ) : (
         <DestinationPage key={w.nav} />
       )}

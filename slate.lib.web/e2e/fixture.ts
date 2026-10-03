@@ -4,7 +4,7 @@ export const first = "00000000-0000-4000-8000-000000000001",
   second = "00000000-0000-4000-8000-000000000002";
 export const libraryId = "10000000-0000-4000-8000-000000000001";
 export const scope = "https://fixture.slate.test:" + libraryId;
-export async function mockSlate(page: Page) {
+export async function mockSlate(page: Page, options: { generationEnabled?: boolean } = {}) {
   const notes = new Map<string, Note>([
     [
       first,
@@ -38,6 +38,8 @@ export async function mockSlate(page: Page) {
     }
   >();
   const requests: { path: string; method: string; body: unknown }[] = [];
+  const askRequests: { question: string; policy: "strict" | "general"; scope: { kind: string; noteId?: string; noteIds?: string[]; path?: string; selectedText?: string } }[] = [];
+  const projectRequests: { action: string; path: string; kind?: string; refresh?: boolean }[] = [];
   let conflict = false;
   let assetCounter = 0;
   function getEntry(n: Note) {
@@ -49,6 +51,62 @@ export async function mockSlate(page: Page) {
       title: n.title,
     };
   }
+  await page.route("**/api/intelligence/**", async (route: Route) => {
+    const req = route.request();
+    const endpoint = new URL(req.url()).pathname.split("/").at(-1);
+    const respond = (data: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) });
+    if (endpoint === "status") return respond({ enabled: true, state: "ready", provider: "fixture", model: "fixture-v1", dimensions: 32, noteCount: notes.size, totalNotes: notes.size, chunkCount: notes.size * 3, pendingJobs: 0, failedJobs: 0, embeddedThisRun: 0, reusedThisRun: notes.size * 3, failedChunksThisRun: 0, lastIndexedAt: "2026-10-03T10:00:00Z", lastError: null, askEnabled: true, generationProvider: "deterministic-test", generationModel: "grounded-v1", askDefaultPolicy: "strict", askRequestsThisRun: 0, askRetrievedChunksThisRun: 0, askActiveRequests: 0, askMaxConcurrent: 2 });
+    if (endpoint === "rebuild") return respond({ state: "pending" }, 202);
+    if (endpoint === "events") return route.fulfill({ status: 202 });
+    if (endpoint === "project-brain") {
+      const input = req.postDataJSON() as { action: string; path: string; kind?: string; refresh?: boolean };
+      projectRequests.push(input);
+      const source = { citationId: "S1", noteId: first, title: "Library architecture", path: "Projects/Library architecture.md", heading: "Principles", ordinal: 0, revision: '"r1"', excerpt: "Markdown is the source of truth. Stable identities connect notes.", score: 1 };
+      if (input.action === "generate") {
+        if (options.generationEnabled === false) return respond({ error: "AI synthesis isn't configured." }, 503);
+        const resume = input.kind === "resume";
+        return respond({ kind: input.kind, markdown: resume ? "## Project\nSlate is a private Markdown workspace. [S1]\n\n## Where Things Stand\nThe storage architecture is documented. [S1]\n\n## Recent Work\nThe architecture note was updated. [S1]\n\n## Key Decisions\nMarkdown remains the source of truth. [S1]\n\n## Open Questions\nSync retry remains open. [S1]\n\n## Known Problems\nRenderer permissions need review. [S1]\n\n## What to Read First\nLibrary architecture. [S1]\n\n## Possible Next Context\nReview sync behavior. [S1]" : "Slate is a private Markdown knowledge workspace built around stable note identities. [S1]", sources: [source], citations: ["S1"], generatedAt: "2026-10-03T10:00:00Z", cached: false, cacheKey: "fixture" });
+      }
+      const evidence = (sourceClass: string, title = "Library architecture") => ({ noteId: first, title, path: "Projects/Library architecture.md", revision: '"r1"', heading: "Principles", excerpt: "Markdown is the source of truth. Stable identities connect notes.", sourceClass, type: sourceClass, status: sourceClass === "question" ? "open" : "active", timestamp: "2026-10-03T10:00:00Z" });
+      return respond({ schemaVersion: 1, path: input.path, name: input.path.split("/").at(-1), noteCount: 1, folderCount: 1, bounded: false, status: "Active", lastMeaningfulChange: "2026-10-03T10:00:00Z", openQuestionCount: 1, sections: { overview: [evidence("overview")], current: [evidence("recent")], decisions: [evidence("decision", "Use Markdown storage")], questions: [evidence("question", "How should sync retry?")], architecture: [evidence("architecture")], ideas: [evidence("idea", "Offline cache")], experiments: [evidence("experiment", "Index experiment")], failures: [evidence("failure", "WebView failure")], risks: [evidence("risk", "Renderer permissions")], important: [evidence("important")] }, timeline: [{ id: "event-1", noteId: first, title: "Library architecture", path: "Projects/Library architecture.md", timestamp: "2026-10-03T10:00:00Z", label: "Document library structure", commit: "a".repeat(40) }], graph: { nodes: [{ id: first, title: "Library architecture", path: "Projects/Library architecture.md", kind: "architecture" }], edges: [], limited: false }, relatedOutside: [{ id: second, title: "Reading list", path: "Research/Reading list.md", score: .8, reasons: ["Related storage research"] }], sources: [source], sourceFingerprint: "fixture-fingerprint", generatedAt: "2026-10-03T10:00:00Z", provider: { available: options.generationEnabled !== false, name: options.generationEnabled === false ? "disabled" : "deterministic-test", model: options.generationEnabled === false ? "disabled" : "grounded-v1" } });
+    }
+    if (endpoint === "ask") {
+      const input = req.postDataJSON() as { question: string; policy: "strict" | "general"; scope: { kind: string; noteId?: string; noteIds?: string[]; path?: string } };
+      askRequests.push(input);
+      if (/slow/i.test(input.question)) await new Promise((resolve) => setTimeout(resolve, 1_500));
+      let scoped = Array.from(notes.values());
+      if (input.scope.kind === "note") scoped = scoped.filter((note) => note.id === input.scope.noteId);
+      if (input.scope.kind === "selected") scoped = scoped.filter((note) => input.scope.noteIds?.includes(note.id));
+      if (input.scope.kind === "folder" || input.scope.kind === "project") scoped = scoped.filter((note) => note.path === input.scope.path || note.path.startsWith(`${input.scope.path}/`));
+      if (/quantum chromodynamics|missing evidence/i.test(input.question)) scoped = [];
+      const sources = scoped.slice(0, 2).map((note, index) => ({ citationId: `S${index + 1}`, noteId: note.id, title: note.title, path: note.path, heading: index ? null : "Principles", ordinal: index, revision: note.revision, excerpt: note.markdown.replace(/^---[\s\S]*?---/, "").trim().slice(0, 220), score: 1 - index * .1 }));
+      const answer = !sources.length
+        ? "I couldn't find enough in your Slate library to answer that."
+        : input.policy === "general"
+          ? `## From your library\n\nSlate keeps Markdown as the source of truth. [S1]\n\n## General context\n\nGeneral context is clearly separated from library evidence.`
+          : `Slate keeps Markdown as the source of truth and uses stable identities for links. [S1]${sources[1] ? " Related reading covers distributed systems. [S2]" : ""}`;
+      const events = [
+        { type: "retrieval", message: "Searching your Slate sources…" },
+        { type: "sources", sources },
+        ...answer.match(/.{1,34}(?:\s|$)/g)!.map((text) => ({ type: "delta", text })),
+        { type: "done", citations: sources.map((source) => source.citationId), usage: { inputTokens: 120, outputTokens: 36 } },
+      ];
+      return route.fulfill({ status: 200, contentType: "text/event-stream; charset=utf-8", body: events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") }).catch(() => undefined);
+    }
+    if (endpoint === "search") {
+      const input = req.postDataJSON() as { query: string; mode: "hybrid" | "lexical" | "semantic" };
+      const term = input.query.toLowerCase();
+      const lexical = Array.from(notes.values()).filter((n) => (n.title + " " + n.markdown).toLowerCase().includes(term));
+      const semantic = /durable|knowledge|reliable|storage|architecture/.test(term) ? [notes.get(first)!] : /reading|distributed/.test(term) ? [notes.get(second)!] : [];
+      const selected = input.mode === "lexical" ? lexical : input.mode === "semantic" ? semantic : [...new Map([...lexical, ...semantic].map((n) => [n.id, n])).values()];
+      return respond({ query: input.query, mode: input.mode, effectiveMode: input.mode, page: 0, pageSize: 20, total: selected.length, results: selected.map((n) => ({ id: n.id, title: n.title, path: n.path, revision: n.revision, snippet: n.markdown.slice(0, 180), heading: "Principles", match: lexical.some((hit) => hit.id === n.id) ? "both" : "meaning", score: 1 })) });
+    }
+    if (endpoint === "related") {
+      const note = notes.get(first)!;
+      return respond([{ id: second, title: "Reading list", path: "Research/Reading list.md", score: .8, reasons: ["Links to this note", `Similar meaning to ${note.title}`] }]);
+    }
+    return respond({}, 404);
+  });
   await page.route("**/api/slate/**", async (route: Route) => {
     const req = route.request();
     const url = new URL(req.url());
@@ -522,6 +580,8 @@ export async function mockSlate(page: Page) {
     notes,
     folders,
     requests,
+    askRequests,
+    projectRequests,
     setConflict: (value: boolean) => {
       conflict = value;
     },

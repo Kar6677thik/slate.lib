@@ -24,6 +24,7 @@ import {
   Link,
   ListFilter,
   Moon,
+  MessageCircleQuestion,
   Network,
   PanelLeft,
   PanelRight,
@@ -39,6 +40,8 @@ import {
   Unlink,
   Waypoints,
   Zap,
+  BrainCircuit,
+  FileQuestion,
 } from "lucide-react";
 import { useApi } from "@/lib/auth/context";
 import { useWorkspace } from "@/features/notes/workspace-context";
@@ -47,6 +50,7 @@ import { SMART_VIEWS } from "@/features/views/smart-views";
 import { useCommandRuntime } from "./runtime";
 import type { CommandDefinition } from "./types";
 import { availableCommands } from "./registry";
+import { openAskSlate } from "@/components/ask/ask-slate";
 
 export function useCommandRegistry() {
   const api = useApi();
@@ -57,6 +61,9 @@ export function useCommandRegistry() {
   const { theme, setTheme } = useTheme();
   const active = workspace.tabs.find((tab) => tab.id === workspace.active);
   const favorite = !!active && local.preferences.favorites.some((item) => item.id === active.id);
+  const projectContext = workspace.projectPath || local.preferences.projects
+    .filter((project) => active && (active.path === project.path || active.path.startsWith(`${project.path}/`)))
+    .sort((a, b) => b.path.length - a.path.length)[0]?.path || (active?.path.includes("/") ? active.path.split("/").slice(0, -1).join("/") : "");
   const commands = useMemo<CommandDefinition[]>(() => {
     const entry = active
       ? {
@@ -142,6 +149,101 @@ export function useCommandRegistry() {
         group: "Create",
         when: () => runtime.has("create.question"),
         execute: () => runtime.run("create.question"),
+      },
+      {
+        id: "intelligence.ask-library",
+        title: "Ask Slate",
+        description: "Research your library with cited sources",
+        icon: MessageCircleQuestion,
+        keywords: ["ask", "assistant", "knowledge", "sources"],
+        group: "Intelligence",
+        execute: () => openAskSlate({ scope: "library" }),
+      },
+      {
+        id: "intelligence.ask-note",
+        title: "Ask Current Note",
+        description: "Use only the active note as evidence",
+        icon: MessageCircleQuestion,
+        keywords: ["ask", "document", "current", "source"],
+        group: "Intelligence",
+        when: () => !!active,
+        execute: () => openAskSlate({ scope: "note" }),
+      },
+      {
+        id: "intelligence.ask-folder",
+        title: "Ask Current Folder",
+        description: "Research notes in the active folder",
+        icon: MessageCircleQuestion,
+        keywords: ["ask", "folder", "project", "scope"],
+        group: "Intelligence",
+        when: () => !!active?.path.includes("/"),
+        execute: () => openAskSlate({ scope: "folder" }),
+      },
+      {
+        id: "intelligence.ask-selected",
+        title: "Ask Selected Notes",
+        description: "Choose from currently open notes",
+        icon: MessageCircleQuestion,
+        keywords: ["ask", "selected", "tabs", "scope"],
+        group: "Intelligence",
+        when: () => workspace.tabs.length > 0,
+        execute: () => openAskSlate({ scope: "selected" }),
+      },
+      {
+        id: "project.open-brain",
+        title: "Open Project Brain",
+        description: "Open the grounded workspace for this project folder",
+        icon: BrainCircuit,
+        keywords: ["project", "folder", "overview", "brain"],
+        group: "Intelligence",
+        when: () => !!projectContext,
+        execute: () => workspace.openProjectBrain(projectContext),
+      },
+      {
+        id: "project.resume",
+        title: "Resume Project",
+        description: "Build a cited context pack for continuing this project",
+        icon: RotateCcw,
+        keywords: ["project", "continue", "context", "summary"],
+        group: "Intelligence",
+        when: () => !!projectContext,
+        execute: () => workspace.openProjectBrain(projectContext, "resume"),
+      },
+      {
+        id: "project.questions",
+        title: "Project Questions",
+        icon: FileQuestion,
+        keywords: ["project", "open", "unresolved"],
+        group: "Intelligence",
+        when: () => !!projectContext,
+        execute: () => workspace.openProjectBrain(projectContext, "questions"),
+      },
+      {
+        id: "project.timeline",
+        title: "Project Timeline",
+        icon: History,
+        keywords: ["project", "history", "changes"],
+        group: "Intelligence",
+        when: () => !!projectContext,
+        execute: () => workspace.openProjectBrain(projectContext, "timeline"),
+      },
+      {
+        id: "project.graph",
+        title: "Project Graph",
+        icon: Network,
+        keywords: ["project", "links", "structure"],
+        group: "Intelligence",
+        when: () => !!projectContext,
+        execute: () => workspace.openProjectBrain(projectContext, "graph"),
+      },
+      {
+        id: "project.ask",
+        title: "Ask this project",
+        icon: MessageCircleQuestion,
+        keywords: ["project", "ask", "sources"],
+        group: "Intelligence",
+        when: () => !!projectContext,
+        execute: () => openAskSlate({ scope: "project", path: projectContext }),
       },
       navigate("navigate.library", "Library", "library", FolderOpen, ["files", "folders"]),
       navigate("navigate.search", "Search library", "search", Search, ["find", "notes"]),
@@ -234,6 +336,16 @@ export function useCommandRegistry() {
         group: "Document",
         when: () => runtime.has("document.answer-question"),
         execute: () => runtime.run("document.answer-question"),
+      },
+      {
+        id: "document.ask-selection",
+        title: "Ask about selection",
+        description: "Use selected text as explicit read-only context",
+        icon: MessageCircleQuestion,
+        keywords: ["ask", "selection", "explain", "relate"],
+        group: "Intelligence",
+        when: () => !!active && runtime.has("document.ask-selection"),
+        execute: () => runtime.run("document.ask-selection"),
       },
       {
         id: "document.export-wiki",
@@ -432,6 +544,7 @@ export function useCommandRegistry() {
     cache,
     favorite,
     local,
+    projectContext,
     runtime,
     setTheme,
     theme,

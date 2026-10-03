@@ -49,6 +49,8 @@ Optional real integration is **read-only** and skipped unless `SLATE_TEST_SERVER
 - Editing: CodeMirror, Write/Read/Split, formatting, paste/drop/file uploads, explicit revision-protected saves.
 - Reading: GFM, tables/tasks, syntax-highlighted code, callouts, math, diagrams, links and authenticated assets. Arbitrary HTML and external images are not loaded.
 - Library: lazy paged folders, create/rename/move/copy/duplicate/delete, search, Inbox and capped local Recent.
+- Search: Lucene Keyword mode plus optional pgvector Meaning and fused All modes, shared metadata syntax, graceful keyword fallback and server-only provider credentials.
+- Ask Slate: optional source-grounded research over library, note, folder/project, selected-note or selected-text scopes; strict evidence by default, streamed validated citations, and browser-local bounded follow-ups.
 - Details: backlinks, outgoing links, metadata, read-only history and server Git status.
 
 Shortcuts: `Ctrl/Cmd+K` opens search outside the editor and inserts a Markdown link inside it; `Ctrl/Cmd+S` saves; `Ctrl/Cmd+B/I` formats; `Ctrl/Cmd+F` searches in the editor; `Ctrl+Shift+C` captures. `Ctrl+Tab`, `Ctrl+Shift+Tab` and `Ctrl+W` are handled where the browser permits interception; browser-reserved shortcuts may take precedence. Middle-click closes a document tab.
@@ -64,6 +66,8 @@ The PWA caches static assets only. It does **not** cache authenticated API respo
 ## Deployment templates
 
 `Dockerfile` uses this folder as build context. `deploy/k3s/web.yaml` is the root-owned production template for the separate `slate-web` namespace. It runs as a non-root user with a read-only root filesystem, fixed resources, health probes, private-registry credentials and NodePort `30519` for the local Cloudflare tunnel.
+
+The manifest optionally reads a `slate-web-intelligence` Secret. If that Secret is absent, the deployment remains in keyword-only mode. See `docs/OPERATIONS.md` for the exact pgvector and embedding-provider variables; never place their values in the ConfigMap or image.
 
 The browser uses `https://lib.karthiksurkanti.in` as its server identity. The server-side proxy maps that identity to the internal `slate.slate.svc.cluster.local` backend and validates browser write origins against the public HTTPS origin. The backend and native-client Tailscale route remain available.
 

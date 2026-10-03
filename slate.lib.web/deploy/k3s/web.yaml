@@ -52,6 +52,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: slate-web-config
+            - secretRef:
+                name: slate-web-intelligence
+                optional: true
           ports:
             - name: http
               containerPort: 3000

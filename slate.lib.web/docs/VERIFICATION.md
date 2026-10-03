@@ -1,15 +1,21 @@
 # Verification
 
+## Milestone 4 release gate
+
+Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and the relevant Playwright project. Deterministic coverage includes Markdown/frontmatter chunking, code bounds, rename hash reuse, provider vector stability, metadata filter parsing, reciprocal-rank fusion, exact-title priority, semantic-only matches, Ask context/source budgets, citation validation, prompt-injection boundaries, disabled/fake/failing generation providers, streaming cancellation, timeouts, sanitized output, browser-local conversation limits, every scope, and insufficient evidence.
+
+In staging, verify lexical-only operation, disabled-provider fallback, index status, rebuild confirmation, all three Search modes, Command Center free-text retrieval, and unchanged `>` command behavior. With a real private provider, also verify streaming and cancellation, strict/general answer quality, citation correctness, provider usage reporting, that a save succeeds during provider outage, delete removes derived chunks, sync queues reconciliation, and browser responses and logs contain no API key, device token, full note body, raw prompt, generated answer, or raw embedding.
+
 Final local verification: 3 October 2026. All implementation and generated artifacts are inside `slate.lib.web`.
 
 | Check | Result |
 | --- | --- |
 | ESLint | Passed |
 | Strict TypeScript | Passed |
-| Vitest / Testing Library | 33 tests passed across 11 files, including command registry, fuzzy ranking, availability, provider collection, recency, and safeguard delegation |
+| Vitest / Testing Library | 64 tests passed across 14 files, including deterministic chunking, vector reuse, filters, hybrid ranking, Ask context budgets, grounding, citation validation, provider failure/cancellation, output sanitization, origin/server validation, and oversized-request safeguards |
 | Next production build | Passed; standalone server starts successfully |
-| Playwright Chromium | 33 passed, 1 optional integration test skipped |
-| Axe accessibility | No violations in tested connection, light/dark reader, settings, mobile editor, and Command Center states |
+| Playwright Chromium | 56 passed, 1 optional real-server integration test skipped, including 11 hybrid-search and 12 Ask Slate scenarios |
+| Axe accessibility | No violations in tested connection, light/dark reader, settings, mobile editor, Command Center, and desktop/mobile Ask Slate states |
 | Responsive layouts | Passed at 390×844, 412×915, 768×1024, 1366×768, 1440×900, 1920×1080 |
 | PWA | Registration, manifest, static-only cache and offline fallback passed |
 | Docker container | Linux image built; non-root/read-only runtime and HTTP checks passed; browser suite: 22 passed, 1 optional integration skipped |
@@ -32,6 +38,8 @@ Final local verification: 3 October 2026. All implementation and generated artif
 - Persist theme and recent activity; operate mobile drawers, capture, search and editor controls.
 - Block raw HTML/script execution and unsafe links; render math and diagrams on demand.
 - Open the Universal Command Center from keyboard and global search, use blended and command-only modes, search notes, execute contextual save/details/file actions, preserve editor `Ctrl/Cmd+K`, navigate/close tabs through shared handlers, and use the mobile bottom sheet.
+- Open Ask Slate from the Command Center and workspace chrome; use library, note, folder, deterministic project and selected-note scopes; pass selected editor text as explicit context; stream answers; validate and open citations; copy source links; ask follow-ups with repeated retrieval; clear local history; distinguish general context; refuse insufficient evidence; degrade when generation is unavailable; stop an in-flight answer; contain adversarial document instructions; and use an accessible full-screen mobile experience.
+- Open Project Brain from folder actions and explicit project roots; verify deterministic overview/current/history/decisions/questions/architecture/ideas/experiments/failures/risks/timeline; use project search and Ask scope; navigate the project graph list and outside relations; open and return from sources; generate and refresh a cited Resume Project pack; verify generation-disabled desktop/mobile behavior and accessibility.
 
 All mutation scenarios use local, stateful mocked API fixtures. They do not contact or alter the home server. The optional real-server test was skipped because no development credentials were supplied.
 
@@ -55,7 +63,8 @@ There is no synthetic Lighthouse score or claim of a measured large-library late
 
 ## Deliberate limits
 
-- No full offline library, automatic replay UI, three-way merge UI, OCR, semantic search, intelligence provider runtime or collaboration in this milestone.
+- No full offline library, automatic replay UI, three-way merge UI, OCR, automatic summaries, AI writing/rewrite, contradiction or duplicate detection, knowledge-gap analysis, autonomous actions, note mutation through AI, or collaboration in this milestone. Ask Slate is the only generation feature and remains read-only.
+- Project Brain generation is also read-only. It does not create project summaries, decision logs, tasks, status notes, or recommendations, and its graph is a bounded explicit-link view rather than a whole-library visualization.
 - The destination picker filters already-browsed folders; browse deeper or enter the exact path for an unvisited destination. It never scans the complete library just to build a picker.
 - External images are not loaded; uploaded assets use authenticated requests.
 - Browser-reserved shortcuts can override application shortcuts.
@@ -71,6 +80,6 @@ After Docker Desktop was started, the image built successfully from this folder 
 
 The verification container ran with UID/GID 1000, a read-only root filesystem, all capabilities dropped, no-new-privileges, a 512 MiB memory limit, one CPU, a 128-process limit, and a 32 MiB `/tmp` tmpfs. Its port was bound to loopback only. No host directories, library data, production URLs or real tokens were mounted or supplied.
 
-The app, manifest, service worker, icon and offline page returned HTTP 200. Real proxy requests rejected an unapproved server with 403 and a missing bearer token with 401. That earlier container baseline passed its complete Chromium suite, including PWA and accessibility checks. The current Milestone 2 changes were verified through the local standalone production build and the 33-scenario Chromium suite; the container image was not rebuilt in this milestone.
+The app, manifest, service worker, icon and offline page returned HTTP 200. Real proxy requests rejected an unapproved server with 403 and a missing bearer token with 401. That earlier container baseline passed its complete Chromium suite, including PWA and accessibility checks. The current Milestone 3 changes were verified through the local production build and the 44-scenario Chromium suite; the container image was not rebuilt in this milestone.
 
-The temporary verification container was stopped and retained, along with its image. Browser reports are in `output/docker/playwright-report`. Use `playwright.container.config.ts` with `SLATE_CONTAINER_URL` to repeat browser checks against a running local container. Real-backend connectivity and k3s deployment remain separate checks.
+The temporary verification container was stopped and retained, along with its image. Browser reports are in `output/docker/playwright-report`. Use `playwright.container.config.ts` with `SLATE_CONTAINER_URL` to repeat browser checks against a running local container. Real-backend connectivity, a real generation-provider quality/usage check, the Milestone 4 container image, and k3s deployment remain separate checks.

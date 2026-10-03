@@ -1,4 +1,7 @@
 import { z } from "zod";
+import type { AskRequest, AskStreamEvent } from "@/lib/intelligence/ask-types";
+export type { AskPolicy, AskRequest, AskScope, AskScopeKind, AskSource, AskStreamEvent, AskTurn } from "@/lib/intelligence/ask-types";
+export type { ProjectBrainSnapshot, ProjectEvidence, ProjectSynthesis, ProjectTimelineEvent } from "@/lib/intelligence/project-brain";
 export const noteSchema = z.object({
   id: z.string().uuid(),
   path: z.string(),
@@ -42,6 +45,55 @@ export interface SearchPage {
   results: SearchHit[];
   searchVersion?: number;
 }
+export type SearchMode = "hybrid" | "lexical" | "semantic";
+export interface HybridSearchHit extends SearchHit {
+  heading?: string | null;
+  match: "keyword" | "meaning" | "both";
+  explanation?: {
+    lexicalRank?: number;
+    semanticRank?: number;
+    fusedScore: number;
+    matchedFields: string[];
+    chunkId?: string;
+    matchedHeading?: string | null;
+  };
+}
+export interface HybridSearchPage extends Omit<SearchPage, "results"> {
+  mode: SearchMode;
+  effectiveMode: SearchMode;
+  results: HybridSearchHit[];
+  degraded?: string;
+}
+export interface IntelligenceStatus {
+  enabled: boolean;
+  state: "ready" | "pending" | "indexing" | "unavailable" | "failed";
+  provider: string;
+  model: string;
+  dimensions: number;
+  noteCount: number;
+  totalNotes: number;
+  chunkCount: number;
+  pendingJobs: number;
+  failedJobs: number;
+  embeddedThisRun: number;
+  reusedThisRun: number;
+  failedChunksThisRun: number;
+  lastIndexedAt: string | null;
+  lastError: string | null;
+  askEnabled: boolean;
+  generationProvider: string;
+  generationModel: string;
+  askDefaultPolicy: "strict";
+  askRequestsThisRun: number;
+  askRetrievedChunksThisRun: number;
+  askInputTokensThisRun?: number;
+  askOutputTokensThisRun?: number;
+  askActiveRequests: number;
+  askMaxConcurrent: number;
+}
+
+export type AskStreamHandler = (event: AskStreamEvent) => void;
+export type AskPayload = AskRequest;
 export interface NoteLink {
   raw: string;
   target: string;

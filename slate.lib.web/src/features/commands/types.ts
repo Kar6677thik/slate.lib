@@ -8,6 +8,7 @@ export type CommandGroup =
   | "Library"
   | "Appearance"
   | "Settings"
+  | "Intelligence"
   | "Open tabs"
   | "Favorites"
   | "Recent notes"

@@ -51,6 +51,7 @@ import { ItemMenu } from "@/components/library/item-menu";
 import type { Format } from "./codemirror";
 import { WikiExportDialog } from "@/components/links/wiki-export-dialog";
 import { useCommandRuntime } from "@/features/commands/runtime";
+import { openAskSlate } from "@/components/ask/ask-slate";
 const Editor = dynamic(() => import("./codemirror"), {
   ssr: false,
   loading: () => <Loading label="Loading editor…" />,
@@ -87,6 +88,11 @@ export function NoteWorkbench({ note }: { note: Note }) {
   const questionNote = /^type:\s*["']?question["']?\s*$/im.test(base.markdown);
   const answered = /^status:\s*["']?answered["']?\s*$/im.test(base.markdown);
   const preview = useDeferredValue(source);
+  const askSelection = useCallback(() => {
+    const view = editor.current;
+    const selection = view ? view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to) : window.getSelection()?.toString() ?? "";
+    openAskSlate({ scope: "note", selectedText: selection.trim().slice(0, 4_000) || undefined });
+  }, []);
   const [uploading, setUploading] = useState(false);
   const uploadIds = useRef(new WeakMap<File, string>());
   useEffect(() => {
@@ -189,11 +195,12 @@ export function NoteWorkbench({ note }: { note: Note }) {
         setMode("write");
         requestAnimationFrame(() => editor.current?.focus());
       },
+      "document.ask-selection": askSelection,
     };
     if (questionNote && !answered && !dirty && !saving)
       actions["document.answer-question"] = () => setAnswerOpen(true);
     return register(`note:${note.id}`, actions);
-  }, [answered, dirty, note.id, questionNote, register, saving]);
+  }, [answered, askSelection, dirty, note.id, questionNote, register, saving]);
   async function upload(files: File[]) {
     if (uploading || saving || !checked || recovery) return;
     setUploading(true);
@@ -313,6 +320,12 @@ export function NoteWorkbench({ note }: { note: Note }) {
             <MessageCircleQuestion size={17} />
           </IconButton>
         )}
+        <IconButton
+          label="Ask about selection"
+          onClick={askSelection}
+        >
+          <MessageCircleQuestion size={17} />
+        </IconButton>
         <IconButton
           label="Export wiki links"
           disabled={dirty || saving}

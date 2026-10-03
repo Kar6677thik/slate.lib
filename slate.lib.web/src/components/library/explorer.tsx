@@ -23,6 +23,7 @@ import {
   Compass,
   Unlink,
   ListChecks,
+  BrainCircuit,
 } from "lucide-react";
 import { useApi } from "@/lib/auth/context";
 import { ApiError } from "@/lib/api/client";
@@ -388,6 +389,19 @@ export function Explorer() {
                   <X size={13} />
                 </IconButton>
               </div>
+            ))}
+          </div>
+        </details>
+      )}
+      {local.preferences.projects.length > 0 && (
+        <details className="explorer-disclosure" open>
+          <summary>Projects</summary>
+          <div className="personal-nav" aria-label="Project roots">
+            {local.preferences.projects.map((project) => (
+              <button key={project.path} onClick={() => w.openProjectBrain(project.path)}>
+                <BrainCircuit size={14} />
+                <span>{project.label}</span>
+              </button>
             ))}
           </div>
         </details>

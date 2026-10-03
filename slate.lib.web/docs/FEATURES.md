@@ -1,5 +1,21 @@
 # Slate web capability matrix
 
+## Hybrid search and semantic retrieval
+
+Search offers three explicit modes. **All** fuses the existing Lucene results with semantic chunk matches. **Keyword** uses the canonical Slate Lucene endpoint unchanged. **Meaning** ranks semantically related chunks and falls back to Keyword when intelligence is unavailable.
+
+The existing `path:`, `tag:`, `type:`, and `status:` syntax applies directly to semantic candidates. Canonical-only `created:`, `modified:`, `date:`, and `has:` filters are still evaluated by Lucene, so All and Meaning deliberately fall back to filtered keyword results for those queries. Meaning results identify their source heading and show a quiet “Meaning match” label; they never imitate keyword highlighting. The Command Center uses All mode for free text while its `>` command mode remains local and immediate.
+
+Meaning search is optional and disabled until the server operator configures it. Notes, Git history, saves, links, assets, and Lucene search continue to work without it.
+
+## Ask Slate
+
+Ask Slate is a read-only research workspace over the existing hybrid retrieval layer. It supports explicit scopes for the entire library, current note, current folder, deterministically identified top-level project folder, selected open notes, and selected editor/reader text. The active scope is always visible. It is available from the top bar, activity rail, editor selection action, and intentional Command Center commands; ordinary Command Center text never invokes generation.
+
+Strict Library is the default policy. It answers only from retrieved Slate excerpts and returns an insufficient-evidence response when the source pack is weak or empty. General + Library renders separate **From your library** and **General context** sections. Answers stream into a source-oriented research view with validated citation links, excerpts, note paths and headings, Open note, Open in tab, Copy link, Stop, Retry, Copy answer, New conversation, and Clear controls.
+
+Short conversations stay in this browser's session storage and are capped at twelve displayed messages. Every follow-up performs retrieval again with the current scope and at most six bounded prior turns. Ask Slate never edits notes, executes document instructions, triggers sync, or saves transcripts into Markdown. If generation is disabled, the rest of Slate and hybrid search continue normally and the Ask surface explains that it is unavailable.
+
 This document records the web product boundary as inspected on 2026-10-03. The ASP.NET Core service remains the canonical owner of Markdown, note and folder identities, assets, Git history, lexical search, links, and every content mutation.
 
 ## Milestone 1 parity matrix
@@ -46,12 +62,18 @@ Milestone 1 requires no new backend endpoint. Later milestones need web-only der
 5. Milestone 1E: history comparison, restore, and deleted recovery. **Implemented.**
 6. Milestone 1F: rediscovery, related notes, graph, and advanced asset tools. **The requested Milestone 1 rediscovery, related-note, and bounded current-note graph parity is implemented. Advanced asset tooling remains a later product slice.**
 7. Milestone 2: command registry and shared desktop/mobile command surfaces. **Implemented.** The Universal Command Center blends commands, open tabs, favorites, recent notes, saved searches, pinned folders, and cancellable server note search. `>` and `Ctrl/Cmd+Shift+P` enter command-only mode; availability follows the current note, dirty state, registered editor tools, and details panels.
-8. Milestone 3: derived store, background indexing, and hybrid search.
+8. Milestone 3: derived store, background indexing, and hybrid search. **Implemented with optional PostgreSQL/pgvector storage, server-only providers, deterministic chunking, durable incremental jobs, RRF, diagnostics, and lexical fallback.**
 9. Milestones 4–10: grounded assistance, project/context views, evolution, conflicts, duplicates, linking, and virtual concept pages.
 10. Milestones 11–18: graph expansion, health, triage, rediscovery expansion, briefs, learning, gaps, and failure memory.
 11. Milestones 19–27: advanced reader, capture/clipper, attachment intelligence, voice/writing proposals, workspaces/collections, offline expansion, and final mobile polish.
 
 Each numbered milestone is gated by lint, strict type checking, unit tests, relevant Playwright coverage, and a production build.
+
+## Project Brain and Resume Project
+
+Milestone 5 turns any selected folder subtree into a read-only Project Brain. A folder action, project-root shortcut, or contextual Command Center action opens the dedicated workspace. Project membership is path-based; an explicitly marked project root is a browser-local navigation preference and does not alter Markdown. Related notes outside the subtree appear only under **Related from Elsewhere** and are excluded from generated project claims.
+
+The workspace renders deterministic evidence before generation: overview/current documents, recent canonical history, decisions and ADRs, open question notes, architecture sources, ideas, experiments, failures, blockers, a bounded timeline, explicit-link graph list, and important sources. Empty evidence sections are omitted. Generated Overview, Recent Changes summary, and Resume Project are optional, separately loaded, citation-validated views. Resume Project covers the current state, recent work, decisions, unresolved questions, known problems, high-value reading, and possible context to review next without creating tasks or changing notes.
 
 ## Milestone 2 command surface
 

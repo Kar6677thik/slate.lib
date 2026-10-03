@@ -19,6 +19,7 @@ import {
 } from "@/components/common/primitives";
 import { Button } from "@/components/ui/button";
 import { useWorkspacePreferences } from "@/lib/storage/workspace-preferences";
+import type { HybridSearchHit, HybridSearchPage, SearchMode } from "@/lib/api/contracts";
 
 export function setSearchFilter(query: string, key: string, value: string) {
   const pattern = new RegExp(`(?:^|\\s)${key}:(?:"[^"]*"|\\S+)`, "gi");
@@ -28,15 +29,25 @@ export function setSearchFilter(query: string, key: string, value: string) {
   const formatted = /\s/.test(clean) ? JSON.stringify(clean) : clean;
   return `${base} ${key}:${formatted}`.trim();
 }
-export function SearchResults({ query }: { query: string }) {
+export function searchFilterChips(query: string) {
+  return [...query.matchAll(/(?:^|\s)([a-z][\w-]*):(?:"([^"]*)"|(\S+))/gi)].map((match) => ({ key: match[1].toLowerCase(), value: match[2] ?? match[3] }));
+}
+export function SearchResults({ query, mode = "hybrid" }: { query: string; mode?: SearchMode }) {
   const api = useApi(),
     w = useWorkspace();
   const [page, setPage] = useState(0);
   const term = useDebounce(query);
   useEffect(() => setPage(0), [term]);
   const q = useQuery({
-    queryKey: ["search", term, page],
-    queryFn: ({ signal }) => api.search(term, page, signal),
+    queryKey: ["search", term, page, mode],
+    queryFn: async ({ signal }) => {
+      if (mode === "lexical") return api.search(term, page, signal);
+      try { return await api.hybridSearch(term, mode, page, signal); }
+      catch {
+        const lexical = await api.search(term, page, signal);
+        return { ...lexical, mode, effectiveMode: "lexical", degraded: "Meaning search is unavailable. Keyword results are shown.", results: lexical.results.map((hit) => ({ ...hit, match: "keyword" as const })) } satisfies HybridSearchPage;
+      }
+    },
     enabled: !!term.trim(),
   });
   if (!term.trim())
@@ -52,8 +63,9 @@ export function SearchResults({ query }: { query: string }) {
   return (
     <>
       <div className="results-meta">
-        {q.data.total.toLocaleString()} results <span>Ranked by relevance</span>
+        {q.data.total.toLocaleString()} results <span>{"effectiveMode" in q.data && q.data.effectiveMode !== "lexical" ? "Keyword and meaning relevance" : "Keyword relevance"}</span>
       </div>
+      {"degraded" in q.data && q.data.degraded && <p className="search-degraded" role="status">{q.data.degraded}</p>}
       <div
         className="results-list"
         role="list"
@@ -72,7 +84,9 @@ export function SearchResults({ query }: { query: string }) {
           ]?.focus();
         }}
       >
-        {q.data.results.map((r) => (
+        {q.data.results.map((r) => {
+          const hybrid = r as Partial<HybridSearchHit>;
+          return (
           <button
             role="listitem"
             className="result-row"
@@ -83,11 +97,14 @@ export function SearchResults({ query }: { query: string }) {
             <div>
               <strong>{r.title}</strong>
               <span className="result-path">{r.path}</span>
+              {typeof hybrid.heading === "string" && hybrid.heading && <span className="result-heading">Under {hybrid.heading}</span>}
               <p>{r.snippet.replace(/<[^>]*>/g, "")}</p>
             </div>
+            {hybrid.match === "meaning" && <span className="meaning-match">Meaning match</span>}
             <ArrowUpRight size={15} />
           </button>
-        ))}
+          );
+        })}
       </div>
       {q.data.total === 0 && (
         <Empty
@@ -123,11 +140,17 @@ export function SearchPage() {
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
   const [filters, setFilters] = useState(false);
+  const [mode, setMode] = useState<SearchMode>("hybrid");
   return (
     <>
       <div className="view-header">
         <p className="eyebrow">ALL NOTES</p>
         <h1>Search</h1>
+        <div className="search-modes" role="radiogroup" aria-label="Search mode">
+          {([ ["hybrid", "All"], ["lexical", "Keyword"], ["semantic", "Meaning"] ] as const).map(([value, label]) => (
+            <button key={value} type="button" role="radio" aria-checked={mode === value} className={mode === value ? "active" : ""} onClick={() => setMode(value)}>{label}</button>
+          ))}
+        </div>
         <div className="search-field">
           <Search size={18} />
           <input
@@ -155,6 +178,15 @@ export function SearchPage() {
               <BookmarkPlus size={15} />
               Save search
             </Button>
+          </div>
+        )}
+        {searchFilterChips(w.query).length > 0 && (
+          <div className="search-filter-chips" aria-label="Active search filters">
+            {searchFilterChips(w.query).map((filter) => (
+              <button type="button" key={`${filter.key}:${filter.value}`} onClick={() => w.setQuery(setSearchFilter(w.query, filter.key, ""))} aria-label={`Remove ${filter.key} filter`}>
+                <span>{filter.key}</span>{filter.value}<strong aria-hidden="true">×</strong>
+              </button>
+            ))}
           </div>
         )}
         {filters && (
@@ -190,7 +222,18 @@ export function SearchPage() {
               </select>
             </label>
             <label>
-              Path
+              Tags
+              <input
+                placeholder="research"
+                onBlur={(event) => w.setQuery(setSearchFilter(w.query, "tag", event.target.value))}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter")
+                    w.setQuery(setSearchFilter(w.query, "tag", event.currentTarget.value));
+                }}
+              />
+            </label>
+            <label>
+              Folder
               <input
                 placeholder="projects/slate"
                 onBlur={(event) => w.setQuery(setSearchFilter(w.query, "path", event.target.value))}
@@ -200,11 +243,19 @@ export function SearchPage() {
                 }}
               />
             </label>
+            <label>
+              Modified
+              <input
+                type="date"
+                aria-label="Modified date filter"
+                onChange={(event) => w.setQuery(setSearchFilter(w.query, "modified", event.target.value))}
+              />
+            </label>
           </div>
         )}
       </div>
       <div className="view-body scroll-area">
-        <SearchResults query={w.query} />
+        <SearchResults query={w.query} mode={mode} />
       </div>
       <Modal
         open={saving}

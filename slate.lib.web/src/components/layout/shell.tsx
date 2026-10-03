@@ -17,6 +17,8 @@ import {
   Clock3,
   Plus,
   Zap,
+  MessageCircleQuestion,
+  BrainCircuit,
 } from "lucide-react";
 import {
   Group,
@@ -32,6 +34,8 @@ import { useMedia } from "@/hooks/use-media";
 import { Button } from "@/components/ui/button";
 import type { SmartViewId } from "@/features/views/smart-views";
 import { useCommandRuntime } from "@/features/commands/runtime";
+import { IntelligenceSettings } from "@/components/search/intelligence-settings";
+import { AskSlate, openAskSlate } from "@/components/ask/ask-slate";
 export type Destination =
   | "library"
   | "search"
@@ -41,6 +45,7 @@ export type Destination =
   | "recovery"
   | "rediscover"
   | "link-health"
+  | "project-brain"
   | SmartViewId;
 export function Shell({
   children,
@@ -78,7 +83,7 @@ export function Shell({
   useEffect(() => {
     setMobileLeft(false);
     setMobileRight(false);
-  }, [active]);
+  }, [active, nav]);
   const { theme, setTheme } = useTheme();
   const auth = useAuth();
   const desktop = useMedia("(min-width: 768px)"),
@@ -116,6 +121,7 @@ export function Shell({
       ["search", Search, "Search"],
       ["inbox", Inbox, "Inbox"],
       ["recent", Clock3, "Recent"],
+      ["project-brain", BrainCircuit, "Project Brain"],
     ] as const
   ).map(([key, Icon, label]) => (
     <button
@@ -142,6 +148,7 @@ export function Shell({
       ["search", Search, "Search"],
       ["inbox", Inbox, "Inbox"],
       ["recent", Clock3, "Recent"],
+      ["project-brain", BrainCircuit, "Project Brain"],
     ] as const
   ).map(([key, Icon, label]) => (
     <IconButton
@@ -178,6 +185,9 @@ export function Shell({
           <kbd>Ctrl K</kbd>
         </button>
         <div className="topbar-end">
+          <IconButton label="Ask Slate" onClick={() => openAskSlate({ scope: active ? "note" : "library" })}>
+            <MessageCircleQuestion size={18} />
+          </IconButton>
           {sync}
           {!desktop && (
             <>
@@ -199,6 +209,13 @@ export function Shell({
           <nav className="activity-rail" aria-label="Workspace destinations">
             <div className="activity-main">{activityNavigation}</div>
             <div className="activity-bottom">
+              <IconButton
+                label="Ask Slate"
+                className="activity-button"
+                onClick={() => openAskSlate({ scope: active ? "note" : "library" })}
+              >
+                <MessageCircleQuestion size={18} />
+              </IconButton>
               <IconButton
                 label="Quick Thought"
                 className="activity-button"
@@ -344,6 +361,7 @@ export function Shell({
             </select>
           </label>
           <PreferencesForm />
+          <IntelligenceSettings />
           {settingsExtra}
           <Button
             variant="outline"
@@ -357,6 +375,7 @@ export function Shell({
           <p className="fine-print">slate.lib.web · 0.1.0</p>
         </div>
       </Modal>
+      <AskSlate />
     </div>
   );
 }

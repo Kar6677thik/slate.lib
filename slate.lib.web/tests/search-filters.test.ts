@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { setSearchFilter } from "@/components/search/search";
+import { searchFilterChips, setSearchFilter } from "@/components/search/search";
 
 describe("visual search filters", () => {
   it("adds and replaces one direct-query filter without hiding free text", () => {
@@ -16,4 +16,11 @@ describe("visual search filters", () => {
       "postgres",
     );
   });
+});
+
+it("extracts direct syntax into removable filter chips", () => {
+  expect(searchFilterChips('vector path:"Research Notes" tag:search')).toEqual([
+    { key: "path", value: "Research Notes" },
+    { key: "tag", value: "search" },
+  ]);
 });

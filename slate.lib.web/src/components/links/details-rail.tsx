@@ -159,7 +159,10 @@ function RelatedPanel({ id }: { id: string }) {
   const w = useWorkspace();
   const query = useQuery({
     queryKey: ["related", id],
-    queryFn: ({ signal }) => api.related(id, signal),
+    queryFn: async ({ signal }) => {
+      try { return await api.hybridRelated(id, signal); }
+      catch { return api.related(id, signal); }
+    },
   });
   return (
     <div className="rail-content">

@@ -22,6 +22,13 @@ import {
   type AssetPage,
   type AssetReferencePage,
   type AssetDerivedText,
+  type HybridSearchPage,
+  type IntelligenceStatus,
+  type AskPayload,
+  type AskStreamHandler,
+  type SearchMode,
+  type ProjectBrainSnapshot,
+  type ProjectSynthesis,
 } from "./contracts";
 export function normalizeServer(value: string) {
   const url = new URL(value.trim());
@@ -112,6 +119,77 @@ export class SlateApi {
       body: JSON.stringify(body),
     });
   }
+  private async intelligence<T>(path: string, init: RequestInit = {}, signal?: AbortSignal, timeoutMs = 30000) {
+    const response = await fetch(`/api/intelligence/${path}`, {
+      ...init,
+      cache: "no-store",
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
+      headers: {
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        Authorization: `Bearer ${this.connection.token}`,
+        "X-Slate-Server": this.connection.server,
+        ...init.headers,
+      },
+    });
+    if (!response.ok) throw new ApiError(response.status, "Intelligence service is unavailable. Keyword search still works.");
+    return response.status === 204 ? undefined as T : await response.json() as T;
+  }
+  private notifyIntelligence(event: unknown) {
+    void this.intelligence<void>("events", { method: "POST", body: JSON.stringify(event) }).catch(() => undefined);
+  }
+  intelligenceStatus(signal?: AbortSignal) { return this.intelligence<IntelligenceStatus>("status", {}, signal); }
+  intelligenceRebuild() { return this.intelligence<{ state: string }>("rebuild", { method: "POST", body: JSON.stringify({ confirm: true }) }); }
+  hybridSearch(query: string, mode: SearchMode, page = 0, signal?: AbortSignal, diagnostics = false) {
+    return this.intelligence<HybridSearchPage>("search", { method: "POST", body: JSON.stringify({ query, mode, page, pageSize: 20, diagnostics }) }, signal);
+  }
+  projectBrain(path: string, signal?: AbortSignal) {
+    return this.intelligence<ProjectBrainSnapshot>("project-brain", { method: "POST", body: JSON.stringify({ action: "snapshot", path }) }, signal, 45000);
+  }
+  projectSynthesis(path: string, kind: ProjectSynthesis["kind"], refresh = false, signal?: AbortSignal) {
+    return this.intelligence<ProjectSynthesis>("project-brain", { method: "POST", body: JSON.stringify({ action: "generate", path, kind, refresh }) }, signal, 70000);
+  }
+  async askSlate(request: AskPayload, onEvent: AskStreamHandler, signal?: AbortSignal) {
+    const response = await fetch("/api/intelligence/ask", {
+      method: "POST",
+      cache: "no-store",
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(70000)]) : AbortSignal.timeout(70000),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.connection.token}`,
+        "X-Slate-Server": this.connection.server,
+      },
+      body: JSON.stringify(request),
+    });
+    if (!response.ok || !response.body) {
+      const message = response.status === 503 ? "Ask Slate isn't configured on this server." : "Ask Slate could not start this answer.";
+      throw new ApiError(response.status, message);
+    }
+    if (!response.headers.get("content-type")?.toLowerCase().includes("text/event-stream")) throw new Error("Ask Slate returned an invalid stream.");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let received = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.byteLength;
+        if (received > 2 * 1024 * 1024) throw new Error("Ask Slate response exceeded its safety limit.");
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split(/\r?\n\r?\n/);
+        buffer = frames.pop() ?? "";
+        for (const frame of frames) {
+          const line = frame.split(/\r?\n/).find((value) => value.startsWith("data:"));
+          if (!line) continue;
+          const event = JSON.parse(line.slice(5).trim()) as Parameters<AskStreamHandler>[0];
+          if (!event || typeof event.type !== "string") throw new Error("Ask Slate returned an invalid stream.");
+          onEvent(event);
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
   async status(signal?: AbortSignal) {
     return z
       .object({
@@ -143,13 +221,15 @@ export class SlateApi {
     );
   }
   async save(note: Note, markdown: string) {
-    return noteSchema.parse(
+    const saved = noteSchema.parse(
       await this.request<Note>(`v1/notes/${note.id}`, {
         method: "PUT",
         headers: { "If-Match": note.revision },
         body: JSON.stringify({ markdown, revision: note.revision }),
       }),
     );
+    this.notifyIntelligence({ kind: "upsert", noteId: saved.id });
+    return saved;
   }
   search(q: string, page = 0, signal?: AbortSignal) {
     return this.request<SearchPage>(
@@ -186,7 +266,10 @@ export class SlateApi {
       name?: string;
     },
   ) {
-    return this.post<Note>(`v1/notes/${id}/restore`, request);
+    return this.post<Note>(`v1/notes/${id}/restore`, request).then((note) => {
+      this.notifyIntelligence({ kind: "upsert", noteId: note.id });
+      return note;
+    });
   }
   recoverable(signal?: AbortSignal) {
     return this.request<RecoveryPage>("v1/history/deleted", {}, signal);
@@ -221,7 +304,7 @@ export class SlateApi {
       targetRevision: string;
     },
   ) {
-    return this.post<Note>(`v1/notes/${id}/link-repair/apply`, request);
+    return this.post<Note>(`v1/notes/${id}/link-repair/apply`, request).then((note) => { this.notifyIntelligence({ kind: "upsert", noteId: note.id }); return note; });
   }
   previewWikiExport(id: string, signal?: AbortSignal) {
     return this.request<NoteTextPreview>(
@@ -234,7 +317,7 @@ export class SlateApi {
     return this.post<Note>(`v1/notes/${id}/wiki-export`, {
       sourceRevision,
       proposedMarkdown,
-    });
+    }).then((note) => { this.notifyIntelligence({ kind: "upsert", noteId: note.id }); return note; });
   }
   previewBulk(request: {
     operationId: string;
@@ -250,7 +333,7 @@ export class SlateApi {
     fingerprint: string;
     repairIncoming?: boolean;
   }) {
-    return this.post<BulkResult>("v1/library/bulk/apply", request);
+    return this.post<BulkResult>("v1/library/bulk/apply", request).then((result) => { this.notifyIntelligence({ kind: "reconcile", reason: "bulk" }); return result; });
   }
   bulkStatus(operationId: string, signal?: AbortSignal) {
     return this.request<BulkResult>(
@@ -283,6 +366,9 @@ export class SlateApi {
       signal,
     );
   }
+  hybridRelated(id: string, signal?: AbortSignal) {
+    return this.intelligence<RelatedNote[]>("related", { method: "POST", body: JSON.stringify({ noteId: id }) }, signal);
+  }
   rediscover(view: string, today: string, page = 0, signal?: AbortSignal) {
     return this.request<RediscoveryPage>(
       `v1/rediscovery/${encodeURIComponent(view)}?today=${encodeURIComponent(today)}&page=${page}`,
@@ -291,14 +377,14 @@ export class SlateApi {
     );
   }
   daily(date: string) {
-    return this.post<Note>("v1/workflows/daily", { date });
+    return this.post<Note>("v1/workflows/daily", { date }).then((note) => { this.notifyIntelligence({ kind: "upsert", noteId: note.id }); return note; });
   }
   answer(id: string, answer: string, revision: string) {
     return this.post<Note>(`v1/notes/${id}/answer`, {
       answer,
       revision,
       answeredAt: new Date().toISOString(),
-    });
+    }).then((note) => { this.notifyIntelligence({ kind: "upsert", noteId: note.id }); return note; });
   }
   assets(page = 0, unreferenced = false, signal?: AbortSignal) {
     return this.request<AssetPage>(
@@ -329,7 +415,10 @@ export class SlateApi {
     name: string,
     options: { title?: string; id?: string; initialMarkdown?: string } = {},
   ) {
-    return this.post<Note>("v1/notes", { folderPath, name, ...options });
+    return this.post<Note>("v1/notes", { folderPath, name, ...options }).then((note) => {
+      this.notifyIntelligence({ kind: "upsert", noteId: note.id });
+      return note;
+    });
   }
   question(folderPath: string, name: string, title: string, body: string) {
     const id = crypto.randomUUID();
@@ -364,10 +453,10 @@ export class SlateApi {
       content,
       capturedAt,
       kind: "quick-thought",
-    });
+    }).then((note) => { this.notifyIntelligence({ kind: "upsert", noteId: note.id }); return note; });
   }
   rename(path: string, newName: string) {
-    return this.post<Mutation>("v1/library/rename", { path, newName });
+    return this.post<Mutation>("v1/library/rename", { path, newName }).then((result) => { this.notifyIntelligence({ kind: "rename", path, destinationPath: result.path }); return result; });
   }
   transfer(
     kind: "move" | "copy",
@@ -377,7 +466,7 @@ export class SlateApi {
     return this.post<Mutation>(`v1/library/${kind}`, {
       sourcePath,
       destinationFolderPath,
-    });
+    }).then((result) => { this.notifyIntelligence({ kind: "reconcile", reason: "bulk" }); return result; });
   }
   details(path: string) {
     return this.request<{ descendantCount: number; isDirectory: boolean }>(
@@ -385,15 +474,15 @@ export class SlateApi {
     );
   }
   delete(path: string, recursive: boolean) {
-    return this.post<Mutation>("v1/library/delete", { path, recursive });
+    return this.post<Mutation>("v1/library/delete", { path, recursive }).then((result) => { this.notifyIntelligence({ kind: "delete", path }); return result; });
   }
   sync() {
     return this.post<{ state: string; pending: boolean; detail?: string }>(
       "v1/sync",
-    );
+    ).then((result) => { this.notifyIntelligence({ kind: "reconcile", reason: "sync" }); return result; });
   }
   refresh() {
-    return this.post<void>("v1/library/refresh");
+    return this.post<void>("v1/library/refresh").then((result) => { this.notifyIntelligence({ kind: "reconcile", reason: "refresh" }); return result; });
   }
   asset(id: string, signal?: AbortSignal) {
     return this.request<Blob>(

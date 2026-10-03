@@ -56,7 +56,10 @@ export function CommandCenter() {
   const debounced = useDebounce(term, 160);
   const remote = useQuery({
     queryKey: ["command-search", debounced],
-    queryFn: ({ signal }) => api.search(debounced, 0, signal),
+    queryFn: async ({ signal }) => {
+      try { return await api.hybridSearch(debounced, "hybrid", 0, signal); }
+      catch { return api.search(debounced, 0, signal); }
+    },
     enabled: workspace.searchOpen && !commandOnly && !!debounced,
     staleTime: 20_000,
   });
