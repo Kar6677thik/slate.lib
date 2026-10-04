@@ -29,6 +29,9 @@ import {
   type SearchMode,
   type ProjectBrainSnapshot,
   type ProjectSynthesis,
+  type EvolutionScope,
+  type EvolutionSnapshot,
+  type EvolutionSynthesis,
 } from "./contracts";
 export function normalizeServer(value: string) {
   const url = new URL(value.trim());
@@ -147,6 +150,12 @@ export class SlateApi {
   }
   projectSynthesis(path: string, kind: ProjectSynthesis["kind"], refresh = false, signal?: AbortSignal) {
     return this.intelligence<ProjectSynthesis>("project-brain", { method: "POST", body: JSON.stringify({ action: "generate", path, kind, refresh }) }, signal, 70000);
+  }
+  evolution(scope: EvolutionScope, signal?: AbortSignal) {
+    return this.intelligence<EvolutionSnapshot>("evolution", { method: "POST", body: JSON.stringify({ action: "snapshot", scope }) }, signal, 70000);
+  }
+  evolutionSynthesis(scope: EvolutionScope, refresh = false, signal?: AbortSignal) {
+    return this.intelligence<EvolutionSynthesis>("evolution", { method: "POST", body: JSON.stringify({ action: "generate", scope, refresh }) }, signal, 70000);
   }
   async askSlate(request: AskPayload, onEvent: AskStreamHandler, signal?: AbortSignal) {
     const response = await fetch("/api/intelligence/ask", {

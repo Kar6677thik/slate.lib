@@ -40,6 +40,7 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
   const requests: { path: string; method: string; body: unknown }[] = [];
   const askRequests: { question: string; policy: "strict" | "general"; scope: { kind: string; noteId?: string; noteIds?: string[]; path?: string; selectedText?: string } }[] = [];
   const projectRequests: { action: string; path: string; kind?: string; refresh?: boolean }[] = [];
+  const evolutionRequests: Array<{ action: string; scope: { kind: string; topic?: string; path?: string; noteId?: string; noteIds?: string[] }; refresh?: boolean }> = [];
   let conflict = false;
   let assetCounter = 0;
   function getEntry(n: Note) {
@@ -69,6 +70,24 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
       }
       const evidence = (sourceClass: string, title = "Library architecture") => ({ noteId: first, title, path: "Projects/Library architecture.md", revision: '"r1"', heading: "Principles", excerpt: "Markdown is the source of truth. Stable identities connect notes.", sourceClass, type: sourceClass, status: sourceClass === "question" ? "open" : "active", timestamp: "2026-10-03T10:00:00Z" });
       return respond({ schemaVersion: 1, path: input.path, name: input.path.split("/").at(-1), noteCount: 1, folderCount: 1, bounded: false, status: "Active", lastMeaningfulChange: "2026-10-03T10:00:00Z", openQuestionCount: 1, sections: { overview: [evidence("overview")], current: [evidence("recent")], decisions: [evidence("decision", "Use Markdown storage")], questions: [evidence("question", "How should sync retry?")], architecture: [evidence("architecture")], ideas: [evidence("idea", "Offline cache")], experiments: [evidence("experiment", "Index experiment")], failures: [evidence("failure", "WebView failure")], risks: [evidence("risk", "Renderer permissions")], important: [evidence("important")] }, timeline: [{ id: "event-1", noteId: first, title: "Library architecture", path: "Projects/Library architecture.md", timestamp: "2026-10-03T10:00:00Z", label: "Document library structure", commit: "a".repeat(40) }], graph: { nodes: [{ id: first, title: "Library architecture", path: "Projects/Library architecture.md", kind: "architecture" }], edges: [], limited: false }, relatedOutside: [{ id: second, title: "Reading list", path: "Research/Reading list.md", score: .8, reasons: ["Related storage research"] }], sources: [source], sourceFingerprint: "fixture-fingerprint", generatedAt: "2026-10-03T10:00:00Z", provider: { available: options.generationEnabled !== false, name: options.generationEnabled === false ? "disabled" : "deterministic-test", model: options.generationEnabled === false ? "disabled" : "grounded-v1" } });
+    }
+    if (endpoint === "evolution") {
+      const input = req.postDataJSON() as { action: string; scope: { kind: string; topic?: string; path?: string; noteId?: string; noteIds?: string[] }; refresh?: boolean };
+      evolutionRequests.push(input);
+      const before = { citationId: "S1", noteId: first, title: "Library architecture", path: "Projects/Library architecture.md", revision: "a".repeat(40), commit: "a".repeat(40), timestamp: "2026-09-28T10:00:00Z", heading: "Storage decisions", excerpt: "The first design used a local polling loop.", state: "historical" };
+      const after = { citationId: "S2", noteId: first, title: "Library architecture", path: "Projects/Library architecture.md", revision: '"r1"', commit: null, timestamp: "2026-10-03T10:00:00Z", heading: "Storage decisions", excerpt: "The implementation changed to a durable event queue.", state: "current" };
+      const events = [
+        { id: "event-1", type: "ArchitectureChanged", confidence: "implementation", label: "Changed implementation", title: "Implementation changed", summary: "Library architecture: Storage decisions changed.", timestamp: "2026-10-03T10:00:00Z", dateSource: "git", noteId: first, noteTitle: "Library architecture", path: "Projects/Library architecture.md", before, after, rationale: "The queue preserves drafts during retries.", changedHeadings: ["Storage decisions"] },
+        { id: "event-2", type: "DecisionAdded", confidence: "documented", label: "Documented decision", title: "Decision recorded", summary: "Markdown became the canonical store.", timestamp: "2026-10-02T10:00:00Z", dateSource: "git", noteId: first, noteTitle: "Library architecture", path: "Projects/Library architecture.md", before, after, rationale: "Readable source files were required.", changedHeadings: ["Decision"] },
+        { id: "event-3", type: "QuestionAnswered", confidence: "documented", label: "Open question", title: "Question answered", summary: "The retry strategy was answered.", timestamp: "2026-10-01T10:00:00Z", dateSource: "metadata", noteId: first, noteTitle: "Library architecture", path: "Projects/Library architecture.md", before, after, rationale: null, changedHeadings: ["Answer"] },
+        { id: "event-4", type: "Superseded", confidence: "explicit", label: "Superseded idea", title: "Earlier idea superseded", summary: "Polling was explicitly superseded.", timestamp: "2026-09-30T10:00:00Z", dateSource: "git", noteId: first, noteTitle: "Library architecture", path: "Projects/Library architecture.md", before, after, rationale: null, changedHeadings: ["Earlier approach"] },
+        { id: "event-5", type: "PossibleShift", confidence: "possible", label: "Possible shift", title: "Possible shift in emphasis", summary: "Reading moved toward reliability.", timestamp: null, dateSource: null, noteId: second, noteTitle: "Reading list", path: "Research/Reading list.md", before: null, after: { ...after, citationId: "S3", noteId: second, title: "Reading list", path: "Research/Reading list.md", excerpt: "Research increasingly discusses reliable storage." }, rationale: null, changedHeadings: ["Document"] },
+      ];
+      if (input.action === "generate") {
+        if (options.generationEnabled === false) return respond({ error: "AI synthesis isn't configured." }, 503);
+        return respond({ markdown: "## Early View\nThe design used polling. [S1]\n\n## What Changed\nA durable event queue replaced polling. [S2]\n\n## Current View\nThe queue is current. [S2]\n\n## Key Turning Points\nThe implementation changed. [S1] [S2]\n\n## Unresolved Questions\nReason not documented. [S2]", citations: ["S1", "S2"], sources: [before, after], generatedAt: "2026-10-04T10:00:00Z", cached: false, cacheKey: "fixture-evolution" });
+      }
+      return respond({ schemaVersion: 1, scope: input.scope, title: input.scope.kind === "topic" ? input.scope.topic : "Library architecture", events, current: [{ noteId: first, title: "Library architecture", path: "Projects/Library architecture.md", revision: '"r1"', status: "active", type: "architecture", updatedAt: "2026-10-03T10:00:00Z", excerpt: "Markdown is the source of truth and a durable event queue handles retries." }], sources: [before, after], noteCount: 1, revisionCount: 3, bounded: false, sourceFingerprint: "fixture-evolution-fingerprint", generatedAt: "2026-10-04T10:00:00Z", provider: { available: options.generationEnabled !== false, name: options.generationEnabled === false ? "disabled" : "deterministic-test", model: options.generationEnabled === false ? "disabled" : "grounded-v1" }, degraded: options.generationEnabled === false ? "AI synthesis is not configured. The deterministic timeline, comparisons, and current view remain available." : undefined });
     }
     if (endpoint === "ask") {
       const input = req.postDataJSON() as { question: string; policy: "strict" | "general"; scope: { kind: string; noteId?: string; noteIds?: string[]; path?: string } };
@@ -582,6 +601,7 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
     requests,
     askRequests,
     projectRequests,
+    evolutionRequests,
     setConflict: (value: boolean) => {
       conflict = value;
     },

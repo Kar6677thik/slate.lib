@@ -19,6 +19,7 @@ import {
   Zap,
   MessageCircleQuestion,
   BrainCircuit,
+  History,
 } from "lucide-react";
 import {
   Group,
@@ -46,6 +47,7 @@ export type Destination =
   | "rediscover"
   | "link-health"
   | "project-brain"
+  | "evolution"
   | SmartViewId;
 export function Shell({
   children,
@@ -149,6 +151,7 @@ export function Shell({
       ["inbox", Inbox, "Inbox"],
       ["recent", Clock3, "Recent"],
       ["project-brain", BrainCircuit, "Project Brain"],
+      ["evolution", History, "Evolution"],
     ] as const
   ).map(([key, Icon, label]) => (
     <IconButton

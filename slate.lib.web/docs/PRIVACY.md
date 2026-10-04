@@ -29,3 +29,6 @@ Notes and selected text are untrusted data. Their apparent instructions remain i
 ## Project Brain data handling
 
 Project Brain deterministic views read bounded canonical metadata, selected note bodies, and selected history through the same authenticated server route. If generation is enabled, only the bounded Project Brain source pack is sent to the configured provider. Notes outside the selected subtree are displayed separately and are not sent as project evidence. Generated project views are read-only derived data; they are never written to Markdown, Git, browser drafts, or conversation storage. Revision-aware cached synthesis is held in server memory and is invalidated by canonical intelligence events.
+## Historical intelligence
+
+Evolution of Thought reads canonical notes and their bounded Git snapshots through the configured Slate server. Historical content is sent to a generation provider only when the user requests synthesis and a provider is configured. The request contains selected excerpts, deterministic change records, canonical paths, revision identities, and trusted dates; it does not include device tokens or unrelated library history. Without generation, all evolution analysis remains deterministic on the Slate web server.

@@ -11,6 +11,7 @@ import {
 import type { Note, Entry } from "@/lib/api/contracts";
 import type { Destination } from "@/components/layout/shell";
 import { isSmartView } from "@/features/views/smart-views";
+import type { EvolutionScope } from "@/lib/intelligence/evolution";
 export type Tab = { id: string; title: string; path: string; dirty: boolean };
 export type Operation = {
   kind:
@@ -31,6 +32,7 @@ type State = {
   nav: Destination;
   projectPath: string;
   projectSection: string | null;
+  evolutionScope: EvolutionScope;
   query: string;
   searchOpen: boolean;
   commandInitialQuery: string;
@@ -43,6 +45,7 @@ type State = {
   update: (note: Pick<Note, "id" | "title" | "path">, dirty?: boolean) => void;
   navigate: (nav: Destination) => void;
   openProjectBrain: (path: string, section?: string) => void;
+  openEvolution: (scope: EvolutionScope) => void;
   setQuery: (query: string) => void;
   setSearchOpen: (v: boolean) => void;
   openCommandCenter: (query?: string) => void;
@@ -63,6 +66,7 @@ export function WorkspaceProvider({
     [nav, setNav] = useState<Destination>("library"),
     [projectPath, setProjectPath] = useState(""),
     [projectSection, setProjectSection] = useState<string | null>(null),
+    [evolutionScope, setEvolutionScope] = useState<EvolutionScope>({ kind: "topic", topic: "" }),
     [query, setQuery] = useState(""),
     [searchOpen, setSearchOpen] = useState(false),
     [commandInitialQuery, setCommandInitialQuery] = useState(""),
@@ -78,6 +82,13 @@ export function WorkspaceProvider({
     const view = url.searchParams.get("view");
     setProjectPath(url.searchParams.get("project") ?? "");
     setProjectSection(url.searchParams.get("section"));
+    const evolutionKind = url.searchParams.get("evolutionKind");
+    const evolutionTopic = url.searchParams.get("topic") ?? "";
+    const evolutionPath = url.searchParams.get("evolutionPath") ?? "";
+    const evolutionNote = url.searchParams.get("evolutionNote") ?? "";
+    if (evolutionKind === "note" && /^[0-9a-f-]{36}$/i.test(evolutionNote)) setEvolutionScope({ kind: "note", noteId: evolutionNote, topic: evolutionTopic || undefined });
+    else if ((evolutionKind === "project" || evolutionKind === "folder") && evolutionPath) setEvolutionScope({ kind: evolutionKind, path: evolutionPath, topic: evolutionTopic || undefined });
+    else setEvolutionScope({ kind: "topic", topic: evolutionTopic, path: evolutionPath || undefined });
     setNav(
       view === "inbox" ||
         view === "recent" ||
@@ -87,6 +98,7 @@ export function WorkspaceProvider({
         view === "link-health" ||
         view === "favorites" ||
         view === "project-brain" ||
+        view === "evolution" ||
         isSmartView(view)
         ? view
         : "library",
@@ -147,6 +159,12 @@ export function WorkspaceProvider({
     else url.searchParams.delete("q");
     if (view === "project-brain" && projectPath) url.searchParams.set("project", projectPath);
     else if (view !== "project-brain") url.searchParams.delete("section");
+    if (view !== "evolution") {
+      url.searchParams.delete("evolutionKind");
+      url.searchParams.delete("evolutionPath");
+      url.searchParams.delete("evolutionNote");
+      url.searchParams.delete("topic");
+    }
     history.pushState({}, "", url);
   }
   function open(id: string) {
@@ -202,6 +220,7 @@ export function WorkspaceProvider({
         nav,
         projectPath,
         projectSection,
+        evolutionScope,
         query,
         searchOpen,
         commandInitialQuery,
@@ -243,6 +262,24 @@ export function WorkspaceProvider({
           url.searchParams.delete("note");
           if (section) url.searchParams.set("section", section);
           else url.searchParams.delete("section");
+          history.pushState({}, "", url);
+        },
+        openEvolution(scope) {
+          setEvolutionScope(scope);
+          setNav("evolution");
+          setActive(null);
+          const url = new URL(location.href);
+          url.searchParams.set("view", "evolution");
+          url.searchParams.set("evolutionKind", scope.kind);
+          url.searchParams.delete("note");
+          url.searchParams.delete("project");
+          url.searchParams.delete("section");
+          if ("topic" in scope && scope.topic) url.searchParams.set("topic", scope.topic);
+          else url.searchParams.delete("topic");
+          if ("path" in scope && scope.path) url.searchParams.set("evolutionPath", scope.path);
+          else url.searchParams.delete("evolutionPath");
+          if (scope.kind === "note") url.searchParams.set("evolutionNote", scope.noteId);
+          else url.searchParams.delete("evolutionNote");
           history.pushState({}, "", url);
         },
         setQuery(q) {

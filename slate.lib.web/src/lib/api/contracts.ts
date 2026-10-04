@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { AskRequest, AskStreamEvent } from "@/lib/intelligence/ask-types";
 export type { AskPolicy, AskRequest, AskScope, AskScopeKind, AskSource, AskStreamEvent, AskTurn } from "@/lib/intelligence/ask-types";
 export type { ProjectBrainSnapshot, ProjectEvidence, ProjectSynthesis, ProjectTimelineEvent } from "@/lib/intelligence/project-brain";
+export type { EvolutionConfidence, EvolutionCurrentView, EvolutionEvent, EvolutionEventType, EvolutionScope, EvolutionSnapshot, EvolutionSource, EvolutionSynthesis } from "@/lib/intelligence/evolution";
 export const noteSchema = z.object({
   id: z.string().uuid(),
   path: z.string(),

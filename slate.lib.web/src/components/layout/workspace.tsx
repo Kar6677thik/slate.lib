@@ -21,6 +21,7 @@ import { ErrorMessage } from "@/components/common/primitives";
 import { CommandRuntimeProvider } from "@/features/commands/runtime";
 import { CommandCenter } from "@/features/commands/command-center";
 import { ProjectBrain } from "@/components/project/project-brain";
+import { EvolutionWorkspace } from "@/components/evolution/evolution-workspace";
 export function Workspace() {
   const { ready, api } = useAuth();
   if (!ready) return <Loading />;
@@ -73,6 +74,8 @@ function LibraryWorkspace() {
         <SearchPage />
       ) : w.nav === "project-brain" && w.projectPath ? (
         <ProjectBrain path={w.projectPath} initialSection={w.projectSection} />
+      ) : w.nav === "evolution" ? (
+        <EvolutionWorkspace initialScope={w.evolutionScope} />
       ) : (
         <DestinationPage key={w.nav} />
       )}

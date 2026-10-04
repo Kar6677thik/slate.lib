@@ -8,6 +8,7 @@ import { ASK_LIMITS, classifyQuestion, fitGroundedPrompt, hasSufficientEvidence,
 import { acquireGeneration, generationProvider, generationStatus, recordAsk } from "@/lib/intelligence/ask-service";
 import type { AskRequest, AskStreamEvent } from "@/lib/intelligence/ask-types";
 import { buildProjectBrain, clearProjectBrainCache, synthesizeProject, type ProjectCanonical } from "@/lib/intelligence/project-brain-service";
+import { buildEvolution, clearEvolutionCache, synthesizeEvolution, type EvolutionCanonical } from "@/lib/intelligence/evolution-service";
 
 export const dynamic = "force-dynamic";
 const noStore = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
@@ -36,6 +37,17 @@ const projectBrainSchema = z.object({
   path: z.string().trim().min(1).max(1024),
   action: z.enum(["snapshot", "generate"]).default("snapshot"),
   kind: z.enum(["overview", "resume", "recent"]).default("overview"),
+  refresh: z.boolean().default(false),
+});
+const evolutionScopeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("topic"), topic: z.string().trim().min(1).max(300), path: z.string().trim().min(1).max(1024).optional() }),
+  z.object({ kind: z.enum(["project", "folder"]), path: z.string().trim().min(1).max(1024), topic: z.string().trim().max(300).optional() }),
+  z.object({ kind: z.literal("note"), noteId: z.string().uuid(), topic: z.string().trim().max(300).optional() }),
+  z.object({ kind: z.literal("selected"), noteIds: z.array(z.string().uuid()).min(1).max(20), topic: z.string().trim().max(300).optional() }),
+]);
+const evolutionSchema = z.object({
+  action: z.enum(["snapshot", "generate"]).default("snapshot"),
+  scope: evolutionScopeSchema,
   refresh: z.boolean().default(false),
 });
 
@@ -281,6 +293,22 @@ function projectCanonical(connection: ReturnType<typeof resolveSlateUpstream>, l
   };
 }
 
+function evolutionCanonical(connection: ReturnType<typeof resolveSlateUpstream>, libraryId: string): EvolutionCanonical {
+  async function value<T>(path: string, signal: AbortSignal) {
+    const response = await fetchSlate(connection, path, signal);
+    if (!response.ok) throw new Error(`Canonical evolution request failed (${response.status})`);
+    return response.json() as Promise<T>;
+  }
+  return {
+    list: (path, page, signal) => value<FolderPage>(`v1/library?path=${encodeURIComponent(path)}&page=${page}`, signal),
+    search: (query, signal) => value<SearchPage>(`v1/search?q=${encodeURIComponent(query)}&page=0&pageSize=50`, signal),
+    note: (id, signal) => value<Note>(`v1/notes/${encodeURIComponent(id)}`, signal),
+    history: (id, signal) => value<HistoryEntry[]>(`v1/notes/${encodeURIComponent(id)}/history`, signal),
+    historical: (id, commit, signal) => value<HistoricalNote>(`v1/notes/${encodeURIComponent(id)}/history/${encodeURIComponent(commit)}`, signal),
+    semantic: async (query, path) => (await semanticAskCandidates(libraryId, query, path)).map((candidate) => candidate.noteId),
+  };
+}
+
 async function handler(request: Request, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
   if (Number(request.headers.get("content-length") ?? 0) > 16 * 1024) return error(413, "Request is too large");
@@ -321,6 +349,25 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
       return error(502, caught instanceof Error ? caught.message : "Project Brain is unavailable");
     }
   }
+  if (path === "evolution" && request.method === "POST") {
+    const parsed = evolutionSchema.safeParse(json);
+    if (!parsed.success) return error(422, "Invalid Evolution of Thought request");
+    try {
+      const provider = generationProvider();
+      const snapshot = await buildEvolution(evolutionCanonical(connection, libraryId), libraryId, parsed.data.scope, { available: provider.available, name: provider.name, model: provider.model }, request.signal);
+      if (parsed.data.action === "snapshot") return Response.json(snapshot, { headers: noStore });
+      if (!provider.available) return error(503, "AI synthesis isn't configured.");
+      const release = acquireGeneration(libraryId);
+      if (!release) return error(429, "Evolution of Thought is already handling the maximum number of generation requests.");
+      try {
+        const result = await synthesizeEvolution(libraryId, snapshot, provider, AbortSignal.any([request.signal, AbortSignal.timeout(65_000)]), parsed.data.refresh);
+        recordAsk(libraryId, result.sources.length);
+        return Response.json(result, { headers: noStore });
+      } finally { release(); }
+    } catch (caught) {
+      return error(502, caught instanceof Error ? caught.message : "Evolution of Thought is unavailable");
+    }
+  }
   if (path === "search" && request.method === "POST") {
     const body = json as { query?: string; mode?: SearchMode; page?: number; pageSize?: number; diagnostics?: boolean };
     const query = String(body.query ?? "").trim().slice(0, 500);
@@ -354,6 +401,7 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
     if (!parsed.success) return error(422, "Invalid indexing event");
     const body = parsed.data as IndexEvent;
     clearProjectBrainCache(libraryId);
+    clearEvolutionCache(libraryId, "noteId" in body ? body.noteId : undefined, "path" in body ? body.path : undefined);
     try {
       await enqueueIndexEvent(libraryId, body);
       if (body.kind === "upsert") {

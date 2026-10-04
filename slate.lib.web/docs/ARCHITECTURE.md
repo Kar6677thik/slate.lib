@@ -77,3 +77,10 @@ Desktop uses resizable library, document, and details panes. Mobile uses the sam
 ## Verification and release boundary
 
 Each milestone is complete only after lint, strict type checking, unit tests, relevant Playwright desktop/mobile tests, and a production build. CI may package a result later, but this implementation run does not push, tag, publish, or deploy.
+## Evolution pipeline
+
+`src/lib/intelligence/evolution-service.ts` collects a bounded candidate set from canonical note APIs, lexical search, and the existing semantic candidate service. It reads at most 12 candidate notes, history for at most 8 notes, and 8 committed versions per note. Historical snapshots are requested on demand; Slate does not index every Git revision.
+
+`src/lib/intelligence/evolution.ts` normalizes Markdown and frontmatter, removes cosmetic-only revisions, compares changed sections, assigns evidence strength, and emits typed `EvolutionEvent` records with before/after sources. The current view is built separately from the latest canonical `Note` objects. The intelligence route may pass those deterministic events to the configured generation provider, but generated text cannot add events or sources.
+
+Generated results use an in-process bounded cache keyed by library, normalized scope, revision/history fingerprint, provider, model, schema, and feature. Canonical mutation events invalidate entries that contain the affected note or path; reconcile events clear the library’s evolution cache.

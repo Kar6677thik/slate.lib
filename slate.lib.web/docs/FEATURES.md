@@ -82,3 +82,8 @@ The web client now exposes a declarative command registry grouped by Create, Nav
 Current command families include note/folder/question/capture/daily creation; primary and smart-view navigation; save/read/write/split/favorite/file operations; backlinks, outgoing links, related notes, graph, history, document info, and wiki export; tab and pane controls; refresh/sync/recovery/rediscovery/link diagnostics; theme selection; and settings. Commands that do not have a real implementation or valid current context are omitted.
 
 Desktop shortcuts are `Ctrl/Cmd+K` for blended search, `Ctrl/Cmd+Shift+P` for command-only mode, `Ctrl/Cmd+S` to save, `Ctrl/Cmd+W` to close the active tab, `Ctrl/Cmd+Tab` and `Ctrl/Cmd+Shift+Tab` to change tabs, `Ctrl/Cmd+N` for a new note, and `Ctrl/Cmd+Shift+C` for Quick Thought. Inside CodeMirror, `Ctrl/Cmd+K` remains the Markdown-link command; the command-only shortcut always opens the Command Center.
+## Evolution of Thought
+
+Evolution of Thought traces a topic, project, folder, active note, or set of open notes across committed versions. Open it from the Command Center, the note toolbar, Project Brain, or a search result. The workspace separates a dated timeline, before/after evidence, the newest canonical view, and source navigation.
+
+Event labels state the strength of the evidence: **Explicit change**, **Documented decision**, **Changed implementation**, **Possible shift**, **Superseded idea**, and **Open question**. Possible shifts are interpretive and are never presented as facts. Ask Slate can continue from an evolution scope, while optional synthesis uses the fixed sections Early View, What Changed, Current View, Key Turning Points, and Unresolved Questions.

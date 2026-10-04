@@ -83,3 +83,8 @@ The verification container ran with UID/GID 1000, a read-only root filesystem, a
 The app, manifest, service worker, icon and offline page returned HTTP 200. Real proxy requests rejected an unapproved server with 403 and a missing bearer token with 401. That earlier container baseline passed its complete Chromium suite, including PWA and accessibility checks. The current Milestone 3 changes were verified through the local production build and the 44-scenario Chromium suite; the container image was not rebuilt in this milestone.
 
 The temporary verification container was stopped and retained, along with its image. Browser reports are in `output/docker/playwright-report`. Use `playwright.container.config.ts` with `SLATE_CONTAINER_URL` to repeat browser checks against a running local container. Real-backend connectivity, a real generation-provider quality/usage check, the Milestone 4 container image, and k3s deployment remain separate checks.
+## Milestone 6: Evolution of Thought
+
+Verification covers trusted-date handling, Markdown normalization, typo/cosmetic suppression, answered-question transitions, architecture and decision changes, cautious possible shifts, documented rationale, bounded canonical/history retrieval, prompt-injection boundaries, citation validation, cache identity, and generation-disabled operation.
+
+Playwright covers Command Center, active-note, Project Brain, and search-result entry points; event filters; answered questions; superseded ideas; before/after evidence; historical/current navigation; synthesis headings and citations; Ask follow-up; no-AI behavior; responsive layout; and desktop/mobile accessibility. Run `pnpm check` followed by `pnpm test:e2e`.

@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   BookmarkPlus,
   SlidersHorizontal,
+  History,
 } from "lucide-react";
 import { useApi } from "@/lib/auth/context";
 import { useWorkspace } from "@/features/notes/workspace-context";
@@ -86,24 +87,20 @@ export function SearchResults({ query, mode = "hybrid" }: { query: string; mode?
       >
         {q.data.results.map((r) => {
           const hybrid = r as Partial<HybridSearchHit>;
-          return (
-          <button
-            role="listitem"
-            className="result-row"
-            key={r.id}
-            onClick={() => w.open(r.id)}
-          >
-            <FileText size={19} />
-            <div>
-              <strong>{r.title}</strong>
-              <span className="result-path">{r.path}</span>
-              {typeof hybrid.heading === "string" && hybrid.heading && <span className="result-heading">Under {hybrid.heading}</span>}
-              <p>{r.snippet.replace(/<[^>]*>/g, "")}</p>
-            </div>
-            {hybrid.match === "meaning" && <span className="meaning-match">Meaning match</span>}
-            <ArrowUpRight size={15} />
-          </button>
-          );
+          return <div className="search-result-wrapper" role="listitem" key={r.id}>
+            <button className="result-row" onClick={() => w.open(r.id)}>
+              <FileText size={19} />
+              <div>
+                <strong>{r.title}</strong>
+                <span className="result-path">{r.path}</span>
+                {typeof hybrid.heading === "string" && hybrid.heading && <span className="result-heading">Under {hybrid.heading}</span>}
+                <p>{r.snippet.replace(/<[^>]*>/g, "")}</p>
+              </div>
+              {hybrid.match === "meaning" && <span className="meaning-match">Meaning match</span>}
+              <ArrowUpRight size={15} />
+            </button>
+            <button className="search-result-evolution" aria-label={`Trace evolution of ${r.title}`} onClick={() => w.openEvolution({ kind: "note", noteId: r.id, topic: query.trim() || undefined })}><History size={15} /><span>Evolution</span></button>
+          </div>;
         })}
       </div>
       {q.data.total === 0 && (

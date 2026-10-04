@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow, isAfter, subDays } from "date-fns";
-import { AlertTriangle, BrainCircuit, Clock3, FileQuestion, GitBranch, MessageCircleQuestion, RefreshCw, RotateCcw, Search } from "lucide-react";
+import { AlertTriangle, BrainCircuit, Clock3, FileQuestion, GitBranch, History, MessageCircleQuestion, RefreshCw, RotateCcw, Search } from "lucide-react";
 import { useApi } from "@/lib/auth/context";
 import { useWorkspace } from "@/features/notes/workspace-context";
 import { useCommandRuntime } from "@/features/commands/runtime";
@@ -132,6 +132,7 @@ export function ProjectBrain({ path, initialSection }: { path: string; initialSe
       <div className="project-actions">
         <Button onClick={() => resume.mutate(false)} disabled={resume.isPending || !data.provider.available}><RotateCcw size={16} />{resume.isPending ? "Preparing context…" : "Resume Project"}</Button>
         <Button variant="outline" onClick={() => ask()}><MessageCircleQuestion size={16} />Ask this project</Button>
+        <Button variant="outline" onClick={() => workspace.openEvolution({ kind: "project", path })}><History size={16} />Evolution</Button>
         <Button variant="ghost" onClick={searchProject}><Search size={16} />Search</Button>
         <Button variant="ghost" aria-label="Refresh Project Brain" onClick={() => { void snapshot.refetch(); void overview.refetch(); }}><RefreshCw size={16} /></Button>
       </div>

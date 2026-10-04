@@ -23,6 +23,8 @@ interface ConversationMessage {
 
 interface AskOpenDetail {
   scope?: AskScope["kind"];
+  noteId?: string;
+  noteIds?: string[];
   selectedText?: string;
   path?: string;
   question?: string;
@@ -59,6 +61,7 @@ export function AskSlate() {
   const [scopeKind, setScopeKind] = useState<AskScope["kind"]>("library");
   const [policy, setPolicy] = useState<AskPolicy>("strict");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [requestedNoteId, setRequestedNoteId] = useState("");
   const [selectedText, setSelectedText] = useState("");
   const [requestedPath, setRequestedPath] = useState("");
   const [question, setQuestion] = useState("");
@@ -77,11 +80,12 @@ export function AskSlate() {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<AskOpenDetail>).detail ?? {};
       const requested = detail.scope ?? (active ? "note" : "library");
-      setScopeKind(requested === "note" && !active ? "library" : requested);
+      setScopeKind(requested === "note" && !active && !detail.noteId ? "library" : requested);
       setSelectedText(detail.selectedText?.slice(0, 4_000) ?? "");
       setRequestedPath(detail.path?.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "") ?? "");
+      setRequestedNoteId(detail.noteId ?? "");
       if (detail.question) setQuestion(detail.question.slice(0, 2_000));
-      if (requested === "selected") setSelectedIds(workspace.tabs.map((tab) => tab.id).slice(0, 20));
+      if (requested === "selected") setSelectedIds(detail.noteIds?.slice(0, 20) ?? workspace.tabs.map((tab) => tab.id).slice(0, 20));
       else if (active) setSelectedIds([active.id]);
       setOpen(true);
     };
@@ -92,12 +96,12 @@ export function AskSlate() {
   const folder = active ? parentFolder(active.path) : "";
   const project = requestedPath || workspace.projectPath || (active ? projectFolder(active.path) : "");
   const resolvedScope = useMemo<AskScope>(() => {
-    if (scopeKind === "note" && active) return { kind: "note", noteId: active.id, selectedText: selectedText || undefined };
+    if (scopeKind === "note" && (active || requestedNoteId)) return { kind: "note", noteId: active?.id ?? requestedNoteId, selectedText: selectedText || undefined };
     if (scopeKind === "folder" && folder) return { kind: "folder", path: folder, selectedText: selectedText || undefined };
     if (scopeKind === "project" && project) return { kind: "project", path: project, selectedText: selectedText || undefined };
     if (scopeKind === "selected" && selectedIds.length) return { kind: "selected", noteIds: selectedIds, selectedText: selectedText || undefined };
     return { kind: "library", selectedText: selectedText || undefined };
-  }, [active, folder, project, scopeKind, selectedIds, selectedText]);
+  }, [active, folder, project, requestedNoteId, scopeKind, selectedIds, selectedText]);
 
   const scopeLabel = resolvedScope.kind === "note" ? active?.title ?? "Current note"
     : resolvedScope.kind === "folder" ? `Folder: ${resolvedScope.path}`

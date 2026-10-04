@@ -26,6 +26,7 @@ import {
   Braces,
   MessageCircleQuestion,
   FileOutput,
+  History,
 } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 import type { Note } from "@/lib/api/contracts";
@@ -325,6 +326,12 @@ export function NoteWorkbench({ note }: { note: Note }) {
           onClick={askSelection}
         >
           <MessageCircleQuestion size={17} />
+        </IconButton>
+        <IconButton
+          label="Evolution of this note"
+          onClick={() => w.openEvolution({ kind: "note", noteId: note.id })}
+        >
+          <History size={17} />
         </IconButton>
         <IconButton
           label="Export wiki links"

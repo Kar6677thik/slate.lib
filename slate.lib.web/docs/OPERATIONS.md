@@ -68,3 +68,8 @@ Every milestone must pass `pnpm lint`, `pnpm typecheck`, `pnpm test`, its releva
 Project Brain requires no canonical backend migration. Its deterministic workspace operates when generation and semantic search are disabled. Generation uses the existing `SLATE_GENERATION_*` configuration and per-library concurrency limit. Derived synthesis is memory-bounded to 60 cache entries per web process; restarts simply discard it. Canonical note, move, delete, restore, refresh, sync, and bulk events invalidate library project caches through the existing intelligence event path.
 
 For large project folders, expect bounded discovery rather than an eager full-content scan. Operators should monitor canonical request latency and generation counters already exposed in Intelligence settings. A real-provider quality and usage check must be run separately with approved private fixtures before production enablement; normal CI performs no external provider call.
+## Evolution operations
+
+Evolution history retrieval is intentionally bounded: 12 candidate notes, 8 history-bearing notes, 8 revisions per note, 80 events, and 20 synthesis sources. These are safety and latency limits, not a complete archive export. The interface marks a result as bounded when a limit is reached.
+
+Generated evolution summaries use the same generation provider and concurrency controls as Ask Slate and Project Brain. Cache identity includes the canonical revision/history fingerprint plus provider and model. Note upsert/delete/rename events invalidate matching note or path entries; sync, refresh, bulk, restore, and rebuild reconciliation clear the relevant library cache. A provider outage should affect synthesis only.
