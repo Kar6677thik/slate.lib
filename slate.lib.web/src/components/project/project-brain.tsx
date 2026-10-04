@@ -13,6 +13,12 @@ import { ErrorMessage, Loading } from "@/components/common/primitives";
 import { MarkdownBody } from "@/components/reader/markdown";
 import { headingSlug } from "@/lib/markdown/slate-markdown";
 import type { AskSource, ProjectEvidence, ProjectSynthesis, ProjectTimelineEvent } from "@/lib/api/contracts";
+import { KnowledgeIssueSummary } from "@/components/knowledge/knowledge-issues-workspace";
+import { OverlapProjectSummary } from "@/components/overlap/overlap-workspace";
+import { ProjectLinkSummary } from "@/components/links/link-opportunities";
+import { ProjectConceptSummary } from "@/components/concepts/concept-workspace";
+import { ProjectHealthSummary } from "@/components/health/library-health";
+import { ProjectGapSummary } from "@/components/gaps/knowledge-gaps";
 
 function citationMarkdown(text: string, sources: AskSource[]) {
   const valid = new Set(sources.map((source) => source.citationId));
@@ -146,7 +152,7 @@ export function ProjectBrain({ path, initialSection }: { path: string; initialSe
     </header>
 
     <nav className="project-jump" aria-label="Project Brain sections">
-      {["overview", "current", "recent", "decisions", "questions", "architecture", "ideas", "experiments", "failures", "risks", "timeline", "graph", "sources"].map((id) => <a key={id} href={`#project-${id}`}>{id.replace(/^./, (v) => v.toUpperCase())}</a>)}
+      {["overview", "current", "recent", "gaps", "health", "decisions", "questions", "architecture", "ideas", "experiments", "failures", "risks", "timeline", "graph", "sources"].map((id) => <a key={id} href={`#project-${id}`}>{id.replace(/^./, (v) => v.toUpperCase())}</a>)}
     </nav>
 
     <div className="project-content">
@@ -165,6 +171,12 @@ export function ProjectBrain({ path, initialSection }: { path: string; initialSe
       </div></details>
 
       <EvidenceSection id="project-decisions" title="Decisions" items={data.sections.decisions} onOpen={openSource} />
+      <details className="project-section" id="project-gaps" open><summary><h2>Knowledge Gaps</h2></summary><div className="project-section-body"><ProjectGapSummary path={path} /></div></details>
+      <details className="project-section" id="project-health" open><summary><h2>Library Health / Maintenance</h2></summary><div className="project-section-body"><ProjectHealthSummary path={path} /></div></details>
+      <details className="project-section" id="project-concepts" open><summary><h2>Key Concepts</h2></summary><div className="project-section-body"><ProjectConceptSummary path={path} /></div></details>
+      <details className="project-section" id="project-knowledge" open><summary><h2>Knowledge Issues</h2></summary><div className="project-section-body"><KnowledgeIssueSummary scope={{ kind: "project", path }} /></div></details>
+      <details className="project-section" id="project-overlap" open><summary><h2>Overlap / Consolidation</h2></summary><div className="project-section-body"><OverlapProjectSummary path={path} /></div></details>
+      <details className="project-section" id="project-links" open><summary><h2>Relationship Opportunities</h2></summary><div className="project-section-body"><ProjectLinkSummary path={path} /></div></details>
       {data.sections.questions.length > 0 && <details className="project-section" id="project-questions" open><summary><h2>Open Questions</h2><span>{data.sections.questions.length}</span></summary><div className="project-section-body">
         <div className="project-inline-actions"><Button variant="outline" size="sm" onClick={() => ask("What remains unresolved in this project?")}><FileQuestion size={14} />Ask about unresolved questions</Button></div>
         {data.sections.questions.map((item) => { const linked = data.graph.edges.filter((edge) => edge.source === item.noteId || edge.target === item.noteId).length; return <article className="project-question" key={`${item.noteId}:${item.heading ?? ""}`}><div className="project-question-content"><SourceButton item={item} onOpen={openSource} /><p>{item.status ?? "open"}{item.timestamp ? ` · changed ${formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}` : ""}{linked ? ` · ${linked} linked project note${linked === 1 ? "" : "s"}` : ""}</p></div><div className="project-question-actions"><Button variant="ghost" size="sm" onClick={() => openSource(item.noteId, item.heading)}>Open</Button><Button variant="ghost" size="sm" onClick={() => answerQuestion(item)}>Answer</Button><Button variant="ghost" size="sm" onClick={() => ask(`Help me answer this project question: ${item.excerpt}`)}>Ask</Button></div></article>; })}

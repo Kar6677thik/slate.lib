@@ -14,7 +14,8 @@ export type CommandGroup =
   | "Recent notes"
   | "Saved searches"
   | "Pinned folders"
-  | "Notes";
+  | "Notes"
+  | "Concepts";
 
 export interface CommandDefinition {
   id: string;

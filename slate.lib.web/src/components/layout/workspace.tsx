@@ -22,6 +22,12 @@ import { CommandRuntimeProvider } from "@/features/commands/runtime";
 import { CommandCenter } from "@/features/commands/command-center";
 import { ProjectBrain } from "@/components/project/project-brain";
 import { EvolutionWorkspace } from "@/components/evolution/evolution-workspace";
+import { KnowledgeIssuesWorkspace } from "@/components/knowledge/knowledge-issues-workspace";
+import { OverlapWorkspace } from "@/components/overlap/overlap-workspace";
+import { LinkOpportunitiesWorkspace } from "@/components/links/link-opportunities";
+import { ConceptWorkspace } from "@/components/concepts/concept-workspace";
+import { LibraryHealthWorkspace } from "@/components/health/library-health";
+import { KnowledgeGapsWorkspace } from "@/components/gaps/knowledge-gaps";
 export function Workspace() {
   const { ready, api } = useAuth();
   if (!ready) return <Loading />;
@@ -76,6 +82,18 @@ function LibraryWorkspace() {
         <ProjectBrain path={w.projectPath} initialSection={w.projectSection} />
       ) : w.nav === "evolution" ? (
         <EvolutionWorkspace initialScope={w.evolutionScope} />
+      ) : w.nav === "knowledge-issues" ? (
+        <KnowledgeIssuesWorkspace scope={w.knowledgeScope} />
+      ) : w.nav === "knowledge-overlap" ? (
+        <OverlapWorkspace scope={w.overlapScope} />
+      ) : w.nav === "link-opportunities" ? (
+        <LinkOpportunitiesWorkspace scope={w.linkScope} />
+      ) : w.nav === "concepts" ? (
+        <ConceptWorkspace identity={w.conceptIdentity} />
+      ) : w.nav === "library-health" ? (
+        <LibraryHealthWorkspace />
+      ) : w.nav === "knowledge-gaps" ? (
+        <KnowledgeGapsWorkspace />
       ) : (
         <DestinationPage key={w.nav} />
       )}

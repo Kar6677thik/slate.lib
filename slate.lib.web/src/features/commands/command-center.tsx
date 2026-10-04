@@ -8,6 +8,7 @@ import {
   Search,
   Star,
   X,
+  Atom,
 } from "lucide-react";
 import { useApi } from "@/lib/auth/context";
 import { useWorkspace } from "@/features/notes/workspace-context";
@@ -27,6 +28,8 @@ const groupOrder: CommandGroup[] = [
   "Favorites",
   "Recent notes",
   "Notes",
+  "Concepts",
+  "Intelligence",
   "Navigation",
   "Document",
   "Workspace",
@@ -62,6 +65,13 @@ export function CommandCenter() {
     },
     enabled: workspace.searchOpen && !commandOnly && !!debounced,
     staleTime: 20_000,
+  });
+  const conceptIndex = useQuery({
+    queryKey: ["command-concepts"],
+    queryFn: ({ signal }) => api.concepts({}, signal) as Promise<import("@/lib/intelligence/concepts").ConceptSnapshot>,
+    enabled: workspace.searchOpen && !commandOnly && debounced.length >= 2,
+    staleTime: 60_000,
+    retry: false,
   });
 
   useEffect(() => {
@@ -162,6 +172,14 @@ export function CommandCenter() {
           term,
         ),
       );
+      if (term && conceptIndex.data) {
+        const normalized = term.toLowerCase();
+        output.push(...conceptIndex.data.concepts.flatMap((concept, index) => {
+          const score = fuzzyScore(term, [concept.canonicalName, ...concept.aliases, ...concept.tags]);
+          if (!score && !concept.normalizedName.includes(normalized)) return [];
+          return [{ key: `concept:${concept.id}`, title: `Concept · ${concept.canonicalName}`, description: `${concept.kind} · ${concept.sourceCount} sources`, icon: Atom, group: "Concepts" as const, score: 190 + score - index / 100, execute: () => workspace.openConcept(concept.canonicalName) }];
+        }));
+      }
     }
 
     const deduped = new Map<string, CommandResult>();
@@ -183,6 +201,7 @@ export function CommandCenter() {
   }, [
     commandOnly,
     commands,
+    conceptIndex.data,
     historyVersion,
     local.preferences,
     remote.data,

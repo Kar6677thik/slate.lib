@@ -6,6 +6,12 @@ import { fuseResults } from "./ranking";
 import { parseSemanticQuery } from "./query";
 import type { EmbeddingProvider, HybridSearchResponse, IndexEvent, SearchMode } from "./types";
 import type { SourceCandidate } from "./ask-context";
+import { persistNoteClaims } from "./knowledge-issues-service";
+import { persistOverlapNote } from "./overlap-service";
+import { invalidateSmartLinks } from "./smart-links-service";
+import { persistConceptNote } from "./concept-service";
+import { invalidateLibraryHealth } from "./health-service";
+import { invalidateKnowledgeGapNote } from "./knowledge-gap-service";
 
 const provider = getEmbeddingProvider();
 const store = new PostgresDerivedStore();
@@ -30,6 +36,8 @@ export async function embedChangedChunks(note: Note, embeddingProvider: Embeddin
 }
 
 export async function indexNote(libraryId: string, note: Note) {
+  invalidateLibraryHealth(libraryId);
+  await Promise.all([persistNoteClaims(libraryId, note), persistOverlapNote(libraryId, note), invalidateSmartLinks(libraryId, note), persistConceptNote(libraryId, note), invalidateKnowledgeGapNote(libraryId, note.id, note.path)]);
   if (!provider.available) return { indexed: 0, embedded: 0, reused: 0 };
   const chunkMetadata = chunkMarkdown(note);
   try {
@@ -84,7 +92,7 @@ export async function intelligenceStatus(libraryId: string) {
   const current = stats(libraryId);
   return { ...status, embeddedThisRun: current.embedded, reusedThisRun: current.reused, failedChunksThisRun: current.failed };
 }
-export function removeIndexedNote(libraryId: string, noteId?: string, path?: string) { return store.deleteNote(libraryId, noteId, path); }
+export async function removeIndexedNote(libraryId: string, noteId?: string, path?: string) { invalidateLibraryHealth(libraryId); await invalidateKnowledgeGapNote(libraryId, noteId, path); return store.deleteNote(libraryId, noteId, path); }
 export function finishIndexEvent(libraryId: string, event: IndexEvent) { return store.finish(libraryId, event); }
 export function failIndexEvent(libraryId: string, event: IndexEvent) { return store.fail(libraryId, event); }
 export async function claimIndexEvents(libraryId: string) {

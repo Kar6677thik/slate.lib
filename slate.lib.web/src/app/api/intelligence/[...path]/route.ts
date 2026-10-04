@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { z } from "zod";
-import type { Entry, FolderPage, HistoricalNote, HistoryEntry, Note, RelatedNote, SearchPage, Status } from "@/lib/api/contracts";
+import type { AssetPage, Entry, FolderPage, HistoricalNote, HistoryEntry, LinkIssuePage, Links, Note, RelatedNote, SearchPage, Status } from "@/lib/api/contracts";
 import { claimIndexEvents, enableReconciliation, enqueueIndexEvent, failIndexEvent, finishIndexEvent, hybridSearch, indexNote, indexedNoteIds, intelligenceStatus, pruneIndexedNotes, reconciliationEnabled, removeIndexedNote, semanticAskCandidates } from "@/lib/intelligence/service";
 import type { IndexEvent, SearchMode } from "@/lib/intelligence/types";
 import { fetchSlate, resolveSlateUpstream } from "@/lib/server/slate-upstream";
@@ -9,6 +9,16 @@ import { acquireGeneration, generationProvider, generationStatus, recordAsk } fr
 import type { AskRequest, AskStreamEvent } from "@/lib/intelligence/ask-types";
 import { buildProjectBrain, clearProjectBrainCache, synthesizeProject, type ProjectCanonical } from "@/lib/intelligence/project-brain-service";
 import { buildEvolution, clearEvolutionCache, synthesizeEvolution, type EvolutionCanonical } from "@/lib/intelligence/evolution-service";
+import { knowledgeSnapshot } from "@/lib/intelligence/knowledge-issues-service";
+import { overlapSnapshot } from "@/lib/intelligence/overlap-service";
+import { smartLinkSnapshot, type SmartLinkCanonical } from "@/lib/intelligence/smart-links-service";
+import { conceptPage, conceptSnapshot } from "@/lib/intelligence/concept-service";
+import { CONCEPT_LIMITS } from "@/lib/intelligence/concepts";
+import { libraryHealth, type HealthCanonical } from "@/lib/intelligence/health-service";
+import type { HealthFilters } from "@/lib/intelligence/health";
+import { knowledgeGapSnapshot } from "@/lib/intelligence/knowledge-gap-service";
+import type { GapFilters } from "@/lib/intelligence/knowledge-gaps";
+import { inboxTriageSnapshot } from "@/lib/intelligence/inbox-triage-service";
 
 export const dynamic = "force-dynamic";
 const noStore = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
@@ -50,10 +60,35 @@ const evolutionSchema = z.object({
   scope: evolutionScopeSchema,
   refresh: z.boolean().default(false),
 });
+const knowledgeScopeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("library") }),
+  z.object({ kind: z.literal("project"), path: z.string().trim().min(1).max(1024) }),
+  z.object({ kind: z.literal("note"), noteId: z.string().uuid() }),
+]);
+const knowledgeSchema = z.object({ scope: knowledgeScopeSchema });
+const conceptSchema = z.object({
+  identity: z.string().trim().min(1).max(100).optional(),
+  reviews: z.object({
+    merge: z.record(z.string(), z.string().max(100)).optional(),
+    aliases: z.record(z.string(), z.array(z.string().max(100)).max(CONCEPT_LIMITS.maxAliasesPerConcept)).optional(),
+    separate: z.array(z.array(z.string().max(100)).length(2)).max(50).optional(),
+  }).optional(),
+});
+const healthSchema = z.object({
+  filters: z.object({ page: z.number().int().min(0).max(100).optional(), limit: z.number().int().min(1).max(50).optional(), category: z.enum(["links", "consistency", "overlap", "relationships", "structure", "coverage", "assets", "metadata", "concepts", "intelligence"]).optional(), priority: z.enum(["needs-attention", "worth-reviewing", "informational"]).optional(), status: z.enum(["open", "resolved", "dismissed", "not-relevant"]).optional(), project: z.string().max(1024).optional(), concept: z.string().max(100).optional(), noteId: z.string().uuid().optional(), search: z.string().max(200).optional() }).default({}),
+  reviews: z.object({ health: z.record(z.string(), z.object({ state: z.enum(["open", "resolved", "dismissed", "not-relevant"]) })).optional(), knowledge: z.record(z.string(), z.object({ fingerprint: z.string(), state: z.enum(["open", "resolved", "dismissed", "snoozed"]), reviewedAt: z.string(), reason: z.string().optional(), snoozedUntil: z.string().optional() })).optional(), overlap: z.record(z.string(), z.object({ state: z.string() })).optional(), links: z.record(z.string(), z.object({ status: z.string() })).optional(), gaps: z.record(z.string(), z.object({ state: z.enum(["open", "addressed", "dismissed", "not-relevant", "intentionally-fragmented"]) })).optional() }).default({}),
+  refresh: z.boolean().default(false),
+});
+const gapKinds = ["thin-coverage", "fragmented-coverage", "missing-overview", "missing-architecture-explanation", "missing-decision-rationale", "missing-operational-explanation", "missing-failure-recovery-knowledge", "recurring-unanswered-question", "missing-bridge-knowledge", "integration-gap"] as const;
+const gapSchema = z.object({
+  action: z.enum(["snapshot", "rebuild"]).default("snapshot"), confirm: z.boolean().default(false),
+  filters: z.object({ page: z.number().int().min(0).max(100).optional(), limit: z.number().int().min(1).max(50).optional(), kind: z.enum(gapKinds).optional(), project: z.string().max(1024).optional(), concept: z.string().max(100).optional(), importance: z.enum(["high", "medium", "low"]).optional(), status: z.enum(["open", "addressed", "dismissed", "not-relevant", "intentionally-fragmented"]).optional(), search: z.string().max(200).optional(), selected: z.string().max(200).optional() }).default({}),
+  reviews: z.object({ gaps: z.record(z.string(), z.object({ state: z.enum(["open", "addressed", "dismissed", "not-relevant", "intentionally-fragmented"]) })).optional() }).default({}),
+}).refine((value) => value.action !== "rebuild" || value.confirm, { message: "Rebuild requires confirmation" });
 
 function error(status: number, message: string) { return Response.json({ error: message }, { status, headers: noStore }); }
 
-async function readJsonBody(request: Request) {
+async function readJsonBody(request: Request, maxBytes = 16 * 1024) {
   if (!request.body) return {};
   const reader = request.body.getReader();
   const decoder = new TextDecoder();
@@ -64,7 +99,7 @@ async function readJsonBody(request: Request) {
       const { done, value } = await reader.read();
       if (done) break;
       received += value.byteLength;
-      if (received > 16 * 1024) {
+      if (received > maxBytes) {
         await reader.cancel();
         throw new Response("Request is too large", { status: 413 });
       }
@@ -309,15 +344,34 @@ function evolutionCanonical(connection: ReturnType<typeof resolveSlateUpstream>,
   };
 }
 
+function knowledgeCanonical(connection: ReturnType<typeof resolveSlateUpstream>, libraryId: string): SmartLinkCanonical {
+  async function value<T>(path: string, signal: AbortSignal) {
+    const response = await fetchSlate(connection, path, signal);
+    if (!response.ok) throw new Error(`Canonical knowledge request failed (${response.status})`);
+    return response.json() as Promise<T>;
+  }
+  return {
+    list: (path, page, signal) => value<FolderPage>(`v1/library?path=${encodeURIComponent(path)}&page=${page}`, signal),
+    note: (id, signal) => value<Note>(`v1/notes/${encodeURIComponent(id)}`, signal),
+    links: (id, signal) => value<Links>(`v1/notes/${encodeURIComponent(id)}/links`, signal),
+    semantic: async (query, path) => (await semanticAskCandidates(libraryId, query, path)).map((candidate) => candidate.noteId),
+  };
+}
+function healthCanonical(connection: ReturnType<typeof resolveSlateUpstream>): HealthCanonical {
+  async function value<T>(path: string, signal: AbortSignal) { const response = await fetchSlate(connection, path, signal); if (!response.ok) throw new Error(`Canonical health source failed (${response.status})`); return response.json() as Promise<T>; }
+  return { list: (path, page, signal) => value<FolderPage>(`v1/library?path=${encodeURIComponent(path)}&page=${page}`, signal), note: (id, signal) => value<Note>(`v1/notes/${encodeURIComponent(id)}`, signal), links: (id, signal) => value<Links>(`v1/notes/${encodeURIComponent(id)}/links`, signal), linkIssues: (page, signal) => value<LinkIssuePage>(`v1/links/issues?page=${page}`, signal), assets: (page, signal) => value<AssetPage>(`v1/assets?page=${page}&unreferenced=false`, signal) };
+}
+
 async function handler(request: Request, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
-  if (Number(request.headers.get("content-length") ?? 0) > 16 * 1024) return error(413, "Request is too large");
+  const requestLimit = path === "knowledge-gaps" || path === "health" ? 256 * 1024 : 16 * 1024;
+  if (Number(request.headers.get("content-length") ?? 0) > requestLimit) return error(413, "Request is too large");
   let connection;
   try { connection = resolveSlateUpstream(request); }
   catch (caught) { return caught instanceof Response ? error(caught.status, "Request is not authorized") : error(400, "Invalid Slate connection"); }
   let json: unknown = {};
   if (request.method === "POST") {
-    try { json = await readJsonBody(request); }
+    try { json = await readJsonBody(request, requestLimit); }
     catch (caught) { return caught instanceof Response ? error(caught.status, await caught.text()) : error(400, "Invalid JSON"); }
   }
   let libraryId: string;
@@ -325,6 +379,27 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
   catch (caught) { return caught instanceof Response ? error(caught.status, await caught.text()) : error(502, "Canonical library is unavailable"); }
   after(() => resumePending(connection, libraryId));
   if (path === "status" && request.method === "GET") return Response.json({ ...await intelligenceStatus(libraryId), totalNotes: libraryTotals.get(libraryId) ?? 0, ...generationStatus(libraryId) }, { headers: noStore });
+  if (path === "inbox-triage" && request.method === "POST") {
+    try {
+      return Response.json(await inboxTriageSnapshot(libraryId, knowledgeCanonical(connection, libraryId), request.signal), { headers: noStore });
+    } catch (caught) {
+      return error(502, caught instanceof Error ? caught.message : "Inbox triage is unavailable");
+    }
+  }
+  if (path === "health" && request.method === "POST") {
+    const parsed = healthSchema.safeParse(json); if (!parsed.success) return error(422, "Invalid Library Health request");
+    try {
+      const status = { ...await intelligenceStatus(libraryId), totalNotes: libraryTotals.get(libraryId) ?? 0, ...generationStatus(libraryId) };
+      return Response.json(await libraryHealth(libraryId, healthCanonical(connection), status, parsed.data.filters as HealthFilters, parsed.data.reviews, request.signal, parsed.data.refresh), { headers: noStore });
+    } catch (caught) { return error(502, caught instanceof Error ? caught.message : "Library Health is unavailable"); }
+  }
+  if (path === "knowledge-gaps" && request.method === "POST") {
+    const parsed = gapSchema.safeParse(json); if (!parsed.success) return error(422, "Invalid Knowledge Gaps request");
+    try {
+      const status = await intelligenceStatus(libraryId);
+      return Response.json(await knowledgeGapSnapshot(libraryId, knowledgeCanonical(connection, libraryId), parsed.data.filters as GapFilters, parsed.data.reviews, request.signal, { rebuild: parsed.data.action === "rebuild", semanticAvailable: status.enabled, pending: status.pendingJobs, failed: status.failedJobs }), { headers: noStore });
+    } catch (caught) { return error(502, caught instanceof Error ? caught.message : "Knowledge Gap analysis is unavailable"); }
+  }
   if (path === "ask" && request.method === "POST") {
     const parsed = askSchema.safeParse(json);
     if (!parsed.success) return error(422, "Invalid Ask Slate request");
@@ -366,6 +441,47 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
       } finally { release(); }
     } catch (caught) {
       return error(502, caught instanceof Error ? caught.message : "Evolution of Thought is unavailable");
+    }
+  }
+  if (path === "knowledge-issues" && request.method === "POST") {
+    const parsed = knowledgeSchema.safeParse(json);
+    if (!parsed.success) return error(422, "Invalid knowledge analysis scope");
+    try {
+      return Response.json(await knowledgeSnapshot(libraryId, knowledgeCanonical(connection, libraryId), parsed.data.scope, request.signal), { headers: noStore });
+    } catch (caught) {
+      return error(502, caught instanceof Error ? caught.message : "Knowledge analysis is unavailable");
+    }
+  }
+  if (path === "knowledge-overlap" && request.method === "POST") {
+    const parsed = knowledgeSchema.safeParse(json);
+    if (!parsed.success) return error(422, "Invalid overlap analysis scope");
+    try {
+      return Response.json(await overlapSnapshot(libraryId, knowledgeCanonical(connection, libraryId), parsed.data.scope, request.signal), { headers: noStore });
+    } catch (caught) {
+      return error(502, caught instanceof Error ? caught.message : "Overlap analysis is unavailable");
+    }
+  }
+  if (path === "link-opportunities" && request.method === "POST") {
+    const parsed = knowledgeSchema.safeParse(json);
+    if (!parsed.success) return error(422, "Invalid link opportunity scope");
+    try {
+      return Response.json(await smartLinkSnapshot(libraryId, knowledgeCanonical(connection, libraryId), parsed.data.scope, request.signal), { headers: noStore });
+    } catch (caught) {
+      return error(502, caught instanceof Error ? caught.message : "Link opportunity analysis is unavailable");
+    }
+  }
+  if (path === "concepts" && request.method === "POST") {
+    const parsed = conceptSchema.safeParse(json);
+    if (!parsed.success) return error(422, "Invalid concept request");
+    try {
+      if (parsed.data.identity) {
+        const page = await conceptPage(libraryId, knowledgeCanonical(connection, libraryId), parsed.data.identity, request.signal, parsed.data.reviews);
+        return page ? Response.json(page, { headers: noStore }) : error(404, "Concept is not available in the current library evidence");
+      }
+      const result = await conceptSnapshot(libraryId, knowledgeCanonical(connection, libraryId), request.signal, parsed.data.reviews);
+      return Response.json(result.snapshot, { headers: noStore });
+    } catch (caught) {
+      return error(502, caught instanceof Error ? caught.message : "Concept analysis is unavailable");
     }
   }
   if (path === "search" && request.method === "POST") {

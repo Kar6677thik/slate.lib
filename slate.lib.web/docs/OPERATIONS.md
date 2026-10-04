@@ -1,5 +1,11 @@
 # Web operations
 
+## Link-opportunity operations
+
+`intelligence_link_suggestions` contains rebuildable source/target hashes, suggestion types, project scope, and evidence payloads. A changed or deleted note invalidates suggestions where it is either source or target. Rebuild Link Opportunities uses the existing confirmed derived-index reconciliation flow and never edits Markdown or Git history.
+
+The service caps library reads and relationship candidates before graph or claim analysis. Database failure degrades to session-only deterministic results. Generation-provider failure has no effect because core discovery does not use generation.
+
 ## Enabling meaning search
 
 Meaning search is off by default. Run PostgreSQL 16 with pgvector on a private network and configure these server-only values:
@@ -18,7 +24,7 @@ The k3s template reads those values from the optional `slate-web-intelligence` S
 
 The provider URL is never accepted from the browser. Loopback HTTP is permitted for a private local model. After configuration, Settings reports Ready, Pending, Indexing, Unavailable, or Failed; indexed versus total notes; chunk and job counts; and per-process embedded, reused, and failed chunk totals. Confirm **Rebuild derived index** to opt into full-library indexing and populate or repair it. Before that confirmation, normal saves may index only the notes being changed; sync and refresh cannot trigger a paid whole-library embedding run. Model or dimension changes require a rebuild. Calls are batched at 24 chunks, hashes reuse unchanged vectors, repeated jobs deduplicate, and failures use capped backoff.
 
-Set `SLATE_EMBEDDING_PROVIDER=disabled` to disable semantic features. Keyword search remains available. To erase derived data, stop the web service and drop the dedicated intelligence database or its `intelligence_chunks`, `intelligence_jobs`, and `intelligence_meta` tables; canonical notes are unaffected.
+Set `SLATE_EMBEDDING_PROVIDER=disabled` to disable semantic features. Keyword search and deterministic Link Opportunities remain available. To erase derived data, stop the web service and drop the dedicated intelligence database or its `intelligence_chunks`, `intelligence_jobs`, `intelligence_meta`, and `intelligence_link_suggestions` tables; canonical notes are unaffected.
 
 ## Enabling Ask Slate
 
@@ -73,3 +79,41 @@ For large project folders, expect bounded discovery rather than an eager full-co
 Evolution history retrieval is intentionally bounded: 12 candidate notes, 8 history-bearing notes, 8 revisions per note, 80 events, and 20 synthesis sources. These are safety and latency limits, not a complete archive export. The interface marks a result as bounded when a limit is reached.
 
 Generated evolution summaries use the same generation provider and concurrency controls as Ask Slate and Project Brain. Cache identity includes the canonical revision/history fingerprint plus provider and model. Note upsert/delete/rename events invalidate matching note or path entries; sync, refresh, bulk, restore, and rebuild reconciliation clear the relevant library cache. A provider outage should affect synthesis only.
+
+## Knowledge-analysis operations
+
+The intelligence settings include **Rebuild Knowledge Analysis**, with confirmation. Rebuild queues the existing bounded reconciliation process and reconstructs semantic chunks, claims, contradiction candidates, and stale signals from canonical notes; it never edits Markdown or Git history. Normal indexing replaces claims for changed notes and reuses unchanged content hashes.
+
+The Knowledge Issues diagnostics disclose claims indexed, open/resolved/dismissed issues, pending/failed analysis, pairs checked, deterministic findings, model-classified pairs, cache hits, and whether a bound was reached. Database failures degrade to session analysis. Search, editing, sync, Ask Slate, Project Brain, and Evolution continue to use their existing fallback behavior.
+
+Pair processing is capped at 18 neighbors per claim and 72 pairs per changed note. Do not raise these limits without load testing and false-positive review. A rebuild may inspect up to 240 notes in one bounded view pass; refine to a project for larger libraries.
+
+## Overlap-analysis operations
+
+**Rebuild Overlap Analysis** confirms the existing bounded reconciliation path and reconstructs normalized signatures and pair findings only as disposable intelligence state. Normal note indexing replaces the changed note signature; delete and path operations remove relevant overlap rows. A database outage leaves the current session's deterministic comparison usable and never blocks canonical editing, capture, sync, or search.
+
+Diagnostics report exact, near, partial, absorbed, consolidation, open/reviewed, analyzed-pair, deterministic/model, cache, pending/failure, and bound counts. Hard limits are 240 notes, 32 sections per note, 20 neighbors, 72 pairs per note, 320 findings, 8 model classifications, and concurrency 2. Increase them only after load and false-positive testing. Normal CI keeps the external classifier disabled.
+## Concept index operations
+
+The concept index is derived and disposable. Opening Concepts can rebuild a bounded session view when PostgreSQL is unavailable. `intelligence_concepts`, `intelligence_concept_memberships`, and `intelligence_concept_relationships` hold rebuildable records when the database is configured. Canonical note writes finish independently; indexing invalidates only memberships and relationships affected by the changed note.
+
+Settings exposes **Rebuild Concept Index** behind confirmation. The existing reconcile job remains the durable library traversal mechanism. A rebuild changes no Markdown, Git history, titles, aliases, or authored links. Diagnostics report indexed concepts, relationships, aliases, merged identities, processed notes, pending and failed work, reuse, work rebuilt in the process, and whether a bound was reached.
+
+## Library Health operations
+
+Library Health is read-only and needs no migration or scheduled scanner. Its endpoint reads bounded canonical pages and existing persisted intelligence rows, caches raw source collection for 30 seconds, and invalidates that cache after canonical note indexing or deletion. Manual Refresh bypasses the short cache; it still does not rerun specialist analyzers.
+
+Diagnostics report source count, aggregated/open counts, priority counts, health-only findings, aggregation duration, failed source queries, refresh time, and whether the item bound was reached. If PostgreSQL or one canonical auxiliary endpoint is unavailable, the UI labels partial results and continues with every successful source. Operators should investigate persistent indexing failures through Intelligence settings rather than dismissing the underlying health item.
+
+## Knowledge Gap Finder operations
+
+Knowledge Gaps uses a 60-second library-scoped session cache and persists rebuildable findings when PostgreSQL is configured. Note indexing and deletion invalidate findings tied to that canonical note through the existing intelligence event path. **Rebuild Knowledge Gaps** requires confirmation, rebuilds derived data only, and leaves editing, search, sync, and canonical history available.
+
+The deterministic workspace remains functional when generation or semantic retrieval is disabled. Without PostgreSQL it labels the bounded session fallback and does not block canonical operations. Monitor pending/failed job counts, bounds reached, and persisted availability in diagnostics. Do not raise the documented note, concept, project, relationship, question, finding, page, or concurrency caps without load and false-positive testing.
+## Inbox triage operations
+
+Inbox diagnostics expose item, analyzed, pending, and failed counts; strong project suggestions; overlap matches; question suggestions; append opportunities; deterministic/model classification counts; cache hits; and bound status. The normal state is deterministic analysis with optional semantic-only matches absent. If PostgreSQL is unavailable, triage continues from bounded session analysis and reports that persistence is unavailable.
+
+Review state (`Unprocessed`, `Processed`, `Deferred`) and suggestion decisions (`Accepted`, `Dismissed`, `Not Relevant`) are browser-local and fingerprinted by capture content/evidence. A material capture edit invalidates the prior state. Semantic enrichment is capped at eight captures, eight neighbors, and concurrency two; failures fall back to deterministic evidence. Derived analyses may be rebuilt safely because canonical Markdown contains no triage metadata.
+
+Append is a two-stage operation: review/edit the proposed insertion, create a local target draft with the known revision, then use the normal editor Save. A newer target revision surfaces the editor recovery comparison. The capture remains until the user explicitly marks it processed or invokes the existing deletion flow.

@@ -32,6 +32,7 @@ import {
   type EvolutionScope,
   type EvolutionSnapshot,
   type EvolutionSynthesis,
+  type KnowledgeSnapshot,
 } from "./contracts";
 export function normalizeServer(value: string) {
   const url = new URL(value.trim());
@@ -156,6 +157,27 @@ export class SlateApi {
   }
   evolutionSynthesis(scope: EvolutionScope, refresh = false, signal?: AbortSignal) {
     return this.intelligence<EvolutionSynthesis>("evolution", { method: "POST", body: JSON.stringify({ action: "generate", scope, refresh }) }, signal, 70000);
+  }
+  knowledgeIssues(scope: KnowledgeSnapshot["scope"], signal?: AbortSignal) {
+    return this.intelligence<KnowledgeSnapshot>("knowledge-issues", { method: "POST", body: JSON.stringify({ scope }) }, signal, 70000);
+  }
+  knowledgeOverlap(scope: import("@/lib/intelligence/overlap").OverlapSnapshot["scope"], signal?: AbortSignal) {
+    return this.intelligence<import("@/lib/intelligence/overlap").OverlapSnapshot>("knowledge-overlap", { method: "POST", body: JSON.stringify({ scope }) }, signal, 70000);
+  }
+  linkOpportunities(scope: import("@/lib/intelligence/smart-links").LinkOpportunitySnapshot["scope"], signal?: AbortSignal) {
+    return this.intelligence<import("@/lib/intelligence/smart-links").LinkOpportunitySnapshot>("link-opportunities", { method: "POST", body: JSON.stringify({ scope }) }, signal, 70000);
+  }
+  concepts(options: { identity?: string; reviews?: import("@/lib/intelligence/concepts").ConceptIdentityReview } = {}, signal?: AbortSignal) {
+    return this.intelligence<import("@/lib/intelligence/concepts").ConceptSnapshot | import("@/lib/intelligence/concepts").ConceptPageSnapshot>("concepts", { method: "POST", body: JSON.stringify(options) }, signal, 70000);
+  }
+  libraryHealth(options: { filters?: import("@/lib/intelligence/health").HealthFilters; reviews?: import("@/lib/intelligence/health").HealthReviewInput; refresh?: boolean } = {}, signal?: AbortSignal) {
+    return this.intelligence<import("@/lib/intelligence/health").LibraryHealthResponse>("health", { method: "POST", body: JSON.stringify(options) }, signal, 70000);
+  }
+  knowledgeGaps(options: { filters?: import("@/lib/intelligence/knowledge-gaps").GapFilters; reviews?: import("@/lib/intelligence/knowledge-gaps").GapReviews; action?: "snapshot" | "rebuild"; confirm?: boolean } = {}, signal?: AbortSignal) {
+    return this.intelligence<import("@/lib/intelligence/knowledge-gaps").KnowledgeGapResponse>("knowledge-gaps", { method: "POST", body: JSON.stringify(options) }, signal, 70000);
+  }
+  inboxTriage(signal?: AbortSignal) {
+    return this.intelligence<import("@/lib/intelligence/inbox-triage").InboxTriageSnapshot>("inbox-triage", { method: "POST", body: JSON.stringify({}) }, signal, 70000);
   }
   async askSlate(request: AskPayload, onEvent: AskStreamHandler, signal?: AbortSignal) {
     const response = await fetch("/api/intelligence/ask", {

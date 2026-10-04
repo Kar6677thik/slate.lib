@@ -1,5 +1,13 @@
 # Slate web intelligence architecture
 
+## Link opportunity analysis
+
+Smart Linking works without generation. It masks frontmatter, fenced and inline code, quotations, URLs, logs, existing Markdown links, and existing wiki links before extracting mentions. Exact titles and aliases dominate resolution; normalized titles, deterministic target headings, project locality, shared claims, authored graph paths, and co-reference are supporting signals. Ambiguous exact matches remain explicit target choices.
+
+False-positive controls exclude templates, generic short concepts, self-links, equivalent authored targets, weak daily-note relationships, and related-but-distinct pairs without navigational evidence. Exact duplicates, near duplicates, duplicate captures, and possibly absorbed pairs defer to Knowledge Overlap. Partial overlap can retain a link opportunity with an overlap label. Knowledge Issue pairs carry a disagreement warning and require an explicit Link anyway action. Supersession evidence creates a separate Better target review and never replaces an authored link automatically.
+
+Bounds are 180 notes per analysis, 24 mentions per note, 6 targets per mention, 18 relationship candidates per note, 24 graph neighbors, semantic retrieval for at most 24 source notes with 8 neighbors each, 15 stored suggestions per source, and 360 findings per request. A semantic neighbor must still agree with project and claim/concept evidence; vector similarity alone never creates a suggestion. Diagnostics report notes, candidates, categories, review totals, deterministic/model counts, job state, and whether a bound was reached. Model classifications are currently unnecessary; deterministic discovery remains the production fallback.
+
 ## Implemented retrieval boundary
 
 `EmbeddingProvider` exposes query and document embedding, provider name, model, dimensions, and availability. Implementations are disabled by default, an OpenAI-compatible server adapter restricted to an explicit origin allowlist, and a normalized deterministic provider for tests.
@@ -81,7 +89,21 @@ Normal reading and editing never waits for a job. UI status is Ready, Pending, I
 
 ## Feature flags
 
-Semantic indexing and search are disabled until an embedding provider and derived database are configured. Ask Slate and Project Brain synthesis are independently disabled until a generation provider is configured. Their read-only deterministic views remain available. Later link suggestions, health analysis, OCR, daily brief, writing/rewrite features, autonomous actions, and note mutation remain absent. The client uses server-reported availability rather than assuming a provider exists.
+Semantic indexing and search are disabled until an embedding provider and derived database are configured. Ask Slate and Project Brain synthesis are independently disabled until a generation provider is configured. Their read-only deterministic views remain available. OCR, daily brief, writing/rewrite features, autonomous actions, and note mutation remain absent. The client uses server-reported availability rather than assuming a provider exists.
+
+Library Health itself requires no generation provider. It aggregates current canonical diagnostics and already-persisted derived outputs. A missing optional source produces a named partial-results message and leaves available categories usable.
+
+## Library Health finding model
+
+Health findings are schema-versioned and deterministic. The common record carries its source system, kind, category, priority, evidence level, canonical note IDs/paths, project and concept scope, timestamps, specialist route, review state, fingerprint, and reasons. Priority is derived from impact and evidence: unresolved canonical references, duplicate identities, missing assets, strong current conflicts, exact duplicates, and persistent index failures need attention; plausible consolidation, answers, stale material, relationships, and unused assets are worth reviewing; weak structural observations remain informational.
+
+The endpoint bounds canonical notes to 120, link issues and assets to 80 each, derived records to 360 per source, total findings to 800, and result pages to 50. It does not trigger claim extraction, overlap comparison, semantic retrieval, or concept extraction. Source failures are isolated with settled reads so one unavailable derived table cannot hide canonical maintenance findings.
+
+Source ownership remains explicit: canonical Link Health owns broken and ambiguous links; Knowledge Issues owns contradictions, supersession, stale claims, and possible answers; Knowledge Overlap owns duplicate, absorbed, and consolidation findings; Smart Linking owns missing and better relationships; Concepts owns derived identity review; canonical notes and assets supply the health-only structure, metadata, and asset checks; intelligence status supplies persistent job failures.
+
+Health-only orphan detection requires no meaningful incoming authored links and no resolved outgoing authored links. Daily, Inbox, template, root README/index, explicitly standalone, and explicit reference/system notes are excluded. Empty-note checks remove frontmatter and headings first, so concise meaningful prose is not flagged. Asset checks compare canonical asset IDs and reference counts: missing targets need attention, valid unreferenced assets are worth reviewing, and incomplete stored metadata needs attention. No asset is removed automatically.
+
+Open, Resolved, Dismissed, and Not Relevant are normalized for presentation. Knowledge Issues, Overlap, and Smart Linking retain their own review records and richer states such as Keep Separate. Only health-specific findings use the library-scoped browser store. Fingerprints include canonical identity plus revision, hashes, ranges, or asset metadata, so material evidence changes create a new review item while unrelated changes preserve dismissal.
 
 ## Project Brain retrieval and caching
 
@@ -99,3 +121,43 @@ Dates are accepted only from Git commit timestamps, explicit `created`, `updated
 Normalization removes line-ending differences, frontmatter ordering noise, comments, trailing whitespace, and repeated blank lines. Very small typo-like edits are suppressed. Structural or explicit evidence produces factual event types; materially different text without explicit evidence produces **Possible shift**. Rationale is shown only when a rationale/why section or an explicit reason sentence exists; otherwise the interface says **Reason not documented.**
 
 Generation receives only deterministic event summaries, current-view excerpts, and bounded sources inside untrusted-document delimiters. It must use the fixed evolution headings and citations. Invalid citations are removed. When generation is disabled or fails, the timeline, comparisons, current view, sources, and Ask shortcuts remain usable.
+
+## Claims, contradictions, and stale signals
+
+Claim extraction is deterministic first. It reads structured front matter, relevant headings, and explicit patterns such as `uses`, `no longer uses`, `requires`, `version`, `port`, `decision`, and `replaced by`. It excludes fenced code, block quotes, explicit examples, and casual prose. Stored claim identity includes note/revision, heading, normalized subject/predicate/object, project and component context, content hash, extraction method, and evidence level.
+
+Supported findings are direct reversal, value, version, status, architecture, decision, and requirement conflict; possible answered question; and explicit supersession. Equal values, materially different service/project contexts, examples, quotations, weak wording changes, and historical/current evolution are suppressed. Age alone never makes content stale. A stale signal requires explicit supersession, a newer same-context conflict, a newer version/configuration, or a possible later answer to an open question.
+
+Authority is visible and deterministic: explicit metadata and supersession, current revision, decision/architecture headings, then timestamps when both sources document dates. No hidden authority score or fake certainty percentage is shown. Optional model classification considers at most eight otherwise ambiguous pairs per job, two at a time, after deterministic context and temporal checks. Its strict JSON result is schema-validated and cached by library, claim hashes, provider, model, and analysis schema. Invalid output and provider failures are discarded; provider-disabled operation still reports all deterministic categories.
+
+Review state uses stable claim-and-content fingerprints. Resolve, dismiss, and snooze metadata lives outside Markdown. A material source change produces a new fingerprint and therefore reopens only that pair; unrelated note changes do not.
+
+## Duplicate, overlap, and consolidation signals
+
+The overlap signature contains canonical note/revision identity, normalized content hash, note intent, trusted timestamp, project path, bounded headings and sections, extracted claim keys, and word count. Exact hash equality is deterministic. Near duplicates require multiple signals: substantial section coverage and lexical containment plus compatible structure or claims. Partial overlap requires at least one strong section/claim match while preserving distinct material.
+
+Absorption requires most sections from the older note to occur in a newer current note and the newer note to retain additional material; chronology alone never qualifies. Fragmentation is a low-severity consolidation opportunity restricted to small, same-project notes with a focused common subject and little copied content. Templates, daily notes, index/MOC summaries, question/answer pairs, weak standard headings, quotation-like evidence, and repeated code without broader matching prose are suppressed or downranked.
+
+Shared sections and unique sections on each side are stored directly in the finding. The merge planner copies only source-unique sections into browser-local editable state and never calls a canonical mutation. Optional provider input contains at most eight bounded headings/section excerpts per side inside untrusted-document delimiters; malformed or failed classifications are discarded.
+## Entity and concept intelligence
+
+Concept extraction is deterministic and local. It masks frontmatter bodies, fenced and inline code, block quotations, URLs, UUIDs, and common log or stack-trace lines before examining repeated technical names. Explicit titles, aliases, tags, headings, KnowledgeClaim subjects, authored links, and canonical project ancestry are stronger evidence than raw text occurrences. Generic nouns and arbitrary filenames are suppressed.
+
+Memberships are classified as Primary, Strong, Supporting, or Mention and preserve their explainable evidence. Key-note ranking prefers dedicated notes, documented claims, decisions, questions, authored relationships, project breadth, and current dated evidence. Relationships use authored links, repeated co-reference, and canonical project co-usage. They are labeled conservatively as related, used with, part of, depends on, contrasts with, replaces, project co-usage, or co-referenced; unclear relationships remain Related.
+
+Limits are 240 notes per bounded pass, 18 concepts per note, 12 aliases per concept, 40 relationship candidates and 20 stored relationships per concept, 36 page sources, 16 project usages, 21 graph nodes, and 2,000 concepts per response. Concept pages remain fully usable without generation. Optional future summaries must use a bounded evidence pack and citations; notes are untrusted input and cannot alter extraction behavior.
+
+## Coverage and gap inference
+
+Knowledge Gap Finder uses an explainable model rather than an opaque score. Breadth comes from note and project count; depth from relevant explanatory prose and substantial sources; structure from overview, architecture, rationale, operational, and recovery sections; connectivity from existing concept relationships and authored-link suggestions; activity from repeated questions; fragmentation from several small sources without a dominant explanation. High importance is reserved for broad, decision-bearing, cross-project, or repeatedly questioned concepts.
+
+False-positive controls exclude Daily, Inbox, template, log, and system notes; strip frontmatter, code, logs, quoted material, and URLs; suppress incidental concepts and small projects; require higher evidence for framework or language names; accept a dedicated strong source or several collectively strong sources; reuse Overlap for fragmented content and Smart Linking when knowledge exists but is disconnected. Core inference is deterministic. Semantic availability is diagnostic enrichment only, and opening the workspace never invokes a remote model.
+
+Hard bounds are 240 notes, 500 concepts, 24 members per concept, 80 projects, 40 notes per project, 12 relationships and 12 questions per concept, 24 bridge findings, 240 total findings, 50 results per page, and source-read concurrency 6. Diagnostics expose analyzed concepts and projects, finding categories, deterministic/model counts, cache hits, pending/failed jobs, bounds, semantic availability, and PostgreSQL availability.
+## Inbox triage
+
+Inbox classification is deterministic by default. Direct question syntax, explicit metadata, decision phrases, idea phrases, problem vocabulary, actionable opening phrases, experiment/learning language, and URL density are evaluated after frontmatter, fenced code, inline code, quoted prose, and stack-log lines are masked. Ties and weak evidence produce `Unknown` rather than a forced type. Related-note ranking can add a bounded semantic-neighbor signal for at most eight captures per pass; provider failure simply removes that signal.
+
+Related-note ranking combines lexical overlap with the already-derived Overlap, Smart Link, and Concept evidence. Project and destination suggestions require either several strong related notes or one unusually strong body of evidence, use existing paths only, and retain close alternatives. Knowledge Gap matching is informational and never marks a gap addressed. Every suggested action carries its evidence fingerprint and a plain-language reason.
+
+Opening Inbox does not invoke a generation provider. Optional model classification remains outside the core path; diagnostics report zero model classifications. Semantic-only matches can be absent in degraded mode while the deterministic workflow remains usable.

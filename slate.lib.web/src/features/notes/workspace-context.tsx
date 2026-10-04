@@ -12,6 +12,11 @@ import type { Note, Entry } from "@/lib/api/contracts";
 import type { Destination } from "@/components/layout/shell";
 import { isSmartView } from "@/features/views/smart-views";
 import type { EvolutionScope } from "@/lib/intelligence/evolution";
+import type { KnowledgeSnapshot } from "@/lib/intelligence/knowledge-issues";
+import type { OverlapSnapshot } from "@/lib/intelligence/overlap";
+import type { LinkOpportunitySnapshot } from "@/lib/intelligence/smart-links";
+import type { HealthFilters } from "@/lib/intelligence/health";
+import type { GapFilters } from "@/lib/intelligence/knowledge-gaps";
 export type Tab = { id: string; title: string; path: string; dirty: boolean };
 export type Operation = {
   kind:
@@ -33,6 +38,12 @@ type State = {
   projectPath: string;
   projectSection: string | null;
   evolutionScope: EvolutionScope;
+  knowledgeScope: KnowledgeSnapshot["scope"];
+  overlapScope: OverlapSnapshot["scope"];
+  linkScope: LinkOpportunitySnapshot["scope"];
+  conceptIdentity: string;
+  healthFilters: HealthFilters;
+  gapFilters: GapFilters;
   query: string;
   searchOpen: boolean;
   commandInitialQuery: string;
@@ -46,6 +57,12 @@ type State = {
   navigate: (nav: Destination) => void;
   openProjectBrain: (path: string, section?: string) => void;
   openEvolution: (scope: EvolutionScope) => void;
+  openKnowledgeIssues: (scope?: KnowledgeSnapshot["scope"]) => void;
+  openKnowledgeOverlap: (scope?: OverlapSnapshot["scope"]) => void;
+  openLinkOpportunities: (scope?: LinkOpportunitySnapshot["scope"]) => void;
+  openConcept: (identity?: string) => void;
+  openLibraryHealth: (filters?: HealthFilters) => void;
+  openKnowledgeGaps: (filters?: GapFilters) => void;
   setQuery: (query: string) => void;
   setSearchOpen: (v: boolean) => void;
   openCommandCenter: (query?: string) => void;
@@ -67,6 +84,12 @@ export function WorkspaceProvider({
     [projectPath, setProjectPath] = useState(""),
     [projectSection, setProjectSection] = useState<string | null>(null),
     [evolutionScope, setEvolutionScope] = useState<EvolutionScope>({ kind: "topic", topic: "" }),
+    [knowledgeScope, setKnowledgeScope] = useState<KnowledgeSnapshot["scope"]>({ kind: "library" }),
+    [overlapScope, setOverlapScope] = useState<OverlapSnapshot["scope"]>({ kind: "library" }),
+    [linkScope, setLinkScope] = useState<LinkOpportunitySnapshot["scope"]>({ kind: "library" }),
+    [conceptIdentity, setConceptIdentity] = useState(""),
+    [healthFilters, setHealthFilters] = useState<HealthFilters>({ status: "open" }),
+    [gapFilters, setGapFilters] = useState<GapFilters>({ status: "open" }),
     [query, setQuery] = useState(""),
     [searchOpen, setSearchOpen] = useState(false),
     [commandInitialQuery, setCommandInitialQuery] = useState(""),
@@ -86,9 +109,30 @@ export function WorkspaceProvider({
     const evolutionTopic = url.searchParams.get("topic") ?? "";
     const evolutionPath = url.searchParams.get("evolutionPath") ?? "";
     const evolutionNote = url.searchParams.get("evolutionNote") ?? "";
+    const knowledgeKind = url.searchParams.get("knowledgeKind");
+    const knowledgePath = url.searchParams.get("knowledgePath") ?? "";
+    const knowledgeNote = url.searchParams.get("knowledgeNote") ?? "";
+    const overlapKind = url.searchParams.get("overlapKind");
+    const overlapPath = url.searchParams.get("overlapPath") ?? "";
+    const overlapNote = url.searchParams.get("overlapNote") ?? "";
+    const linkKind = url.searchParams.get("linkKind");
+    const linkPath = url.searchParams.get("linkPath") ?? "";
+    const linkNote = url.searchParams.get("linkNote") ?? "";
+    setConceptIdentity(url.searchParams.get("concept") ?? "");
+    setHealthFilters({ status: (url.searchParams.get("healthStatus") as HealthFilters["status"]) ?? "open", category: (url.searchParams.get("healthCategory") as HealthFilters["category"]) ?? undefined, priority: (url.searchParams.get("healthPriority") as HealthFilters["priority"]) ?? undefined, project: url.searchParams.get("healthProject") ?? undefined, concept: url.searchParams.get("healthConcept") ?? undefined, noteId: url.searchParams.get("healthNote") ?? undefined });
+    setGapFilters({ status: (url.searchParams.get("gapStatus") as GapFilters["status"]) ?? "open", kind: (url.searchParams.get("gapKind") as GapFilters["kind"]) ?? undefined, importance: (url.searchParams.get("gapImportance") as GapFilters["importance"]) ?? undefined, project: url.searchParams.get("gapProject") ?? undefined, concept: url.searchParams.get("gapConcept") ?? undefined, selected: url.searchParams.get("gapSelected") ?? undefined });
     if (evolutionKind === "note" && /^[0-9a-f-]{36}$/i.test(evolutionNote)) setEvolutionScope({ kind: "note", noteId: evolutionNote, topic: evolutionTopic || undefined });
     else if ((evolutionKind === "project" || evolutionKind === "folder") && evolutionPath) setEvolutionScope({ kind: evolutionKind, path: evolutionPath, topic: evolutionTopic || undefined });
     else setEvolutionScope({ kind: "topic", topic: evolutionTopic, path: evolutionPath || undefined });
+    if (knowledgeKind === "note" && /^[0-9a-f-]{36}$/i.test(knowledgeNote)) setKnowledgeScope({ kind: "note", noteId: knowledgeNote });
+    else if (knowledgeKind === "project" && knowledgePath) setKnowledgeScope({ kind: "project", path: knowledgePath });
+    else setKnowledgeScope({ kind: "library" });
+    if (overlapKind === "note" && /^[0-9a-f-]{36}$/i.test(overlapNote)) setOverlapScope({ kind: "note", noteId: overlapNote });
+    else if (overlapKind === "project" && overlapPath) setOverlapScope({ kind: "project", path: overlapPath });
+    else setOverlapScope({ kind: "library" });
+    if (linkKind === "note" && /^[0-9a-f-]{36}$/i.test(linkNote)) setLinkScope({ kind: "note", noteId: linkNote });
+    else if (linkKind === "project" && linkPath) setLinkScope({ kind: "project", path: linkPath });
+    else setLinkScope({ kind: "library" });
     setNav(
       view === "inbox" ||
         view === "recent" ||
@@ -99,6 +143,12 @@ export function WorkspaceProvider({
         view === "favorites" ||
         view === "project-brain" ||
         view === "evolution" ||
+        view === "knowledge-issues" ||
+        view === "knowledge-overlap" ||
+        view === "link-opportunities" ||
+        view === "concepts" ||
+        view === "library-health" ||
+        view === "knowledge-gaps" ||
         isSmartView(view)
         ? view
         : "library",
@@ -165,6 +215,22 @@ export function WorkspaceProvider({
       url.searchParams.delete("evolutionNote");
       url.searchParams.delete("topic");
     }
+    if (view !== "knowledge-issues") {
+      url.searchParams.delete("knowledgeKind");
+      url.searchParams.delete("knowledgePath");
+      url.searchParams.delete("knowledgeNote");
+    }
+    if (view !== "knowledge-overlap") {
+      url.searchParams.delete("overlapKind");
+      url.searchParams.delete("overlapPath");
+      url.searchParams.delete("overlapNote");
+    }
+    if (view !== "link-opportunities") {
+      url.searchParams.delete("linkKind"); url.searchParams.delete("linkPath"); url.searchParams.delete("linkNote");
+    }
+    if (view !== "concepts") url.searchParams.delete("concept");
+    if (view !== "library-health") for (const key of ["healthStatus", "healthCategory", "healthPriority", "healthProject", "healthConcept", "healthNote"]) url.searchParams.delete(key);
+    if (view !== "knowledge-gaps") for (const key of ["gapStatus", "gapKind", "gapImportance", "gapProject", "gapConcept", "gapSelected"]) url.searchParams.delete(key);
     history.pushState({}, "", url);
   }
   function open(id: string) {
@@ -221,6 +287,12 @@ export function WorkspaceProvider({
         projectPath,
         projectSection,
         evolutionScope,
+        knowledgeScope,
+        overlapScope,
+        linkScope,
+        conceptIdentity,
+        healthFilters,
+        gapFilters,
         query,
         searchOpen,
         commandInitialQuery,
@@ -280,6 +352,54 @@ export function WorkspaceProvider({
           else url.searchParams.delete("evolutionPath");
           if (scope.kind === "note") url.searchParams.set("evolutionNote", scope.noteId);
           else url.searchParams.delete("evolutionNote");
+          history.pushState({}, "", url);
+        },
+        openKnowledgeIssues(scope = { kind: "library" }) {
+          setKnowledgeScope(scope);
+          setNav("knowledge-issues");
+          setActive(null);
+          const url = new URL(location.href);
+          url.searchParams.set("view", "knowledge-issues");
+          url.searchParams.set("knowledgeKind", scope.kind);
+          url.searchParams.delete("note");
+          if (scope.kind === "project") url.searchParams.set("knowledgePath", scope.path ?? "");
+          else url.searchParams.delete("knowledgePath");
+          if (scope.kind === "note") url.searchParams.set("knowledgeNote", scope.noteId ?? "");
+          else url.searchParams.delete("knowledgeNote");
+          history.pushState({}, "", url);
+        },
+        openKnowledgeOverlap(scope = { kind: "library" }) {
+          setOverlapScope(scope); setNav("knowledge-overlap"); setActive(null);
+          const url = new URL(location.href); url.searchParams.set("view", "knowledge-overlap"); url.searchParams.set("overlapKind", scope.kind); url.searchParams.delete("note");
+          if (scope.kind === "project") url.searchParams.set("overlapPath", scope.path ?? ""); else url.searchParams.delete("overlapPath");
+          if (scope.kind === "note") url.searchParams.set("overlapNote", scope.noteId ?? ""); else url.searchParams.delete("overlapNote");
+          history.pushState({}, "", url);
+        },
+        openLinkOpportunities(scope = { kind: "library" }) {
+          setLinkScope(scope); setNav("link-opportunities"); setActive(null);
+          const url = new URL(location.href); url.searchParams.set("view", "link-opportunities"); url.searchParams.set("linkKind", scope.kind); url.searchParams.delete("note");
+          if (scope.kind === "project") url.searchParams.set("linkPath", scope.path ?? ""); else url.searchParams.delete("linkPath");
+          if (scope.kind === "note") url.searchParams.set("linkNote", scope.noteId ?? ""); else url.searchParams.delete("linkNote");
+          history.pushState({}, "", url);
+        },
+        openConcept(identity = "") {
+          setConceptIdentity(identity.trim()); setNav("concepts"); setActive(null);
+          const url = new URL(location.href); url.searchParams.set("view", "concepts"); url.searchParams.delete("note");
+          if (identity.trim()) url.searchParams.set("concept", identity.trim()); else url.searchParams.delete("concept");
+          history.pushState({}, "", url);
+        },
+        openLibraryHealth(filters = { status: "open" }) {
+          const next = { status: "open" as const, ...filters }; setHealthFilters(next); setNav("library-health"); setActive(null);
+          const url = new URL(location.href); url.searchParams.set("view", "library-health"); url.searchParams.delete("note");
+          const values: Array<[string, string | undefined]> = [["healthStatus", next.status], ["healthCategory", next.category], ["healthPriority", next.priority], ["healthProject", next.project], ["healthConcept", next.concept], ["healthNote", next.noteId]];
+          for (const [key, value] of values) if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
+          history.pushState({}, "", url);
+        },
+        openKnowledgeGaps(filters = { status: "open" }) {
+          const next = { status: "open" as const, ...filters }; setGapFilters(next); setNav("knowledge-gaps"); setActive(null);
+          const url = new URL(location.href); url.searchParams.set("view", "knowledge-gaps"); url.searchParams.delete("note");
+          const values: Array<[string, string | undefined]> = [["gapStatus", next.status], ["gapKind", next.kind], ["gapImportance", next.importance], ["gapProject", next.project], ["gapConcept", next.concept], ["gapSelected", next.selected]];
+          for (const [key, value] of values) if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
           history.pushState({}, "", url);
         },
         setQuery(q) {

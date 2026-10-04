@@ -3,6 +3,13 @@ import type { AskRequest, AskStreamEvent } from "@/lib/intelligence/ask-types";
 export type { AskPolicy, AskRequest, AskScope, AskScopeKind, AskSource, AskStreamEvent, AskTurn } from "@/lib/intelligence/ask-types";
 export type { ProjectBrainSnapshot, ProjectEvidence, ProjectSynthesis, ProjectTimelineEvent } from "@/lib/intelligence/project-brain";
 export type { EvolutionConfidence, EvolutionCurrentView, EvolutionEvent, EvolutionEventType, EvolutionScope, EvolutionSnapshot, EvolutionSource, EvolutionSynthesis } from "@/lib/intelligence/evolution";
+export type { KnowledgeClaim, KnowledgeDiagnostics, KnowledgeIssue, KnowledgeReview, KnowledgeSnapshot, ReviewState } from "@/lib/intelligence/knowledge-issues";
+export type { KnowledgeOverlap, OverlapDiagnostics, OverlapKind, OverlapNote, OverlapReviewState, OverlapSection, OverlapSnapshot } from "@/lib/intelligence/overlap";
+export type { LinkDiagnostics, LinkOpportunitySnapshot, LinkSuggestion, LinkSuggestionStatus, LinkSuggestionType, LinkTarget } from "@/lib/intelligence/smart-links";
+export type { ConceptDiagnostics, ConceptIdentityReview, ConceptKind, ConceptMember, ConceptPageSnapshot, ConceptRelationship, ConceptRelationshipType, ConceptSnapshot, ConceptStrength, KnowledgeConcept } from "@/lib/intelligence/concepts";
+export type { HealthCategory, HealthEvidence, HealthFilters, HealthPriority, HealthReviewInput, HealthReviewState, HealthTargetWorkspace, LibraryHealthItem, LibraryHealthResponse } from "@/lib/intelligence/health";
+export type { GapAction, GapCoverageLevel, GapCoverageSource, GapDiagnostics, GapFilters, GapImportance, GapReviewState, GapReviews, GapWorkspace, KnowledgeGap, KnowledgeGapKind, KnowledgeGapResponse } from "@/lib/intelligence/knowledge-gaps";
+export type { InboxAction, InboxContentType, InboxReviewState, InboxTriageAnalysis, InboxTriageDiagnostics, InboxTriageRelatedNote, InboxTriageSnapshot, InboxTriageSuggestion, SuggestionReviewState, TriageConfidence } from "@/lib/intelligence/inbox-triage";
 export const noteSchema = z.object({
   id: z.string().uuid(),
   path: z.string(),

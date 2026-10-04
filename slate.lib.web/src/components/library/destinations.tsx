@@ -6,6 +6,8 @@ import { formatDistanceToNow } from "date-fns";
 import { useWorkspace } from "@/features/notes/workspace-context";
 import { readRecent } from "@/lib/storage/recent";
 import { FolderChildren } from "./explorer";
+import { InboxOverlapIndicator } from "@/components/overlap/overlap-workspace";
+import { InboxLinkIndicator } from "@/components/links/link-opportunities";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/common/primitives";
 import { ErrorMessage, Loading } from "@/components/common/primitives";
@@ -15,6 +17,7 @@ import { RecoveryPage } from "@/components/history/recovery-page";
 import { RediscoveryPage } from "./rediscovery-page";
 import { LinkHealthPage } from "@/components/links/link-health-page";
 import { useWorkspacePreferences } from "@/lib/storage/workspace-preferences";
+import { InboxTriage } from "@/components/inbox/inbox-triage";
 export function DestinationPage() {
   const w = useWorkspace();
   const local = useWorkspacePreferences(w.scope);
@@ -88,6 +91,7 @@ export function DestinationPage() {
       </>
     );
   const inbox = w.nav === "inbox";
+  if (inbox) return <InboxTriage />;
   return (
     <>
       <div className="view-header">
@@ -123,6 +127,8 @@ export function DestinationPage() {
           role="tree"
           aria-label={inbox ? "Inbox notes" : "Browse library"}
         >
+          {inbox && <InboxOverlapIndicator />}
+          {inbox && <InboxLinkIndicator />}
           <FolderChildren key={w.nav} path={inbox ? "inbox" : ""} />
         </div>
       </div>

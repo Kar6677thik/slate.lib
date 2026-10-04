@@ -20,6 +20,12 @@ import {
   MessageCircleQuestion,
   BrainCircuit,
   History,
+  ShieldQuestion,
+  Layers3,
+  Link2,
+  Atom,
+  HeartPulse,
+  CircleHelp,
 } from "lucide-react";
 import {
   Group,
@@ -48,6 +54,12 @@ export type Destination =
   | "link-health"
   | "project-brain"
   | "evolution"
+  | "knowledge-issues"
+  | "knowledge-overlap"
+  | "link-opportunities"
+  | "concepts"
+  | "library-health"
+  | "knowledge-gaps"
   | SmartViewId;
 export function Shell({
   children,
@@ -124,6 +136,11 @@ export function Shell({
       ["inbox", Inbox, "Inbox"],
       ["recent", Clock3, "Recent"],
       ["project-brain", BrainCircuit, "Project Brain"],
+      ["knowledge-issues", ShieldQuestion, "Knowledge Issues"],
+      ["knowledge-overlap", Layers3, "Knowledge Overlap"],
+      ["link-opportunities", Link2, "Link Opportunities"],
+      ["concepts", Atom, "Concepts"],
+      ["knowledge-gaps", CircleHelp, "Knowledge Gaps"],
     ] as const
   ).map(([key, Icon, label]) => (
     <button
@@ -152,6 +169,12 @@ export function Shell({
       ["recent", Clock3, "Recent"],
       ["project-brain", BrainCircuit, "Project Brain"],
       ["evolution", History, "Evolution"],
+      ["knowledge-issues", ShieldQuestion, "Knowledge Issues"],
+      ["knowledge-overlap", Layers3, "Knowledge Overlap"],
+      ["link-opportunities", Link2, "Link Opportunities"],
+      ["concepts", Atom, "Concepts"],
+      ["library-health", HeartPulse, "Library Health"],
+      ["knowledge-gaps", CircleHelp, "Knowledge Gaps"],
     ] as const
   ).map(([key, Icon, label]) => (
     <IconButton

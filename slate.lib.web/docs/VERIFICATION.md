@@ -1,8 +1,14 @@
 # Verification
 
+## Milestone 9
+
+Smart-link verification covers exact and normalized titles, aliases, ambiguous and project-local targets, heading links, existing-link suppression, prose masking, generic-term suppression, graph triangles, project and claim relationships, duplicate/overlap behavior, Knowledge Issue warnings, better targets, safe and stale insertion, review fingerprints, bounds, and generation-disabled behavior.
+
+Playwright covers Command Center entry, library review, source/target navigation, editor insertion and unsaved state, normal Save, stale-source rejection, persisted dismissal, Project Brain, Inbox, graph suggestions, Ask Slate, desktop/mobile review, mobile insertion, and axe checks. Normal CI never calls a real generation provider.
+
 ## Milestone 4 release gate
 
-Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and the relevant Playwright project. Deterministic coverage includes Markdown/frontmatter chunking, code bounds, rename hash reuse, provider vector stability, metadata filter parsing, reciprocal-rank fusion, exact-title priority, semantic-only matches, Ask context/source budgets, citation validation, prompt-injection boundaries, disabled/fake/failing generation providers, streaming cancellation, timeouts, sanitized output, browser-local conversation limits, every scope, and insufficient evidence.
+Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and the relevant Playwright project. Deterministic coverage includes Markdown/frontmatter chunking, code bounds, rename hash reuse, provider vector stability, metadata filter parsing, reciprocal-rank fusion, exact-title priority, bounded semantic relationship evidence, Ask context/source budgets, citation validation, prompt-injection boundaries, disabled/fake/failing generation providers, streaming cancellation, timeouts, sanitized output, browser-local conversation and review limits, every scope, insertion revision/range protection, and insufficient evidence.
 
 In staging, verify lexical-only operation, disabled-provider fallback, index status, rebuild confirmation, all three Search modes, Command Center free-text retrieval, and unchanged `>` command behavior. With a real private provider, also verify streaming and cancellation, strict/general answer quality, citation correctness, provider usage reporting, that a save succeeds during provider outage, delete removes derived chunks, sync queues reconciliation, and browser responses and logs contain no API key, device token, full note body, raw prompt, generated answer, or raw embedding.
 
@@ -88,3 +94,50 @@ The temporary verification container was stopped and retained, along with its im
 Verification covers trusted-date handling, Markdown normalization, typo/cosmetic suppression, answered-question transitions, architecture and decision changes, cautious possible shifts, documented rationale, bounded canonical/history retrieval, prompt-injection boundaries, citation validation, cache identity, and generation-disabled operation.
 
 Playwright covers Command Center, active-note, Project Brain, and search-result entry points; event filters; answered questions; superseded ideas; before/after evidence; historical/current navigation; synthesis headings and citations; Ask follow-up; no-AI behavior; responsive layout; and desktop/mobile accessibility. Run `pnpm check` followed by `pnpm test:e2e`.
+
+## Milestone 7: contradictions and stale knowledge
+
+Unit coverage verifies structured extraction, architecture/decision/requirement/version/status/question claims, code and quote suppression, direct reversal, value/version/architecture/decision conflicts, equal-value and different-service suppression, explicit supersession, possible answered questions, age-only safety, current/history separation, review persistence, fingerprint reopening, bounded candidate generation, model ambiguity classification, cache reuse, disabled and failed providers, invalid structured output, and prompt-injection containment.
+
+Playwright fixtures cover Command Center entry, current contradiction, Source A and Source B, side-by-side comparison, persistent dismiss, resolve, version conflict, likely superseded material, possible answered questions, Evolution, Ask Slate, Project Brain, provider-disabled deterministic operation, mobile list/comparison, and desktop/mobile axe checks. Normal CI performs no real provider calls.
+
+Real-provider verification remains an operator check: confirm any configured classifier returns schema-valid bounded results, fails closed on invalid output, and receives only the two claim excerpts plus minimal context.
+
+## Milestone 8: duplicate and overlap intelligence
+
+Unit coverage verifies whitespace and frontmatter normalization, identity/timestamp removal, preservation of meaningful values/links/code, exact copies, metadata-only differences, near duplicates, related-but-distinct suppression, section overlap, shared/unique sections, chronology-supported absorption, age-only safety, fragmentation, intent-based false-positive suppression, stable review fingerprints, bounded candidates, structured optional classification, cache reuse, disabled/failed providers, invalid output, and prompt-injection containment.
+
+Playwright fixtures cover Command Center entry, exact/near/partial findings, A/B navigation, shared and unique tabs, persistent Keep Separate, browser-local merge draft, absorbed-note Evolution, Inbox overlap, Ask Slate, generation-disabled operation, Project Brain, mobile list/comparison, and desktop/mobile axe. Real-provider validation remains separate and must confirm bounded evidence, schema-valid output, conservative related-versus-duplicate behavior, and failure fallback.
+## Entity and Concept Pages
+
+- Unit coverage verifies title, alias, heading, tag, claim-subject and technical-phrase extraction; generic, code, log, URL and ID suppression; punctuation and case normalization; Postgres/PostgreSQL equivalence; `.NET`/`ASP.NET Core` separation; memberships; canonical project ancestry; authored-link and co-reference relationships; page sections; review state; degraded operation; security; and hard bounds.
+- Playwright covers command navigation, concept search and pages, key notes, projects, related concepts, decisions, questions, Evolution, Knowledge Issues, Overlap, Link Opportunities, Ask Slate, Command Center results, note details, Project Brain, identity corrections, generation-disabled operation, responsive mobile navigation, and desktop/mobile axe scans.
+- No paid generation or embedding provider is called by deterministic fixtures.
+
+## Library Health and Maintenance Inbox
+
+- Unit coverage verifies source aggregation, priority and evidence rules, specialist ownership, stable review state, project/note/concept/category/search filters, pagination and bounds, intentional orphan exclusions, empty-note handling, missing and unused assets, invalid and duplicate metadata, concept association, persistent intelligence failures, partial-source behavior, and non-mutating fingerprints.
+- The 25-scenario Playwright suite covers Command Center entry, priority ordering, specialist routing for links/consistency/overlap/relationships, answered questions, orphans, assets, intelligence failures, project/concept/category filters, Review Next, health-only dismissal, underlying resolution, Project Brain and current-note summaries, generation-disabled and partial-source operation, mobile list/detail behavior, and desktop/mobile axe scans.
+- Fixtures are deterministic and call no paid embedding or generation provider. Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, then `pnpm exec playwright test e2e/library-health.spec.ts`.
+
+## Knowledge Gap Finder
+
+- Unit coverage verifies thin and fragmented coverage, dedicated and collective strong-source suppression, missing overview and architecture rules, decision rationale, operational recovery, recurring-question clustering and answered-topic suppression, bridge evidence, Daily/Inbox/template/code/log/quote false-positive controls, framework incidence, review fingerprints, local grounded drafts, degraded operation, injection isolation, paging, and hard bounds.
+- The 25-scenario Playwright suite covers Command Center entry, each core finding kind, evidence and canonical-source navigation, Concept Page and Project Brain summaries, Library Health routing, Ask Slate, browser-local drafts with no automatic save, persistent Dismiss and Keep Fragmented states, generation/semantic/PostgreSQL degradation, mobile list/detail/draft behavior, and desktop/mobile axe scans.
+- Deterministic fixtures make no real provider calls. Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, then `pnpm exec playwright test e2e/knowledge-gaps.spec.ts`. Real-library scale, optional provider classification quality, and production PostgreSQL behavior remain separate live checks.
+## Milestone 13: Inbox intelligence
+
+Automated coverage verifies deterministic classification (including ambiguous, quoted, code, and log false positives), project ambiguity and suppression, related-note and Concept evidence, Overlap reuse, existing-folder suggestions, Knowledge Gap relationships, action previews, source preservation, fingerprints, queue ordering, bounds, degraded operation, prompt-injection inertness, keyboard review, browser-draft append, stale-target rejection, mobile Inbox Zero, and desktop/mobile accessibility.
+
+Run:
+
+```text
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e -- e2e/inbox-triage.spec.ts
+git diff --check
+```
+
+Ordinary CI uses deterministic fixtures and makes no real provider calls. Live-provider verification is optional and limited to explicitly enabled classification experiments; it is not required for Inbox triage correctness.

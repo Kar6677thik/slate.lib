@@ -1,5 +1,17 @@
 # Slate web architecture plan
 
+## Derived concept index
+
+Milestone 10 adds rebuildable `KnowledgeConcept`, membership, and relationship records. Extraction uses titles, explicit aliases, tags, headings, KnowledgeClaim subjects, authored links, project ancestry, and a conservative technical phrase vocabulary after masking code, logs, URLs, IDs, and quotations. Identity normalization handles casing and punctuation plus a small evidence-backed equivalence set such as Postgres/PostgreSQL, k8s/Kubernetes, and OPC-UA/OPC UA. Embeddings never merge identities.
+
+Concept memberships retain source note identity, revision, strength, reasons, project ancestry, tags, dates, decisions, and questions. Relationship candidates come only from bounded per-note co-reference indexes and authored links; the implementation never compares every concept pair. PostgreSQL stores disposable concepts, memberships, and relationships, while pages continue in session mode when that store is unavailable. Canonical mutations invalidate only affected derived memberships and relationships.
+
+## Smart-link analysis
+
+Milestone 9 adds a derived `LinkSuggestion` model keyed by source and target content hashes, source context/range, suggestion type, and analysis schema. Candidate generation uses inverted title, alias, heading, claim, and graph-neighborhood indexes. It never scans every note pair. Current-note, project, and library scopes share the same deterministic engine and store only disposable suggestions in PostgreSQL.
+
+Canonical link resolution remains owned by Slate. Existing resolved Markdown links, wiki links, aliases, relative targets, and heading targets are checked before a suggestion is emitted. Inline insertion never calls the API: CodeMirror receives a validated transaction, the browser draft becomes dirty, and the existing save path performs the eventual optimistic write.
+
 ## Milestone 3 search flow
 
 Canonical data remains owned by `slate.lib`: Markdown files, Git history, note identity, and Lucene are unchanged. The browser calls the same-origin intelligence route, which obtains keyword candidates from the approved Slate upstream. When enabled, the server embeds only cleaned free-text queries and asks PostgreSQL/pgvector for filtered chunk candidates. Reciprocal-rank fusion combines both lists with deterministic exact-title priority. Provider, database, and indexing failures return keyword results with a visible degraded state.
@@ -77,6 +89,12 @@ Desktop uses resizable library, document, and details panes. Mobile uses the sam
 ## Verification and release boundary
 
 Each milestone is complete only after lint, strict type checking, unit tests, relevant Playwright desktop/mobile tests, and a production build. CI may package a result later, but this implementation run does not push, tag, publish, or deploy.
+
+## Library Health aggregation
+
+Milestone 11 adds one read-only aggregation endpoint and workspace. It reads paged canonical link issues, bounded note/link structure, canonical asset metadata, persisted Knowledge Issues, Knowledge Overlap, Smart Linking, Concepts, and intelligence job status. It never invokes those analyzers while serving a health request. Raw source collection is cached briefly and invalidated by the existing canonical intelligence event path.
+
+Every finding uses a shared schema with category, priority, evidence, canonical identities and revisions, specialist destination, stable fingerprint, and review state. Findings remain owned by their specialist systems. Only health-specific checks such as orphan notes, empty notes, asset references, and malformed metadata use the Library Health browser-local review store.
 ## Evolution pipeline
 
 `src/lib/intelligence/evolution-service.ts` collects a bounded candidate set from canonical note APIs, lexical search, and the existing semantic candidate service. It reads at most 12 candidate notes, history for at most 8 notes, and 8 committed versions per note. Historical snapshots are requested on demand; Slate does not index every Git revision.
@@ -84,3 +102,32 @@ Each milestone is complete only after lint, strict type checking, unit tests, re
 `src/lib/intelligence/evolution.ts` normalizes Markdown and frontmatter, removes cosmetic-only revisions, compares changed sections, assigns evidence strength, and emits typed `EvolutionEvent` records with before/after sources. The current view is built separately from the latest canonical `Note` objects. The intelligence route may pass those deterministic events to the configured generation provider, but generated text cannot add events or sources.
 
 Generated results use an in-process bounded cache keyed by library, normalized scope, revision/history fingerprint, provider, model, schema, and feature. Canonical mutation events invalidate entries that contain the affected note or path; reconcile events clear the library’s evolution cache.
+
+## Contradiction and stale-knowledge analysis
+
+Milestone 7 adds a deterministic claim pipeline under `src/lib/intelligence/knowledge-issues.ts`. Canonical Markdown remains authoritative. Claims and findings are derived, schema-versioned, library-isolated, and safe to delete or rebuild. PostgreSQL stores JSON payloads plus indexed note, subject, predicate, project, content-hash, and pair-fingerprint columns.
+
+Candidate generation uses shared normalized subject tokens, then enforces service/project context and fixed bounds: 240 notes per explicit analysis, 36 claims per note, 18 neighbors per claim, 72 pairs per changed note, 320 displayed findings, and at most 8 optional model classifications per job with concurrency 2. The pipeline performs context and temporal checks before classification. Current/current differences are review issues; historical/current differences remain evolution unless a source explicitly records supersession. Optional model output must match the closed classification schema and is cached by library, claim hashes, provider, model, and schema version.
+
+Normal writes reuse the existing intelligence event path and replace claims for only the changed note. The explicit Knowledge Issues view can fill or repair bounded derived state when the semantic provider is unavailable. A database outage degrades to in-session deterministic analysis without changing canonical operations.
+
+## Duplicate and overlap analysis
+
+Milestone 8 adds schema-versioned note signatures and overlap findings under `src/lib/intelligence/overlap.ts`. Normalization removes identity metadata, generated timestamps, line-ending differences, insignificant whitespace, frontmatter ordering, and presentation-only emphasis while preserving headings, prose, lists, links, code, requirements, decisions, and values. PostgreSQL stores disposable per-note signatures and pair findings; canonical Markdown and Git remain untouched.
+
+Candidate discovery uses exact-content hash buckets plus shared title/heading tokens and existing claim context. Each explicit pass is capped at 240 notes, 32 sections per note, 20 candidate neighbors, 72 pairs per note, 320 findings, 8 optional model classifications, and classification concurrency 2. Pair analysis combines containment, lexical overlap, heading structure, matched sections, shared claims, note intent, project context, and trusted chronology. It does not execute an all-pairs scan.
+
+Exact, near, partial, absorbed, capture, and fragmentation relationships remain distinct. Optional model classification runs only for bounded ambiguous partial/fragmented findings, accepts a closed JSON schema, and caches by library, content hashes, provider, model, and schema. Provider failure leaves deterministic results intact. Material changes to either source change the fingerprint; unrelated note changes do not reopen reviewed pairs.
+
+## Knowledge-gap architecture
+
+`knowledge-gaps.ts` combines existing concept memberships, questions, claims, Project Brain sections, overlap findings, and Smart Linking relationships into explainable `KnowledgeGap` records. Concept depth counts relevant explanatory sections and dedicated sources; collective strong coverage suppresses missing-file false positives. Project checks require at least six current notes and infer relevant documentation shape from observed API, data, deployment, integration, interface, testing, or operational evidence. Bridge discovery walks only existing bounded concept relationships, so it never performs a global pairwise concept scan.
+
+Derived findings are persisted in the library-isolated `intelligence_knowledge_gaps` table when PostgreSQL is available and retained in a short bounded session cache otherwise. Fingerprints include the gap kind, concept or project identity, and relevant evidence signatures. Canonical index events invalidate affected cached and persisted findings; canonical Markdown remains authoritative and unchanged. The Gap Finder can rebuild derived state only after explicit confirmation.
+## Inbox triage pipeline
+
+`POST /api/intelligence/inbox-triage` reads a bounded canonical library snapshot, selects up to 30 Inbox captures, and aggregates existing deterministic Concept, Overlap, Smart Link, Knowledge Issue, and Knowledge Gap analyzers. The pure analyzer lives in `src/lib/intelligence/inbox-triage.ts`; orchestration and per-capture cache reuse live in `inbox-triage-service.ts`; the responsive workspace lives in `components/inbox/inbox-triage.tsx`.
+
+Analyses are keyed by capture content plus the relevant overlap/link/concept/semantic neighborhood and schema version. Unrelated note edits therefore do not invalidate every cached capture. A pass reads at most 240 notes, analyzes 30 captures, semantically enriches at most 8 captures with 8 neighbors each at concurrency 2, and returns at most 8 related notes, 6 concepts, 3 projects, 3 folders, 4 overlaps, 4 link targets, and 3 gap relationships per capture. Results are rebuildable and are persisted opportunistically in `intelligence_inbox_triage`; session analysis continues when PostgreSQL is unavailable.
+
+Canonical writes stay outside the intelligence service. The workspace delegates to the existing note, question, move, delete, and bulk-preview clients. Append re-reads the target and rejects a changed revision before writing only IndexedDB draft state, with the target revision and original source, then opens the normal editor.

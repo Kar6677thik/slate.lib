@@ -1,5 +1,17 @@
 # Slate web capability matrix
 
+## Entity and Concept Pages
+
+Concepts is a search-first explorer and a set of virtual living pages assembled from current Markdown evidence. A page shows ranked notes, canonical project usage, related concepts with explanations, documented decisions and questions, activity, Knowledge Issues, Overlap, Link Opportunities, sources, and actions for Ask Slate, search, Evolution, and Project Brain. Current-note details and Project Brain expose the same derived concepts. No concept page creates or owns a Markdown note.
+
+Identity corrections such as merge, derived alias, and keep separate are browser-local derived reviews. They never rewrite titles, links, aliases, or source text. Concept results appear below exact note results in the Command Center so an exact note title remains the strongest navigation result.
+
+## Smart Linking and missing relationships
+
+Link Opportunities finds a deliberately small set of useful relationships absent from the authored Markdown graph. It prioritizes exact title and alias mentions, deterministic heading references, shared claims, project context, two-hop graph gaps, and shared reference neighborhoods. Semantic relatedness may strengthen evidence but cannot create a suggestion by itself.
+
+The library workspace, current-note panel, Project Brain, Inbox triage, Related Notes, and the bounded graph expose the same derived findings. Suggested graph edges are off by default and visually distinct. Insert Link validates the source revision, content hash, range, and visible text, then changes only the browser editor draft. The normal Save action remains responsible for the revision-protected canonical write.
+
 ## Hybrid search and semantic retrieval
 
 Search offers three explicit modes. **All** fuses the existing Lucene results with semantic chunk matches. **Keyword** uses the canonical Slate Lucene endpoint unchanged. **Meaning** ranks semantically related chunks and falls back to Keyword when intelligence is unavailable.
@@ -64,8 +76,9 @@ Milestone 1 requires no new backend endpoint. Later milestones need web-only der
 7. Milestone 2: command registry and shared desktop/mobile command surfaces. **Implemented.** The Universal Command Center blends commands, open tabs, favorites, recent notes, saved searches, pinned folders, and cancellable server note search. `>` and `Ctrl/Cmd+Shift+P` enter command-only mode; availability follows the current note, dirty state, registered editor tools, and details panels.
 8. Milestone 3: derived store, background indexing, and hybrid search. **Implemented with optional PostgreSQL/pgvector storage, server-only providers, deterministic chunking, durable incremental jobs, RRF, diagnostics, and lexical fallback.**
 9. Milestones 4–10: grounded assistance, project/context views, evolution, conflicts, duplicates, linking, and virtual concept pages.
-10. Milestones 11–18: graph expansion, health, triage, rediscovery expansion, briefs, learning, gaps, and failure memory.
-11. Milestones 19–27: advanced reader, capture/clipper, attachment intelligence, voice/writing proposals, workspaces/collections, offline expansion, and final mobile polish.
+10. Milestone 11: Library Health and maintenance inbox. **Implemented as a bounded aggregation over canonical diagnostics and Milestones 7–10.**
+11. Milestones 12–18: graph expansion, triage, rediscovery expansion, briefs, learning, gaps, and failure memory.
+12. Milestones 19–27: advanced reader, capture/clipper, attachment intelligence, voice/writing proposals, workspaces/collections, offline expansion, and final mobile polish.
 
 Each numbered milestone is gated by lint, strict type checking, unit tests, relevant Playwright coverage, and a production build.
 
@@ -87,3 +100,34 @@ Desktop shortcuts are `Ctrl/Cmd+K` for blended search, `Ctrl/Cmd+Shift+P` for co
 Evolution of Thought traces a topic, project, folder, active note, or set of open notes across committed versions. Open it from the Command Center, the note toolbar, Project Brain, or a search result. The workspace separates a dated timeline, before/after evidence, the newest canonical view, and source navigation.
 
 Event labels state the strength of the evidence: **Explicit change**, **Documented decision**, **Changed implementation**, **Possible shift**, **Superseded idea**, and **Open question**. Possible shifts are interpretive and are never presented as facts. Ask Slate can continue from an evolution scope, while optional synthesis uses the fixed sections Early View, What Changed, Current View, Key Turning Points, and Unresolved Questions.
+
+## Knowledge Issues
+
+Knowledge Issues reviews internal consistency across current Slate notes. It extracts a deliberately small set of decision, architecture, requirement, version, configuration, status, question, and supersession claims. Findings use calm labels such as **Possible conflict**, **Likely superseded**, and **Possible answer found**; Slate does not claim external truth.
+
+The workspace supports library, project, and current-note scopes; type, review-state, current-only, and text filters; side-by-side source comparison; source navigation; Ask Slate and Evolution follow-ups; and browser-local resolve or dismiss decisions. Project Brain includes a project-scoped summary and current notes show a compact issue indicator.
+
+## Knowledge Overlap
+
+Knowledge Overlap reviews exact copies, near duplicates, substantial shared sections, possibly absorbed notes, duplicate Inbox captures, and conservative consolidation opportunities. Findings show shared knowledge and material unique to each note instead of a public similarity percentage. Library, project, Inbox, and current-note entry points reuse one bounded derived analysis.
+
+The comparison workspace provides Overview, Shared, Only A, Only B, and Full-note modes; canonical source navigation; Ask Slate and Evolution follow-ups; and a link to a separate Knowledge Issue when the pair also conflicts. **Keep separate**, Resolve, and Dismiss are browser-local review outcomes. Manual merge preview creates only an editable browser-local plan from source-only sections; it never writes, deletes, archives, or merges canonical notes.
+
+## Library Health
+
+Library Health is a quiet maintenance inbox for links, consistency, overlap, missing relationships, structure, assets, metadata, concepts, and intelligence jobs. It uses three plain-language priorities: **Needs attention**, **Worth reviewing**, and **Informational**. It does not expose a score, streak, or competitive metric.
+
+Open it from the sidebar or Command Center with Library Health, Review Library, Needs Attention, Broken Links, Duplicates, Asset Health, or Failed Intelligence Jobs. Filters cover project, concept, note, category, status, priority, and text. Review Next opens one focused item and routes it to Link Health, Knowledge Issues, Knowledge Overlap, Link Opportunities, Concepts, Project Brain, note context, or intelligence settings. Project Brain, concept pages, and current-note details show scoped maintenance summaries.
+
+## Knowledge Gap Finder
+
+Milestone 12 adds a conservative coverage review workspace derived only from the current Slate library. It identifies thin or fragmented concept coverage, possible missing project overviews or architecture explanations, decisions without nearby rationale, production material without substantial recovery guidance, recurring unresolved questions, and relationships without a bridge explanation. Every finding names the evidence and signals that caused it; Slate never claims what a person knows and never presents a completeness percentage.
+
+Knowledge Gaps opens from the sidebar or Command Center and supports type, project, concept, importance, review-state, and text filters. Review Next opens an evidence detail with canonical source navigation, Ask Slate, specialist routing, and an explicit browser-local draft template. Open, Addressed, Dismissed, Not Relevant, and Intentionally Fragmented are library-scoped browser reviews. Concept Pages expose Coverage observations, Project Brain exposes a compact Knowledge Gaps section, and Library Health surfaces a capped Coverage category.
+## Inbox intelligence and triage
+
+Inbox is a dedicated review workspace with a queue, selected-capture detail, and an Inbox Zero mode. It classifies captures conservatively as a question, idea, decision, reference, problem, experiment, task-like thought, thought, or unknown; combines Concepts, Smart Links, Overlap, Knowledge Gaps, lexical similarity, and project context; and explains likely projects, existing folders, related notes, and possible actions.
+
+Capture remains immediate. Triage begins only after storage or when Inbox opens. Keep and Later update browser review state. Move and Delete reuse existing confirmations, Convert to Question uses the existing question format, Create Note uses the normal note endpoint, and Append creates an editable browser draft for the target note. No suggestion changes canonical Markdown by itself.
+
+Keyboard review supports J/Down, K/Up, Enter, E, M, Q, A, and D outside text inputs. Safe local states support multi-select; canonical bulk move/delete still use the existing server preview.
