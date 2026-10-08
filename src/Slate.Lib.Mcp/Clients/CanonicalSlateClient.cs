@@ -52,6 +52,7 @@ public sealed class CanonicalSlateClient(HttpClient http, IOptions<SlateMcpOptio
         if (string.IsNullOrWhiteSpace(token)) throw new SlateUpstreamException(503, "canonical_auth_missing", "The MCP server has no canonical Slate device token.");
         using var request = new HttpRequestMessage(method, path);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
         if (ifMatch is not null) request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
         if (body is not null) request.Content = JsonContent.Create(body, options: Json);
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);

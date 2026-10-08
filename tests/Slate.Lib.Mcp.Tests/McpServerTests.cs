@@ -343,16 +343,19 @@ public sealed class UpstreamClientTests
     public async Task CanonicalClientSendsOnlyServerHeldDeviceToken()
     {
         string? authorization = null;
+        string? forwardedProtocol = null;
         var libraryId = Guid.NewGuid();
         var handler = new StubHandler(request =>
         {
             authorization = request.Headers.Authorization?.ToString();
+            forwardedProtocol = request.Headers.GetValues("X-Forwarded-Proto").Single();
             return Json(HttpStatusCode.OK, new LibraryStatus(libraryId, 3));
         });
         var client = Canonical(handler, "internal-device-token");
         var status = await client.Status(default);
         Assert.Equal(libraryId, status.LibraryId);
         Assert.Equal("Bearer internal-device-token", authorization);
+        Assert.Equal("https", forwardedProtocol);
     }
 
     [Fact]
