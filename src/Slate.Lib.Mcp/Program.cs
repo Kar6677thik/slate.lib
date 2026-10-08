@@ -37,6 +37,10 @@ if (!string.IsNullOrWhiteSpace(oauthSettings.Authority))
 foreach (var authorizationServer in oauthSettings.AuthorizationServers)
     ValidatePublicUrl(authorizationServer, nameof(oauthSettings.AuthorizationServers), builder.Environment, requireOrigin: false);
 
+var isProductionSecurityBoundary = !builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing");
+if (isProductionSecurityBoundary)
+    SubjectAccessPolicy.ValidateProductionConfiguration(oauthSettings);
+
 const string authScheme = "SlateBearer";
 if ((builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing")) && string.IsNullOrWhiteSpace(oauthSettings.Authority))
 {
@@ -64,6 +68,11 @@ else
         {
             OnTokenValidated = context =>
             {
+                if (!SubjectAccessPolicy.IsAllowed(context.Principal, oauthSettings.AllowedSubjectIds))
+                {
+                    context.Fail("The Auth0 user is not approved for this Slate library.");
+                    return Task.CompletedTask;
+                }
                 if (oauthSettings.AllowedCallerIds.Length == 0) return Task.CompletedTask;
                 var caller = context.Principal?.FindFirstValue("azp") ?? context.Principal?.FindFirstValue("client_id");
                 if (caller is null || !oauthSettings.AllowedCallerIds.Contains(caller, StringComparer.Ordinal)) context.Fail("The OAuth caller is not allowed.");
@@ -171,7 +180,7 @@ object ProtectedResourceMetadata() => new
 {
     resource = oauthSettings.Resource,
     authorization_servers = oauthSettings.AuthorizationServers.Length > 0 ? oauthSettings.AuthorizationServers : string.IsNullOrWhiteSpace(oauthSettings.Authority) ? [] : new[] { oauthSettings.Authority.TrimEnd('/') },
-    scopes_supported = SlateScopes.All,
+    scopes_supported = mcpSettings.EnableDestructiveOperations ? SlateScopes.All : SlateScopes.All.Where(scope => scope != SlateScopes.Delete).ToArray(),
     bearer_methods_supported = new[] { "header" },
     resource_name = "Slate knowledge library"
 };

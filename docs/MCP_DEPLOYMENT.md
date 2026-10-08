@@ -26,11 +26,16 @@ kubectl kustomize deploy/mcp/k3s
 | `OAuth__Audience` | Expected access-token audience |
 | `OAuth__Resource` | Public protected-resource URL ending in `/mcp` |
 | `OAuth__AuthorizationServers__*` | Issuers advertised in protected-resource metadata |
+| `OAuth__AllowedSubjectIds__*` | Required production allowlist of Auth0 user IDs from the JWT `sub` claim |
 | `OAuth__AllowedCallerIds__*` | Optional `azp` or `client_id` allowlist |
 | `Secrets__CanonicalDeviceToken` | Dedicated internal Slate device token |
 | `Secrets__ProposalSigningKey` | Random key for stateless review tokens |
 
 Use at least 32 random bytes for the signing key. Store both secrets in a real Kubernetes Secret or external secret manager. Do not commit the filled secret manifest.
+
+For Auth0, set `OAuth__Audience` and `OAuth__Resource` to the exact API identifier `https://mcp.lib.karthiksurkanti.in/mcp`. Set `OAuth__Authority` and `OAuth__AuthorizationServers__0` to the exact issuer from the Auth0 discovery document, including its trailing slash. Production startup fails unless at least one `OAuth__AllowedSubjectIds__*` entry is configured. Each entry must be an exact Auth0 User ID; machine-to-machine subjects and client-credentials grants are always rejected even if mistakenly allowlisted.
+
+Define `slate.read`, `slate.analyze`, `slate.write`, `slate.organize`, `slate.delete`, and `slate.admin` as Auth0 API permissions. The protected-resource metadata omits `slate.delete` while destructive operations are disabled. Enable Auth0's Resource Parameter Compatibility Profile so the MCP `resource` parameter produces a JWT for the configured API identifier.
 
 ## Kubernetes rollout
 

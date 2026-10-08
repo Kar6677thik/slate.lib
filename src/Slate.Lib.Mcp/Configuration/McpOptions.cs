@@ -27,9 +27,10 @@ public sealed class OAuthOptions
 {
     public const string SectionName = "OAuth";
     public string Authority { get; set; } = "";
-    [Required] public string Audience { get; set; } = "slate-mcp";
+    [Required] public string Audience { get; set; } = "http://localhost:5081/mcp";
     [Required, Url] public string Resource { get; set; } = "http://localhost:5081/mcp";
     public string[] AuthorizationServers { get; set; } = [];
+    public string[] AllowedSubjectIds { get; set; } = [];
     public string[] AllowedCallerIds { get; set; } = [];
 }
 

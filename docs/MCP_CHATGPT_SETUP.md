@@ -13,13 +13,15 @@ https://mcp.lib.karthiksurkanti.in/mcp
 Before connecting ChatGPT:
 
 1. Deploy `Slate.Lib.Mcp` and verify `/health/live` and `/health/ready` through the intended route.
-2. Configure the external OAuth issuer, `slate-mcp` audience, public resource URL, and allowed caller IDs.
+2. Configure the Auth0 issuer, the `https://mcp.lib.karthiksurkanti.in/mcp` audience and resource, and at least one exact Auth0 User ID in the allowed-subject list.
 3. Configure a dedicated canonical Slate device token in the MCP Secret. Do not reuse a browser, Windows, or Android token.
 4. Set `Mcp:ExpectedLibraryId` to the canonical library UUID.
 5. Keep `Mcp:EnableDestructiveOperations=false` for initial rollout.
 6. Verify `/.well-known/oauth-protected-resource` over public HTTPS.
 
 The external authorization server must follow the [OpenAI plugin authentication guidance](https://developers.openai.com/plugins/build/auth): protected-resource metadata, authorization-server discovery, PKCE, the resource parameter, and a supported client-registration approach. ChatGPT can use CIMD, dynamic client registration, or a pre-registered client. Slate MCP is the OAuth resource server; it does not mint user tokens.
+
+The server validates Auth0's JWT signature, issuer, audience, lifetime, requested scopes, and exact `sub` allowlist. Auth0 machine-to-machine identities are rejected. Enable the tenant's Resource Parameter Compatibility Profile so ChatGPT's RFC 8707 `resource` parameter is mapped to the API audience.
 
 Recommended consent scopes:
 

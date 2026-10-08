@@ -21,7 +21,7 @@ data:
   Mcp__EnableWrites: "true"
   Mcp__EnableDestructiveOperations: "false"
   Mcp__ProposalLifetimeMinutes: "15"
-  OAuth__Audience: slate-mcp
+  OAuth__Audience: https://mcp.lib.karthiksurkanti.in/mcp
   OAuth__Resource: https://mcp.lib.karthiksurkanti.in/mcp
   RateLimiting__PermitLimit: "90"
   RateLimiting__WindowSeconds: "60"

@@ -141,7 +141,7 @@ public sealed class McpEndToEndTests
                 ["Mcp:AllowedCanonicalHosts:0"] = "canonical.test",
                 ["Mcp:AllowedIntelligenceHosts:0"] = "intelligence.test",
                 ["OAuth:Authority"] = "",
-                ["OAuth:Audience"] = "slate-mcp",
+                ["OAuth:Audience"] = "http://localhost/mcp",
                 ["OAuth:Resource"] = "http://localhost/mcp",
                 ["Development:BearerToken"] = "test-mcp-token",
                 ["Secrets:CanonicalDeviceToken"] = canonicalToken,
