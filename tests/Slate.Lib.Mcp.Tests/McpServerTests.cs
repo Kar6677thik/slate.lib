@@ -84,6 +84,17 @@ public sealed class McpProtocolTests : IClassFixture<McpFactory>
         Assert.Contains("get_library_status", text, StringComparison.Ordinal);
         Assert.Contains("apply_note_edit", text, StringComparison.Ordinal);
         Assert.DoesNotContain("CanonicalDeviceToken", text, StringComparison.OrdinalIgnoreCase);
+
+        using var document = JsonDocument.Parse(ReadJsonRpcPayload(text));
+        var tools = document.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray().ToArray();
+        Assert.NotEmpty(tools);
+        Assert.All(tools, tool =>
+        {
+            var schemes = tool.GetProperty("_meta").GetProperty("securitySchemes").EnumerateArray().ToArray();
+            var scheme = Assert.Single(schemes);
+            Assert.Equal("oauth2", scheme.GetProperty("type").GetString());
+            Assert.NotEmpty(scheme.GetProperty("scopes").EnumerateArray());
+        });
     }
 
     [Fact]
@@ -129,6 +140,14 @@ public sealed class McpProtocolTests : IClassFixture<McpFactory>
         request.Headers.Accept.ParseAdd("application/json");
         request.Headers.Accept.ParseAdd("text/event-stream");
         return request;
+    }
+
+    private static string ReadJsonRpcPayload(string body)
+    {
+        if (!body.StartsWith("event:", StringComparison.Ordinal)) return body;
+        var data = body.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .First(line => line.StartsWith("data:", StringComparison.Ordinal));
+        return data["data:".Length..].Trim();
     }
 }
 
@@ -273,6 +292,17 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
         using var response = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject));
 
         Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task PublicEndpointCanDifferFromRegisteredAuth0ApiIdentifier()
+    {
+        using var anonymous = await client.PostAsJsonAsync("/mcp", new { jsonrpc = "2.0", id = 1, method = "tools/list", @params = new { } });
+        var metadata = await client.GetFromJsonAsync<JsonElement>("/.well-known/oauth-protected-resource");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        Assert.Contains("https://mcp.karthiksurkanti.in/.well-known/oauth-protected-resource", anonymous.Headers.WwwAuthenticate.ToString(), StringComparison.Ordinal);
+        Assert.Equal(Auth0McpFactory.Audience, metadata.GetProperty("resource").GetString());
     }
 
     [Fact]
@@ -543,7 +573,7 @@ public sealed class Auth0McpFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("AllowedHosts", "localhost");
-        builder.UseSetting("Mcp:PublicOrigin", "https://mcp.lib.karthiksurkanti.in");
+        builder.UseSetting("Mcp:PublicOrigin", "https://mcp.karthiksurkanti.in");
         builder.UseSetting("Mcp:CanonicalBaseUrl", "http://canonical.test");
         builder.UseSetting("Mcp:CanonicalPublicUrl", "https://lib.example.test");
         builder.UseSetting("Mcp:AllowedCanonicalHosts:0", "canonical.test");
@@ -559,7 +589,7 @@ public sealed class Auth0McpFactory : WebApplicationFactory<Program>
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["AllowedHosts"] = "localhost",
-            ["Mcp:PublicOrigin"] = "https://mcp.lib.karthiksurkanti.in",
+            ["Mcp:PublicOrigin"] = "https://mcp.karthiksurkanti.in",
             ["Mcp:CanonicalBaseUrl"] = "http://canonical.test",
             ["Mcp:CanonicalPublicUrl"] = "https://lib.example.test",
             ["Mcp:AllowedCanonicalHosts:0"] = "canonical.test",

@@ -5,7 +5,7 @@ This guide was verified against OpenAI's current custom MCP documentation on 202
 OpenAI's [custom MCP server guide](https://developers.openai.com/api/docs/guides/custom-mcp-server) says ChatGPT can connect to remote MCP servers with read and write tools using streaming HTTP or SSE. Slate uses streaming HTTP at:
 
 ```text
-https://mcp.lib.karthiksurkanti.in/mcp
+https://mcp.karthiksurkanti.in/mcp
 ```
 
 ## Required server state
@@ -38,7 +38,7 @@ Current OpenAI steps:
 1. Use ChatGPT on the web and open **ChatGPT Plugins**.
 2. Select the plus button, then **Add custom MCP server**.
 3. Enter a clear name such as `Slate Library`.
-4. Under Connection, enter `https://mcp.lib.karthiksurkanti.in/mcp`.
+4. Under Connection, enter `https://mcp.karthiksurkanti.in/mcp`.
 5. Choose OAuth authentication and complete sign-in and consent.
 6. Review the risk warning and create the plugin.
 7. In a chat, select or mention the installed Slate plugin.

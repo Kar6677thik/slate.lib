@@ -29,9 +29,6 @@ if (!string.IsNullOrWhiteSpace(mcpSettings.IntelligenceBaseUrl)) ValidateUpstrea
 ValidatePublicUrl(mcpSettings.PublicOrigin, nameof(mcpSettings.PublicOrigin), builder.Environment, requireOrigin: true);
 ValidatePublicUrl(mcpSettings.CanonicalPublicUrl, nameof(mcpSettings.CanonicalPublicUrl), builder.Environment, requireOrigin: true);
 ValidatePublicUrl(oauthSettings.Resource, nameof(oauthSettings.Resource), builder.Environment, requireOrigin: false);
-var expectedResource = new Uri(mcpSettings.PublicOrigin.TrimEnd('/') + "/mcp");
-if (new Uri(oauthSettings.Resource) != expectedResource)
-    throw new InvalidOperationException("OAuth:Resource must identify the configured public /mcp endpoint.");
 if (!string.IsNullOrWhiteSpace(oauthSettings.Authority))
     ValidatePublicUrl(oauthSettings.Authority, nameof(oauthSettings.Authority), builder.Environment, requireOrigin: false);
 foreach (var authorizationServer in oauthSettings.AuthorizationServers)

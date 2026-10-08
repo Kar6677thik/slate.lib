@@ -6,8 +6,8 @@ metadata:
 data:
   ASPNETCORE_ENVIRONMENT: Production
   ASPNETCORE_URLS: http://+:8080
-  AllowedHosts: "mcp.lib.karthiksurkanti.in;slate-mcp.slate-mcp.svc.cluster.local;localhost"
-  Mcp__PublicOrigin: https://mcp.lib.karthiksurkanti.in
+  AllowedHosts: "mcp.karthiksurkanti.in;slate-mcp.slate-mcp.svc.cluster.local;localhost"
+  Mcp__PublicOrigin: https://mcp.karthiksurkanti.in
   Mcp__CanonicalBaseUrl: http://slate.slate.svc.cluster.local:8080
   Mcp__CanonicalPublicUrl: https://lib.karthiksurkanti.in
   Mcp__IntelligenceBaseUrl: http://slate-web.slate-web.svc.cluster.local:3000

@@ -19,6 +19,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
     private readonly SlateMcpOptions settings = options.Value;
 
     [McpServerTool(Name = "create_note", Title = "Create note", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Write)]
     [Authorize(Policy = "scope:slate.write")]
     [Description("Create a canonical Markdown note through Slate's API. The server chooses and validates the path; no filesystem path is accepted.")]
     public Task<McpResult<LibraryNote>> CreateNote(string folderPath, string name, string? title = null, string? initialMarkdown = null, CancellationToken token = default) =>
@@ -31,6 +32,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "update_note", Title = "Update note", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Write)]
     [Authorize(Policy = "scope:slate.write")]
     [Description("Replace a note only when the supplied canonical revision still matches. Prefer preview_note_edit then apply_note_edit for substantial edits.")]
     public Task<McpResult<LibraryNote>> UpdateNote(Guid noteId, string markdown, string revision, CancellationToken token = default) =>
@@ -43,6 +45,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "append_to_note", Title = "Append to note", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Write)]
     [Authorize(Policy = "scope:slate.write")]
     [Description("Append Markdown to a note with an explicit current revision. Fails safely if the note changed.")]
     public Task<McpResult<LibraryNote>> AppendToNote(Guid noteId, string markdown, string revision, CancellationToken token = default) =>
@@ -59,6 +62,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "preview_note_edit", Title = "Preview note edit", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Write)]
     [Authorize(Policy = "scope:slate.write")]
     [Description("Compare proposed Markdown with the current note and issue a signed, time-limited proposal token bound to the note revision and exact proposed content. This does not write.")]
     public Task<McpResult<EditPreview>> PreviewNoteEdit(Guid noteId, string proposedMarkdown, CancellationToken token = default) =>
@@ -76,6 +80,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "apply_note_edit", Title = "Apply reviewed note edit", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Write)]
     [Authorize(Policy = "scope:slate.write")]
     [Description("Apply exactly the Markdown bound to a valid preview token. The write fails if the content, token, expiry, or canonical source revision differs from the reviewed preview.")]
     public Task<McpResult<LibraryNote>> ApplyNoteEdit(string proposalToken, string proposedMarkdown, CancellationToken token = default) =>
@@ -91,6 +96,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "create_folder", Title = "Create folder", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
     [Authorize(Policy = "scope:slate.organize")]
     [Description("Create a validated canonical library folder.")]
     public Task<McpResult<LibraryMutation>> CreateFolder(string parentPath, string name, CancellationToken token = default) =>
@@ -102,6 +108,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "capture_to_inbox", Title = "Capture to inbox", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Write)]
     [Authorize(Policy = "scope:slate.write")]
     [Description("Capture a bounded quick thought to Slate's canonical inbox using a caller-supplied idempotency ID.")]
     public Task<McpResult<LibraryNote>> CaptureToInbox(Guid captureId, string content, string? comment = null, string kind = "quick-thought", CancellationToken token = default) =>
@@ -114,6 +121,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "create_daily_note", Title = "Create daily note", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Write)]
     [Authorize(Policy = "scope:slate.write")]
     [Description("Create or return the canonical daily note for an ISO date.")]
     public Task<McpResult<LibraryNote>> CreateDailyNote(DateOnly date, CancellationToken token = default) =>
@@ -123,6 +131,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "answer_open_question", Title = "Answer open question", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Write)]
     [Authorize(Policy = "scope:slate.write")]
     [Description("Append an answer to a canonical open-question note using its current revision.")]
     public Task<McpResult<LibraryNote>> AnswerOpenQuestion(Guid noteId, string answer, string revision, CancellationToken token = default) =>
@@ -134,21 +143,25 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "rename_library_item", Title = "Rename library item", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
     [Authorize(Policy = "scope:slate.organize")]
     [Description("Rename one canonical note or folder. Use bulk preview/apply when incoming-link repair needs review.")]
     public Task<McpResult<LibraryMutation>> RenameLibraryItem(string path, string newName, CancellationToken token = default) => Structural("rename_library_item", () => canonical.Rename(new(ToolInputs.Text(path, nameof(path), 1024), ToolInputs.Text(newName, nameof(newName), 200)), token), result => new { kind = "rename", path, destinationPath = result.Path }, token);
 
     [McpServerTool(Name = "move_library_item", Title = "Move library item", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
     [Authorize(Policy = "scope:slate.organize")]
     [Description("Move one canonical note or folder. Use bulk preview/apply for a reviewed high-impact move.")]
     public Task<McpResult<LibraryMutation>> MoveLibraryItem(string sourcePath, string destinationFolderPath, CancellationToken token = default) => Structural("move_library_item", () => canonical.Move(new(ToolInputs.Text(sourcePath, nameof(sourcePath), 1024), ToolInputs.Text(destinationFolderPath, nameof(destinationFolderPath), 1024, true)), token), _ => new { kind = "reconcile", reason = "bulk" }, token);
 
     [McpServerTool(Name = "copy_library_item", Title = "Copy library item", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
     [Authorize(Policy = "scope:slate.organize")]
     [Description("Copy one canonical note or folder through Slate's mutation API.")]
     public Task<McpResult<LibraryMutation>> CopyLibraryItem(string sourcePath, string destinationFolderPath, CancellationToken token = default) => Structural("copy_library_item", () => canonical.Copy(new(ToolInputs.Text(sourcePath, nameof(sourcePath), 1024), ToolInputs.Text(destinationFolderPath, nameof(destinationFolderPath), 1024, true)), token), _ => new { kind = "reconcile", reason = "bulk" }, token);
 
     [McpServerTool(Name = "duplicate_library_item", Title = "Duplicate library item", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
     [Authorize(Policy = "scope:slate.organize")]
     [Description("Create an additive duplicate of one canonical note or folder using Slate's collision-safe copy naming and durable bulk journal.")]
     public Task<McpResult<BulkOperationResult>> DuplicateLibraryItem(string path, CancellationToken token = default) =>
@@ -162,6 +175,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "preview_bulk_operation", Title = "Preview bulk operation", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
     [Authorize(Policy = "scope:slate.organize")]
     [Description("Prepare a canonical, immutable bulk plan for move, copy, duplicate, rename, or delete. Delete previews require delete scope and server enablement before apply.")]
     public Task<McpResult<BulkOperationPreview>> PreviewBulkOperation(Guid operationId, string operation, string[] paths, string destinationFolderPath = "", string? newName = null, CancellationToken token = default) =>
@@ -177,6 +191,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "apply_bulk_operation", Title = "Apply reviewed bulk operation", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
     [Authorize(Policy = "scope:slate.organize")]
     [Description("Apply a previously reviewed canonical bulk plan by operation ID and exact fingerprint. The canonical API rejects changed source content.")]
     public Task<McpResult<BulkOperationResult>> ApplyBulkOperation(Guid operationId, string fingerprint, string proposalToken, bool repairIncomingLinks = false, CancellationToken token = default) =>
@@ -191,12 +206,14 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "get_bulk_operation_status", Title = "Get bulk operation status", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Read)]
     [Authorize(Policy = "scope:slate.read")]
     [Description("Return canonical status for a bulk operation journal.")]
     public Task<McpResult<BulkOperationResult>> GetBulkOperationStatus(Guid operationId, CancellationToken token = default) =>
         executor.Run<BulkOperationResult>("get_bulk_operation_status", async libraryId => McpResult<BulkOperationResult>.Ok(libraryId, "get_bulk_operation_status", await canonical.BulkStatus(operationId, token)), token);
 
     [McpServerTool(Name = "restore_note", Title = "Restore note", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
     [Authorize(Policy = "scope:slate.organize")]
     [Description("Restore a note from canonical Git history. Mode and optional destination are validated by Slate's API.")]
     public Task<McpResult<LibraryNote>> RestoreNote(Guid noteId, string commit, string mode, string? revision = null, string? folder = null, string? name = null, CancellationToken token = default) =>
@@ -207,12 +224,14 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
         }, token);
 
     [McpServerTool(Name = "preview_link_repair", Title = "Preview link repair", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
     [Authorize(Policy = "scope:slate.organize")]
     [Description("Preview one canonical unresolved-link repair against exact source and target revisions.")]
     public Task<McpResult<NoteTextPreview>> PreviewLinkRepair(Guid sourceNoteId, string sourceRevision, int linkStart, Guid targetNoteId, string targetRevision, CancellationToken token = default) =>
         executor.Run<NoteTextPreview>("preview_link_repair", async libraryId => McpResult<NoteTextPreview>.Ok(libraryId, "preview_link_repair", await canonical.PreviewLinkRepair(sourceNoteId, new(sourceRevision, linkStart, targetNoteId, targetRevision), token)), token);
 
     [McpServerTool(Name = "apply_link_repair", Title = "Apply link repair", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
     [Authorize(Policy = "scope:slate.organize")]
     [Description("Apply one canonical link repair only when source and target revisions still match the previewed values.")]
     public Task<McpResult<LibraryNote>> ApplyLinkRepair(Guid sourceNoteId, string sourceRevision, int linkStart, Guid targetNoteId, string targetRevision, CancellationToken token = default) =>

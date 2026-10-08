@@ -24,7 +24,7 @@ kubectl kustomize deploy/mcp/k3s
 | `Mcp__ExpectedLibraryId` | Required production cross-library guard |
 | `OAuth__Authority` | HTTPS authorization-server issuer |
 | `OAuth__Audience` | Expected access-token audience |
-| `OAuth__Resource` | Public protected-resource URL ending in `/mcp` |
+| `OAuth__Resource` | Auth0 protected-resource identifier ending in `/mcp`; it may differ from the network endpoint when preserving an existing Auth0 API identifier |
 | `OAuth__AuthorizationServers__*` | Issuers advertised in protected-resource metadata |
 | `OAuth__AllowedSubjectIds__*` | Required production allowlist of Auth0 user IDs from the JWT `sub` claim |
 | `OAuth__AllowedCallerIds__*` | Optional `azp` or `client_id` allowlist |
@@ -45,7 +45,7 @@ Define `slate.read`, `slate.analyze`, `slate.write`, `slate.organize`, `slate.de
 4. Adjust the NetworkPolicy ingress namespace if Cloudflare Tunnel is not in a namespace named `cloudflare`.
 5. Apply `kubectl apply -k deploy/mcp/k3s`.
 6. Wait for rollout and verify both health endpoints through the ClusterIP.
-7. Route Cloudflare Tunnel hostname `mcp.lib.karthiksurkanti.in` to `http://slate-mcp.slate-mcp.svc.cluster.local:8080`.
+7. Route Cloudflare Tunnel hostname `mcp.karthiksurkanti.in` to `http://slate-mcp.slate-mcp.svc.cluster.local:8080`.
 8. Verify public TLS, host forwarding, OAuth metadata, a 401 challenge on unauthenticated `/mcp`, and authenticated tool discovery.
 9. Connect ChatGPT only after the read-only acceptance checks pass.
 
@@ -57,7 +57,7 @@ Example ingress entry for an existing `cloudflared` configuration:
 
 ```yaml
 ingress:
-  - hostname: mcp.lib.karthiksurkanti.in
+  - hostname: mcp.karthiksurkanti.in
     service: http://slate-mcp.slate-mcp.svc.cluster.local:8080
   - service: http_status:404
 ```
