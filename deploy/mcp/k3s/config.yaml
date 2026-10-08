@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slate-mcp-config
+  namespace: slate-mcp
+data:
+  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_URLS: http://+:8080
+  AllowedHosts: "mcp.lib.karthiksurkanti.in;slate-mcp.slate-mcp.svc.cluster.local;localhost"
+  Mcp__PublicOrigin: https://mcp.lib.karthiksurkanti.in
+  Mcp__CanonicalBaseUrl: http://slate.slate.svc.cluster.local:8080
+  Mcp__CanonicalPublicUrl: https://lib.karthiksurkanti.in
+  Mcp__IntelligenceBaseUrl: http://slate-web.slate-web.svc.cluster.local:3000
+  Mcp__AllowedCanonicalHosts__0: slate.slate.svc.cluster.local
+  Mcp__AllowedIntelligenceHosts__0: slate-web.slate-web.svc.cluster.local
+  Mcp__RequestTimeoutSeconds: "28"
+  Mcp__MaximumResponseBytes: "2097152"
+  Mcp__MaximumMarkdownCharacters: "524288"
+  Mcp__MaximumBatchSize: "20"
+  Mcp__MaximumBulkItems: "100"
+  Mcp__EnableWrites: "true"
+  Mcp__EnableDestructiveOperations: "false"
+  Mcp__ProposalLifetimeMinutes: "15"
+  OAuth__Audience: slate-mcp
+  OAuth__Resource: https://mcp.lib.karthiksurkanti.in/mcp
+  RateLimiting__PermitLimit: "90"
+  RateLimiting__WindowSeconds: "60"
+  RateLimiting__QueueLimit: "4"
+  Networking__TrustedProxyNetworks__0: 10.42.0.0/16
