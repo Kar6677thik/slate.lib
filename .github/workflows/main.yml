@@ -14,6 +14,50 @@ permissions:
   contents: read
 
 jobs:
+  plan-deploy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      application: ${{ steps.plan.outputs.application }}
+      mcp: ${{ steps.plan.outputs.mcp }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select affected deployments
+        id: plan
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          before="$BEFORE_SHA"
+          if [[ "$before" =~ ^0+$ ]] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+            before="$(git rev-list --max-parents=0 "$AFTER_SHA")"
+          fi
+
+          application=false
+          mcp=false
+          while IFS= read -r path; do
+            case "$path" in
+              src/Slate.Lib.Mcp/*|tests/Slate.Lib.Mcp.Tests/*|deploy/mcp/*|.github/workflows/main.yml|.gitignore|.tmp-mcp-*|.tmp-slate-mcp-*)
+                mcp=true
+                ;;
+              src/Slate.Lib.Core/*|Directory.Build.props|global.json|slate.lib.sln)
+                application=true
+                mcp=true
+                ;;
+              docs/MCP_*)
+                ;;
+              *)
+                application=true
+                ;;
+            esac
+          done < <(git diff --name-only "$before" "$AFTER_SHA")
+
+          echo "application=$application" >> "$GITHUB_OUTPUT"
+          echo "mcp=$mcp" >> "$GITHUB_OUTPUT"
+
   validate:
     runs-on: windows-latest
     steps:
@@ -62,8 +106,8 @@ jobs:
           push: false
 
   publish-and-deploy:
-    if: github.event_name == 'push'
-    needs: [validate, validate-mcp-container]
+    if: github.event_name == 'push' && needs.plan-deploy.outputs.application == 'true'
+    needs: [plan-deploy, validate, validate-mcp-container]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -77,11 +121,9 @@ jobs:
           echo "IMAGE=ghcr.io/$repository:$GITHUB_SHA" >> "$GITHUB_ENV"
           echo "BACKUP_IMAGE=ghcr.io/$repository-backup:$GITHUB_SHA" >> "$GITHUB_ENV"
           echo "WEB_IMAGE=ghcr.io/$repository-web:$GITHUB_SHA" >> "$GITHUB_ENV"
-          echo "MCP_IMAGE=ghcr.io/$repository-mcp:$GITHUB_SHA" >> "$GITHUB_ENV"
           echo "MAIN_IMAGE=ghcr.io/$repository:main" >> "$GITHUB_ENV"
           echo "BACKUP_MAIN_IMAGE=ghcr.io/$repository-backup:main" >> "$GITHUB_ENV"
           echo "WEB_MAIN_IMAGE=ghcr.io/$repository-web:main" >> "$GITHUB_ENV"
-          echo "MCP_MAIN_IMAGE=ghcr.io/$repository-mcp:main" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -117,15 +159,6 @@ jobs:
             ${{ env.WEB_MAIN_IMAGE }}
           build-args: |
             NEXT_PUBLIC_SLATE_DEFAULT_SERVER=https://lib.karthiksurkanti.in
-      - name: Build and publish MCP service without deploying
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: src/Slate.Lib.Mcp/Dockerfile
-          push: true
-          tags: |
-            ${{ env.MCP_IMAGE }}
-            ${{ env.MCP_MAIN_IMAGE }}
       - name: Render deployment bundle with exact image
         shell: bash
         run: |
@@ -173,3 +206,67 @@ jobs:
           scp "$RUNNER_TEMP/slate-web-k3s.tgz" "$DEPLOY_USER@$DEPLOY_HOST:$WEB_REMOTE_DIR/slate-web-k3s.tgz"
           ssh "$DEPLOY_USER@$DEPLOY_HOST" "tar -xzf '$WEB_REMOTE_DIR/slate-web-k3s.tgz' -C '$WEB_REMOTE_DIR'"
           ssh "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n /usr/local/sbin/slate-deploy-web '$WEB_REMOTE_DIR'"
+
+  publish-and-deploy-mcp:
+    if: github.event_name == 'push' && needs.plan-deploy.outputs.mcp == 'true'
+    needs: [plan-deploy, validate, validate-mcp-container]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select immutable MCP image names
+        shell: bash
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          echo "MCP_IMAGE=ghcr.io/$repository-mcp:$GITHUB_SHA" >> "$GITHUB_ENV"
+          echo "MCP_MAIN_IMAGE=ghcr.io/$repository-mcp:main" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish MCP service
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/Slate.Lib.Mcp/Dockerfile
+          push: true
+          tags: |
+            ${{ env.MCP_IMAGE }}
+            ${{ env.MCP_MAIN_IMAGE }}
+      - name: Render MCP deployment bundle with exact image
+        shell: bash
+        run: |
+          BUNDLE_ROOT="$RUNNER_TEMP/slate-mcp-bundle"
+          mkdir -p "$BUNDLE_ROOT/slate.lib.mcp/deploy/k3s"
+          printf '%s\n' "$MCP_IMAGE" > "$BUNDLE_ROOT/slate.lib.mcp/deploy/k3s/image.txt"
+          tar -czf "$RUNNER_TEMP/slate-mcp-k3s.tgz" \
+            -C "$BUNDLE_ROOT" \
+            slate.lib.mcp/deploy/k3s/image.txt
+      - uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.HOME_SERVER_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.HOME_SERVER_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Deploy exact MCP image
+        env:
+          DEPLOY_HOST: ${{ secrets.HOME_SERVER_HOST }}
+          DEPLOY_USER: ${{ secrets.HOME_SERVER_USER }}
+        run: |
+          MCP_REMOTE_DIR="/home/kar_thik/slate-ci/mcp/${GITHUB_SHA}"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$MCP_REMOTE_DIR'"
+          scp "$RUNNER_TEMP/slate-mcp-k3s.tgz" "$DEPLOY_USER@$DEPLOY_HOST:$MCP_REMOTE_DIR/slate-mcp-k3s.tgz"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "tar -xzf '$MCP_REMOTE_DIR/slate-mcp-k3s.tgz' -C '$MCP_REMOTE_DIR'"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "sudo -n /usr/local/sbin/slate-deploy-mcp '$MCP_REMOTE_DIR'"

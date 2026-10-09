@@ -10,6 +10,7 @@ public sealed class SlateMcpOptions
     [Required, Url] public string CanonicalBaseUrl { get; set; } = "http://localhost:5080";
     [Required, Url] public string CanonicalPublicUrl { get; set; } = "http://localhost:5080";
     [Url] public string? IntelligenceBaseUrl { get; set; }
+    public string[] AllowedOrigins { get; set; } = ["https://chatgpt.com", "https://chat.openai.com"];
     public Guid? ExpectedLibraryId { get; set; }
     public string[] AllowedCanonicalHosts { get; set; } = ["localhost"];
     public string[] AllowedIntelligenceHosts { get; set; } = ["localhost"];

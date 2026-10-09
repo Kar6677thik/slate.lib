@@ -1,1 +1,0 @@
-ghcr.io/kar6677thik/slate.lib-mcp:579cbc212f5c5d9efa2e8c2dd69ca2e31c99dc12

@@ -28,6 +28,8 @@ ValidateUpstream(mcpSettings.CanonicalBaseUrl, mcpSettings.AllowedCanonicalHosts
 if (!string.IsNullOrWhiteSpace(mcpSettings.IntelligenceBaseUrl)) ValidateUpstream(mcpSettings.IntelligenceBaseUrl, mcpSettings.AllowedIntelligenceHosts, nameof(mcpSettings.IntelligenceBaseUrl), builder.Environment);
 ValidatePublicUrl(mcpSettings.PublicOrigin, nameof(mcpSettings.PublicOrigin), builder.Environment, requireOrigin: true);
 ValidatePublicUrl(mcpSettings.CanonicalPublicUrl, nameof(mcpSettings.CanonicalPublicUrl), builder.Environment, requireOrigin: true);
+foreach (var allowedOrigin in mcpSettings.AllowedOrigins)
+    ValidatePublicUrl(allowedOrigin, nameof(mcpSettings.AllowedOrigins), builder.Environment, requireOrigin: true);
 ValidatePublicUrl(oauthSettings.Resource, nameof(oauthSettings.Resource), builder.Environment, requireOrigin: false);
 if (!string.IsNullOrWhiteSpace(oauthSettings.Authority))
     ValidatePublicUrl(oauthSettings.Authority, nameof(oauthSettings.Authority), builder.Environment, requireOrigin: false);
@@ -77,6 +79,8 @@ else
             },
             OnChallenge = context =>
             {
+                context.HandleResponse();
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.Headers.WWWAuthenticate = $"Bearer resource_metadata=\"{mcpSettings.PublicOrigin.TrimEnd('/')}/.well-known/oauth-protected-resource\"";
                 return Task.CompletedTask;
             }

@@ -301,8 +301,36 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
         var metadata = await client.GetFromJsonAsync<JsonElement>("/.well-known/oauth-protected-resource");
 
         Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
-        Assert.Contains("https://mcp.karthiksurkanti.in/.well-known/oauth-protected-resource", anonymous.Headers.WwwAuthenticate.ToString(), StringComparison.Ordinal);
+        Assert.Equal("Bearer resource_metadata=\"https://mcp.karthiksurkanti.in/.well-known/oauth-protected-resource\"", anonymous.Headers.WwwAuthenticate.ToString());
         Assert.Equal(Auth0McpFactory.Audience, metadata.GetProperty("resource").GetString());
+    }
+
+    [Fact]
+    public async Task ApprovedChatGptOriginReachesAuthenticationBoundary()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp")
+        {
+            Content = JsonContent.Create(new { jsonrpc = "2.0", id = 1, method = "initialize", @params = new { protocolVersion = "2025-06-18", capabilities = new { }, clientInfo = new { name = "test", version = "1" } } })
+        };
+        request.Headers.Add("Origin", "https://chatgpt.com");
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UnknownOriginIsRejectedBeforeAuthentication()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp")
+        {
+            Content = JsonContent.Create(new { jsonrpc = "2.0", id = 1, method = "initialize", @params = new { protocolVersion = "2025-06-18", capabilities = new { }, clientInfo = new { name = "test", version = "1" } } })
+        };
+        request.Headers.Add("Origin", "https://attacker.example");
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -574,6 +602,7 @@ public sealed class Auth0McpFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
         builder.UseSetting("AllowedHosts", "localhost");
         builder.UseSetting("Mcp:PublicOrigin", "https://mcp.karthiksurkanti.in");
+        builder.UseSetting("Mcp:AllowedOrigins:0", "https://chatgpt.com");
         builder.UseSetting("Mcp:CanonicalBaseUrl", "http://canonical.test");
         builder.UseSetting("Mcp:CanonicalPublicUrl", "https://lib.example.test");
         builder.UseSetting("Mcp:AllowedCanonicalHosts:0", "canonical.test");
@@ -590,6 +619,7 @@ public sealed class Auth0McpFactory : WebApplicationFactory<Program>
         {
             ["AllowedHosts"] = "localhost",
             ["Mcp:PublicOrigin"] = "https://mcp.karthiksurkanti.in",
+            ["Mcp:AllowedOrigins:0"] = "https://chatgpt.com",
             ["Mcp:CanonicalBaseUrl"] = "http://canonical.test",
             ["Mcp:CanonicalPublicUrl"] = "https://lib.example.test",
             ["Mcp:AllowedCanonicalHosts:0"] = "canonical.test",

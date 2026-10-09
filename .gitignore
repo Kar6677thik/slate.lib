@@ -32,6 +32,8 @@ stitch_slate_knowledge_library_ui_system/
 *.orig
 *.rej
 *.dmp
+/.tmp-mcp-*
+/.tmp-slate-mcp-*
 
 # IDE and user-specific files
 .vs/
