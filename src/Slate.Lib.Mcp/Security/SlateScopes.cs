@@ -8,6 +8,7 @@ public static class SlateScopes
     public const string Organize = "slate.organize";
     public const string Delete = "slate.delete";
     public const string Admin = "slate.admin";
+    public const string Discovery = Read + " " + Analyze;
     public static readonly string[] All = [Read, Analyze, Write, Organize, Delete, Admin];
 
     public static string Policy(string scope) => "scope:" + scope;

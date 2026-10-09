@@ -87,6 +87,11 @@ public sealed class McpEndToEndTests
         Assert.True(learning.GetProperty("success").GetBoolean());
 
         Assert.Single(Directory.EnumerateFiles(library.Root, "MCP Smoke.md", SearchOption.AllDirectories));
+
+        var sync = await Call(client, "sync_library", new { });
+        Assert.False(sync.GetProperty("success").GetBoolean());
+        Assert.Equal("NotInitialized", sync.GetProperty("data").GetProperty("state").GetString());
+        Assert.Equal("git_not_initialized", sync.GetProperty("error").GetProperty("code").GetString());
     }
 
     private static async Task<JsonElement> Call(HttpClient client, string toolName, object arguments)

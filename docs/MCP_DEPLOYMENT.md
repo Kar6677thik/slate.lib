@@ -1,6 +1,6 @@
 # Slate MCP deployment
 
-No MCP deployment is automatic. Pull-request CI builds the solution, runs MCP tests, renders the manifests, and verifies the container. A push to `main` also publishes immutable `${GITHUB_SHA}` and moving `main` MCP image tags to GHCR, but the workflow does not apply the MCP manifests or change the Cloudflare route.
+Pull-request CI builds the solution, runs MCP tests, renders the manifests, and verifies the container. A push to `main` that changes MCP or shared build inputs publishes an immutable `${GITHUB_SHA}` image and deploys MCP through the installed helper. MCP-only changes do not redeploy the API or website. The helper uses the root-owned manifest template and existing Kubernetes secret; it does not synchronize edits to the private environment file or change the Cloudflare route.
 
 ## Build locally
 
@@ -37,7 +37,17 @@ For Auth0, set `OAuth__Audience` and `OAuth__Resource` to the exact API identifi
 
 Define `slate.read`, `slate.analyze`, `slate.write`, `slate.organize`, `slate.delete`, and `slate.admin` as Auth0 API permissions. The protected-resource metadata omits `slate.delete` while destructive operations are disabled. Enable Auth0's Resource Parameter Compatibility Profile so the MCP `resource` parameter produces a JWT for the configured API identifier.
 
+The OAuth client must request Slate scopes. The initial MCP challenge requests `slate.read slate.analyze`; for a connection that also edits and organizes notes, set the connector's default scopes to `slate.read slate.analyze slate.write slate.organize`. Do not request `slate.admin` or `slate.delete` for routine use. Reconnect after changing scopes so Auth0 issues a new token.
+
+ChatGPT's advanced OAuth settings distinguish default scopes from **base scopes**, which are requested for every authorization. When every selected tool has OAuth scope tags, ChatGPT requests those tool scopes plus base scopes instead of the defaults. Because MCP discovery filters tools using the current token, a read-only catalog can keep requesting read-only tokens. For an owner-approved write connection, set base scopes to `slate.read slate.analyze slate.write` (one per line). Add `slate.organize` only when organization access is intended. In Auth0's Slate API **Application Access** tab, the ChatGPT application's **User-Delegated Access** grant must permit those same scopes. Prefer a per-application grant over broadening defaults for all third-party applications; leave Client Access and Anonymous Access disabled.
+
+If Auth0 RBAC is enabled for this API, create a Slate role with the intended permissions and assign it to the approved Auth0 user. Auth0 places the intersection of requested scopes and user permissions in the token's `scope` claim. Enabling “Add Permissions in the Access Token” is optional and does not substitute for requesting scopes: its `permissions` claim contains user permissions beyond those delegated to the client. MCP intentionally authorizes only `scope`/`scp`, preserving per-client scope narrowing. See [Auth0 RBAC configuration](https://auth0.com/docs/get-started/apis/enable-role-based-access-control-for-apis) and [OpenAI OAuth challenges](https://developers.openai.com/plugins/build/auth).
+
 ## Kubernetes rollout
+
+Routine organization requires `slate.organize` in both the Auth0 user-delegated grant and the connection's base scopes. This enables folder creation, move/rename, reviewed bulk changes, revision-checked link repair, and history restoration without granting `slate.delete` or `slate.admin`. Keep `Mcp__EnableDestructiveOperations=false`; delete plans remain blocked even when organization is enabled.
+
+`sync_library` also requires `slate.organize` and enabled writes. It uses the canonical `/v1/sync` endpoint and returns the resulting Git state and commit heads. `LocalOnly` includes a warning that no remote sync occurred. Conflict, error, uninitialized history, and pending states return an explicit unsuccessful result. After a timeout or pending response, inspect `get_library_status` before retrying. Sync never performs a reset, force-push, or conflict override.
 
 1. Build and push an immutable image tag.
 2. Copy `deploy/mcp/k3s/secrets.example.yaml` outside the repository, fill it, and apply it separately.
@@ -74,6 +84,9 @@ Preserve the real external scheme and host. Configure only the actual cluster pr
 
 ## Operational checks
 
+- A successful Auth0 login does not prove MCP access. If discovery receives HTTP 401 and MCP logs say `The Auth0 user is not approved for this Slate library`, the token passed signature, issuer, audience, and lifetime validation but failed the subject/machine-identity check. Compare the exact user ID in the corresponding successful Auth0 login with the private approved-subject entry and the deployed secret without logging either value. Do not weaken the allowlist or approve a new identity without the owner's authorization.
+- Changes to `/home/kar_thik/.config/slate/mcp.env` require refreshing the MCP Kubernetes secret and restarting only `deployment/slate-mcp` in the `slate-mcp` namespace. Existing pods do not reload environment variables when a secret changes. Preserve unrelated private settings and keep destructive operations disabled.
+- If an approved token returns HTTP 200 with `"tools": []`, check whether its `scope`/`scp` contains any Slate scope. The SDK excludes tools whose scope policy fails. MCP logs the authorized tool count, or a warning with claim types only when discovery is empty. Check claims locally without sending access tokens to public token decoders or pasting tokens or identifiers into a chat.
 - Alert on readiness failures, repeated `canonical_auth_failed`, `library_identity_mismatch`, rate-limit spikes, and OAuth validation failures.
 - Avoid request/response body logging at the proxy and application layers.
 - Confirm the canonical device token has only the Slate access needed by this service.

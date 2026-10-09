@@ -28,6 +28,7 @@ public sealed class CanonicalSlateClient(HttpClient http, IOptions<SlateMcpOptio
     public async Task<LinkIssuePage> LinkIssues(int page, CancellationToken token) => await Get<LinkIssuePage>($"v1/links/issues?page={page}", token);
     public async Task<RecoveryPage> Deleted(CancellationToken token) => await Get<RecoveryPage>("v1/history/deleted", token);
     public async Task<BulkOperationResult> BulkStatus(Guid operationId, CancellationToken token) => await Get<BulkOperationResult>($"v1/library/bulk/{operationId:D}", token);
+    public async Task<GitSyncState> Sync(CancellationToken token) => await Send<GitSyncState>(HttpMethod.Post, "v1/sync", null, null, token);
 
     public async Task<LibraryNote> Create(CreateNoteRequest request, CancellationToken token) => await Send<LibraryNote>(HttpMethod.Post, "v1/notes", request, null, token);
     public async Task<LibraryNote> Update(Guid id, string markdown, string revision, CancellationToken token) => await Send<LibraryNote>(HttpMethod.Put, $"v1/notes/{id:D}", new UpdateNoteRequest(markdown, revision), revision, token);

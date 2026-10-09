@@ -212,6 +212,32 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
     public Task<McpResult<BulkOperationResult>> GetBulkOperationStatus(Guid operationId, CancellationToken token = default) =>
         executor.Run<BulkOperationResult>("get_bulk_operation_status", async libraryId => McpResult<BulkOperationResult>.Ok(libraryId, "get_bulk_operation_status", await canonical.BulkStatus(operationId, token)), token);
 
+    [McpServerTool(Name = "sync_library", Title = "Synchronize library Git history", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
+    [Authorize(Policy = "scope:slate.organize")]
+    [Description("Request canonical Git synchronization: commit pending library changes and safely pull or push the configured remote. Returns the actual Git state and heads; conflicts and failures are not reported as success. Never resets or force-pushes history. After a timeout or pending result, check get_library_status before retrying.")]
+    public Task<McpResult<GitSyncState>> SyncLibrary(CancellationToken token = default) =>
+        executor.Run<GitSyncState>("sync_library", async libraryId =>
+        {
+            EnsureWrites();
+            var status = await canonical.Sync(token);
+            await intelligence.Notify(new { kind = "reconcile", reason = "refresh" }, token);
+            if (!status.Pending && status.State == "Synced")
+                return McpResult<GitSyncState>.Ok(libraryId, "sync_library", status);
+            if (!status.Pending && status.State == "LocalOnly")
+                return McpResult<GitSyncState>.Ok(libraryId, "sync_library", status,
+                    warnings: ["Changes were committed locally. No Git remote is configured, so remote synchronization was not performed."]);
+
+            var error = status.State switch
+            {
+                "Conflict" => new McpError("git_sync_conflict", "Git histories conflict. Local files and history are preserved; review the conflict before retrying.", false),
+                "Error" => new McpError("git_sync_failed", "Git synchronization failed. Check get_library_status before retrying.", false),
+                "NotInitialized" => new McpError("git_not_initialized", "Library Git history is not initialized.", false),
+                _ => new McpError("git_sync_pending", "Git synchronization is not complete. Check get_library_status before retrying.", false)
+            };
+            return new(false, libraryId, "sync_library", status, [], Error: error);
+        }, token);
+
     [McpServerTool(Name = "restore_note", Title = "Restore note", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
     [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
     [Authorize(Policy = "scope:slate.organize")]

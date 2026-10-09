@@ -1,4 +1,5 @@
 using System.Net;
+using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
@@ -15,6 +16,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols;
@@ -113,6 +115,51 @@ public sealed class McpProtocolTests : IClassFixture<McpFactory>
         Assert.Contains(McpFactory.LibraryId.ToString(), payload, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"success\":true", payload, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("not-returned", payload, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("2025-03-26")]
+    [InlineData("2025-06-18")]
+    [InlineData("2025-11-25")]
+    public async Task InitializeHandshakeClientsCanDiscoverTools(string protocolVersion)
+    {
+        using var initialize = LegacyRequest("initialize", new
+        {
+            protocolVersion,
+            capabilities = new { },
+            clientInfo = new { name = "initialize-client", version = "1" }
+        }, id: 1);
+        using var initialized = await client.SendAsync(initialize);
+        var initializeBody = await initialized.Content.ReadAsStringAsync();
+        Assert.True(initialized.IsSuccessStatusCode, $"Initialize: {initialized.StatusCode}: {initializeBody}");
+        using var initializeDocument = JsonDocument.Parse(ReadJsonRpcPayload(initializeBody));
+        Assert.Equal(protocolVersion, initializeDocument.RootElement.GetProperty("result").GetProperty("protocolVersion").GetString());
+        var session = initialized.Headers.TryGetValues("Mcp-Session-Id", out var sessions) ? sessions.Single() : null;
+
+        using var notification = LegacyRequest("notifications/initialized", new { }, protocolVersion: protocolVersion, session: session);
+        using var notificationResponse = await client.SendAsync(notification);
+        Assert.True(notificationResponse.IsSuccessStatusCode, $"Initialized: {notificationResponse.StatusCode}: {await notificationResponse.Content.ReadAsStringAsync()}");
+
+        using var list = LegacyRequest("tools/list", new { }, id: 2, protocolVersion: protocolVersion, session: session);
+        using var response = await client.SendAsync(list);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.True(response.IsSuccessStatusCode, $"Tools/list: {response.StatusCode}: {body}");
+        using var document = JsonDocument.Parse(ReadJsonRpcPayload(body));
+        Assert.Contains(document.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray(),
+            tool => tool.GetProperty("name").GetString() == "get_library_status");
+    }
+
+    private static HttpRequestMessage LegacyRequest(string method, object parameters, int? id = null, string? protocolVersion = null, string? session = null)
+    {
+        var body = new Dictionary<string, object?> { ["jsonrpc"] = "2.0", ["method"] = method, ["params"] = parameters };
+        if (id is not null) body["id"] = id;
+        var request = new HttpRequestMessage(HttpMethod.Post, "/mcp") { Content = JsonContent.Create(body) };
+        request.Headers.Authorization = new("Bearer", "test-mcp-token");
+        request.Headers.Accept.ParseAdd("application/json");
+        request.Headers.Accept.ParseAdd("text/event-stream");
+        if (protocolVersion is not null) request.Headers.TryAddWithoutValidation("MCP-Protocol-Version", protocolVersion);
+        if (session is not null) request.Headers.TryAddWithoutValidation("Mcp-Session-Id", session);
+        return request;
     }
 
     private static HttpRequestMessage McpRequest(string method, Dictionary<string, object?> parameters)
@@ -301,7 +348,7 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
         var metadata = await client.GetFromJsonAsync<JsonElement>("/.well-known/oauth-protected-resource");
 
         Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
-        Assert.Equal("Bearer resource_metadata=\"https://mcp.karthiksurkanti.in/.well-known/oauth-protected-resource\"", anonymous.Headers.WwwAuthenticate.ToString());
+        Assert.Equal("Bearer resource_metadata=\"https://mcp.karthiksurkanti.in/.well-known/oauth-protected-resource\", scope=\"slate.read slate.analyze\"", anonymous.Headers.WwwAuthenticate.ToString());
         Assert.Equal(Auth0McpFactory.Audience, metadata.GetProperty("resource").GetString());
     }
 
@@ -367,7 +414,85 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    private async Task<HttpResponseMessage> Send(string token)
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("openid profile")]
+    [InlineData("slate.readonly")]
+    public async Task ApprovedTokenWithoutSlateScopesDiscoversNoTools(string? scope)
+    {
+        using var response = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: scope));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(await DiscoveredTools(response));
+    }
+
+    [Theory]
+    [InlineData("scope")]
+    [InlineData("scp")]
+    public async Task ReadScopeDiscoversOnlyReadTools(string claimType)
+    {
+        using var response = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: "slate.read", scopeClaimType: claimType));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var tools = await DiscoveredTools(response);
+        Assert.Contains(tools, tool => tool.GetProperty("name").GetString() == "get_library_status");
+        Assert.DoesNotContain(tools, tool => tool.GetProperty("name").GetString() == "apply_note_edit");
+        Assert.All(tools, tool => Assert.Contains("slate.read", tool.GetProperty("_meta").GetProperty("securitySchemes")[0].GetProperty("scopes").EnumerateArray().Select(scope => scope.GetString())));
+    }
+
+    [Fact]
+    public async Task RbacPermissionsDoNotExpandClientRequestedScopes()
+    {
+        using var response = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: "slate.read", permissions: ["slate.read", "slate.write", "slate.organize"]));
+        var tools = await DiscoveredTools(response);
+        Assert.NotEmpty(tools);
+        Assert.DoesNotContain(tools, tool => tool.GetProperty("name").GetString() == "apply_note_edit");
+
+        using var permissionsOnly = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: null, permissions: ["slate.read", "slate.write"]));
+        Assert.Equal(HttpStatusCode.OK, permissionsOnly.StatusCode);
+        Assert.Empty(await DiscoveredTools(permissionsOnly));
+    }
+
+    [Fact]
+    public async Task OrganizationGrantDiscoversRequestedToolsWithoutDeleteOrAdmin()
+    {
+        string[] organizationTools = ["create_folder", "move_library_item", "rename_library_item", "preview_bulk_operation", "apply_bulk_operation", "preview_link_repair", "apply_link_repair", "restore_note", "sync_library"];
+        using var writeOnly = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: "slate.read slate.analyze slate.write"));
+        var writeNames = (await DiscoveredTools(writeOnly)).Select(tool => tool.GetProperty("name").GetString()).ToArray();
+        Assert.All(organizationTools, name => Assert.DoesNotContain(name, writeNames));
+
+        using var organized = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: "slate.read slate.analyze slate.write slate.organize"));
+        var tools = await DiscoveredTools(organized);
+        Assert.All(organizationTools, name => Assert.Contains(tools, tool => tool.GetProperty("name").GetString() == name));
+        Assert.Contains(tools, tool => tool.GetProperty("name").GetString() == "get_bulk_operation_status");
+        var sync = Assert.Single(tools, tool => tool.GetProperty("name").GetString() == "sync_library");
+        Assert.Contains("slate.organize", sync.GetProperty("_meta").GetProperty("securitySchemes")[0].GetProperty("scopes").EnumerateArray().Select(scope => scope.GetString()));
+    }
+
+    [Fact]
+    public async Task EmptyDiscoveryLogsClaimTypesWithoutPrivateValues()
+    {
+        using var factory = new Auth0McpFactory();
+        using var diagnosticClient = factory.CreateClient();
+        using var response = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: null, permissions: ["private-permission-value"]), diagnosticClient);
+        Assert.Empty(await DiscoveredTools(response));
+        var entry = Assert.Single(factory.DiscoveryLogs.Entries, entry => entry.Level == LogLevel.Warning);
+        Assert.Contains("no authorized tools", entry.Message);
+        Assert.Contains("sub", entry.Message);
+        Assert.Contains("permissions", entry.Message);
+        Assert.DoesNotContain(Auth0McpFactory.ApprovedSubject, entry.Message);
+        Assert.DoesNotContain("private-permission-value", entry.Message);
+    }
+
+    private static async Task<JsonElement[]> DiscoveredTools(HttpResponseMessage response)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+        if (body.StartsWith("event:", StringComparison.Ordinal))
+            body = body.Split('\n', StringSplitOptions.RemoveEmptyEntries).First(line => line.StartsWith("data:", StringComparison.Ordinal))[5..].Trim();
+        using var document = JsonDocument.Parse(body);
+        return document.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray().Select(tool => tool.Clone()).ToArray();
+    }
+
+    private async Task<HttpResponseMessage> Send(string token, HttpClient? target = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/mcp")
         {
@@ -391,12 +516,73 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
         request.Headers.TryAddWithoutValidation("Mcp-Method", "tools/list");
         request.Headers.Accept.ParseAdd("application/json");
         request.Headers.Accept.ParseAdd("text/event-stream");
-        return await client.SendAsync(request);
+        return await (target ?? client).SendAsync(request);
     }
 }
 
 public sealed class UpstreamClientTests
 {
+    [Theory]
+    [InlineData("Synced", false, true, null)]
+    [InlineData("LocalOnly", false, true, null)]
+    [InlineData("Conflict", true, false, "git_sync_conflict")]
+    [InlineData("Error", true, false, "git_sync_failed")]
+    [InlineData("NotInitialized", false, false, "git_not_initialized")]
+    [InlineData("Synced", true, false, "git_sync_pending")]
+    public async Task SyncReportsCanonicalOutcomeWithoutFalseSuccess(string state, bool pending, bool success, string? errorCode)
+    {
+        var libraryId = Guid.NewGuid();
+        var syncState = new GitSyncState(state, pending, LocalHead: "local-head", RemoteHead: "remote-head");
+        var syncCalls = 0;
+        var handler = new StubHandler(request =>
+        {
+            Assert.Equal("Bearer internal-token", request.Headers.Authorization?.ToString());
+            if (request.RequestUri?.AbsolutePath == "/v1/status")
+                return Json(HttpStatusCode.OK, new LibraryStatus(libraryId, 1));
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.Equal("/v1/sync", request.RequestUri?.AbsolutePath);
+            Assert.Null(request.Content);
+            syncCalls++;
+            return Json(HttpStatusCode.OK, syncState);
+        });
+        var settings = Options.Create(new SlateMcpOptions { EnableWrites = true });
+        var canonical = Canonical(handler, "internal-token", settings.Value);
+        var intelligence = Intelligence(new StubHandler(_ => throw new HttpRequestException("offline")), "internal-token", settings.Value);
+        var tool = new LibraryMutationTools(canonical, intelligence, CreateProtector(),
+            new ToolExecutor(new LibraryContext(canonical, settings), NullLogger<ToolExecutor>.Instance), settings, new HttpContextAccessor());
+
+        var result = await tool.SyncLibrary();
+
+        Assert.Equal(1, syncCalls);
+        Assert.Equal(success, result.Success);
+        Assert.Equal(errorCode, result.Error?.Code);
+        Assert.Equal(syncState, result.Data);
+        Assert.Equal(libraryId, result.LibraryId);
+        Assert.Equal(state == "LocalOnly", result.Warnings.Count > 0);
+    }
+
+    [Fact]
+    public async Task DisabledWritesPreventGitSyncRequest()
+    {
+        var libraryId = Guid.NewGuid();
+        var handler = new StubHandler(request =>
+        {
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.Equal("/v1/status", request.RequestUri?.AbsolutePath);
+            return Json(HttpStatusCode.OK, new LibraryStatus(libraryId, 1));
+        });
+        var settings = Options.Create(new SlateMcpOptions { EnableWrites = false });
+        var canonical = Canonical(handler, "internal-token", settings.Value);
+        var intelligence = Intelligence(new StubHandler(_ => throw new InvalidOperationException("No event expected")), "internal-token", settings.Value);
+        var tool = new LibraryMutationTools(canonical, intelligence, CreateProtector(),
+            new ToolExecutor(new LibraryContext(canonical, settings), NullLogger<ToolExecutor>.Instance), settings, new HttpContextAccessor());
+
+        var result = await tool.SyncLibrary();
+
+        Assert.False(result.Success);
+        Assert.Equal("invalid_request", result.Error?.Code);
+    }
+
     [Fact]
     public async Task CanonicalClientSendsOnlyServerHeldDeviceToken()
     {
@@ -575,14 +761,17 @@ public sealed class Auth0McpFactory : WebApplicationFactory<Program>
     public const string Audience = "https://mcp.lib.karthiksurkanti.in/mcp";
     public const string ApprovedSubject = "auth0|approved-user";
     private static readonly SymmetricSecurityKey SigningKey = new(Encoding.UTF8.GetBytes("slate-auth0-test-signing-key-32-bytes-minimum"));
+    public DiscoveryLogProvider DiscoveryLogs { get; } = new();
 
-    public static string Token(string subject, string audience = Audience, string issuer = Issuer, string? grantType = null)
+    public static string Token(string subject, string audience = Audience, string issuer = Issuer, string? grantType = null,
+        string? scope = "slate.read slate.analyze slate.write slate.organize", string scopeClaimType = "scope", IReadOnlyCollection<string>? permissions = null)
     {
         var claims = new List<Claim>
         {
-            new("sub", subject),
-            new("scope", "slate.read slate.analyze slate.write slate.organize")
+            new("sub", subject)
         };
+        if (scope is not null) claims.Add(new(scopeClaimType, scope));
+        if (permissions is not null) claims.AddRange(permissions.Select(permission => new Claim("permissions", permission)));
         if (grantType is not null) claims.Add(new("gty", grantType));
 
         return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
@@ -599,6 +788,7 @@ public sealed class Auth0McpFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.ConfigureLogging(logging => logging.AddProvider(DiscoveryLogs));
         builder.UseEnvironment("Testing");
         builder.UseSetting("AllowedHosts", "localhost");
         builder.UseSetting("Mcp:PublicOrigin", "https://mcp.karthiksurkanti.in");
@@ -644,6 +834,23 @@ public sealed class Auth0McpFactory : WebApplicationFactory<Program>
                 options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(oidc);
             });
         });
+    }
+}
+
+public sealed class DiscoveryLogProvider : ILoggerProvider
+{
+    public ConcurrentQueue<(LogLevel Level, string Message)> Entries { get; } = new();
+    public ILogger CreateLogger(string categoryName) => new Logger(this, categoryName);
+    public void Dispose() { }
+
+    private sealed class Logger(DiscoveryLogProvider provider, string category) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => category == "Slate.Lib.Mcp.Discovery";
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (IsEnabled(logLevel)) provider.Entries.Enqueue((logLevel, formatter(state, exception)));
+        }
     }
 }
 

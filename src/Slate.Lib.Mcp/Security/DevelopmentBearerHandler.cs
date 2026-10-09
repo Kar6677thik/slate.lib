@@ -27,7 +27,7 @@ public sealed class DevelopmentBearerHandler(IOptionsMonitor<AuthenticationSchem
     protected override Task HandleChallengeAsync(AuthenticationProperties properties)
     {
         var origin = configuration["Mcp:PublicOrigin"]?.TrimEnd('/') ?? "http://localhost:5081";
-        Response.Headers.WWWAuthenticate = $"Bearer resource_metadata=\"{origin}/.well-known/oauth-protected-resource\"";
+        Response.Headers.WWWAuthenticate = $"Bearer resource_metadata=\"{origin}/.well-known/oauth-protected-resource\", scope=\"{SlateScopes.Discovery}\"";
         Response.StatusCode = StatusCodes.Status401Unauthorized;
         return Task.CompletedTask;
     }

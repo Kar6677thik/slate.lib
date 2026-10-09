@@ -81,7 +81,7 @@ else
             {
                 context.HandleResponse();
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                context.Response.Headers.WWWAuthenticate = $"Bearer resource_metadata=\"{mcpSettings.PublicOrigin.TrimEnd('/')}/.well-known/oauth-protected-resource\"";
+                context.Response.Headers.WWWAuthenticate = $"Bearer resource_metadata=\"{mcpSettings.PublicOrigin.TrimEnd('/')}/.well-known/oauth-protected-resource\", scope=\"{SlateScopes.Discovery}\"";
                 return Task.CompletedTask;
             }
         };
@@ -143,6 +143,21 @@ builder.Services.AddHttpClient<IntelligenceClient>(client =>
 
 builder.Services.AddMcpServer()
     .WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
+    .WithRequestFilters(filters => filters.AddListToolsFilter(next => async (context, cancellationToken) =>
+    {
+        var result = await next(context, cancellationToken);
+        if (context.User?.Identity?.IsAuthenticated == true)
+        {
+            var logger = context.Services!.GetRequiredService<ILoggerFactory>().CreateLogger("Slate.Lib.Mcp.Discovery");
+            if (result.Tools.Count == 0)
+            {
+                var claimTypes = string.Join(", ", context.User.Claims.Select(claim => claim.Type).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+                logger.LogWarning("Authenticated MCP discovery returned no authorized tools. Check requested Slate scopes and Auth0 user grants. Claim types present: {ClaimTypes}", claimTypes);
+            }
+            else logger.LogInformation("Authenticated MCP discovery returned {ToolCount} authorized tools.", result.Tools.Count);
+        }
+        return result;
+    }))
     .AddAuthorizationFilters()
     .WithTools<LibraryReadTools>()
     .WithTools<LibraryMutationTools>()
