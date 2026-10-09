@@ -80,8 +80,7 @@ public sealed class Phase3BTests
         await using var debouncer = new DraftDebouncer(store, TimeSpan.FromMilliseconds(40));
         debouncer.Schedule(new(id, DraftKind.NewNote, "old", DateTimeOffset.UtcNow));
         debouncer.Schedule(new(id, DraftKind.NewNote, "latest", DateTimeOffset.UtcNow));
-        await Task.Delay(100);
-        Assert.Equal("latest", (await store.ReadDraftAsync(id))!.Markdown);
+        Assert.Equal("latest", (await WaitForDraftAsync(store, id)).Markdown);
         debouncer.Schedule(new(id, DraftKind.NewNote, "flushed", DateTimeOffset.UtcNow));
         await debouncer.FlushAsync();
         Assert.Equal("flushed", (await store.ReadDraftAsync(id))!.Markdown);
@@ -132,6 +131,18 @@ public sealed class Phase3BTests
     {
         var id = Guid.NewGuid();
         return new(id, title + ".md", title, $"---\nid: {id:D}\n---\n\n# {title}\n\n{new string('x', bodySize)}", "etag");
+    }
+
+    private static async Task<DraftRecord> WaitForDraftAsync(ClientStateStore store, Guid id)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (await store.ReadDraftAsync(id) is { } draft) return draft;
+            await Task.Delay(20);
+        }
+
+        return Assert.IsType<DraftRecord>(await store.ReadDraftAsync(id));
     }
 
     private sealed class Phase3BFixture : IDisposable

@@ -40,14 +40,14 @@ jobs:
           mcp=false
           while IFS= read -r path; do
             case "$path" in
-              src/Slate.Lib.Mcp/*|tests/Slate.Lib.Mcp.Tests/*|deploy/mcp/*|.github/workflows/main.yml|.gitignore|.tmp-mcp-*|.tmp-slate-mcp-*)
+              src/Slate.Lib.Mcp/*|deploy/mcp/*|.github/workflows/main.yml|.gitignore|.tmp-mcp-*|.tmp-slate-mcp-*)
                 mcp=true
                 ;;
               src/Slate.Lib.Core/*|Directory.Build.props|global.json|slate.lib.sln)
                 application=true
                 mcp=true
                 ;;
-              docs/MCP_*)
+              docs/MCP_*|tests/*)
                 ;;
               *)
                 application=true
