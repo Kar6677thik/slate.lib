@@ -165,7 +165,7 @@ export function useCommandRegistry() {
       {
         id: "create.daily",
         title: "Open daily note",
-        description: "Create or open todayâ€™s note",
+        description: "Create or open today's note",
         icon: CalendarDays,
         keywords: ["today", "journal"],
         group: "Create",
@@ -815,7 +815,7 @@ export function useCommandRegistry() {
         ["rename", "move", "copy", "duplicate"] as const
       ).map<CommandDefinition>((kind) => ({
         id: `document.${kind}`,
-        title: `${kind[0].toUpperCase()}${kind.slice(1)} note${kind === "move" || kind === "copy" ? " toâ€¦" : ""}`,
+        title: `${kind[0].toUpperCase()}${kind.slice(1)} note${kind === "move" || kind === "copy" ? " to..." : ""}`,
         icon:
           kind === "rename"
             ? Pencil
