@@ -20,7 +20,8 @@ test("opens Source A and Source B", async ({ page }) => {
   await openIssues(page); await page.getByRole("button", { name: /Compare Library architecture and Reading list/ }).first().click();
   await page.getByRole("button", { name: "Open source" }).first().click();
   await expect(page.getByRole("heading", { name: "Library architecture", exact: true }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Knowledge Issues", exact: true }).first().click();
+  await page.getByRole("button", { name: "AI tools" }).click();
+  await page.getByRole("menuitem", { name: "Knowledge Issues", exact: true }).click();
   await page.getByRole("button", { name: /Compare Library architecture and Reading list/ }).first().click();
   await page.getByRole("button", { name: "Open source" }).nth(1).click();
   await expect(page.getByRole("heading", { name: "Reading list", exact: true }).first()).toBeVisible();
@@ -61,7 +62,8 @@ test("opens Evolution and Ask Slate from an issue", async ({ page }) => {
   await openIssues(page); await page.getByRole("button", { name: /Compare Library architecture and Reading list/ }).first().click();
   await page.getByRole("complementary", { name: "Knowledge issue comparison" }).getByRole("button", { name: "Evolution", exact: true }).click();
   await expect(page.getByText("Evolution of Thought", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Knowledge Issues", exact: true }).first().click();
+  await page.getByRole("button", { name: "AI tools" }).click();
+  await page.getByRole("menuitem", { name: "Knowledge Issues", exact: true }).click();
   await page.getByRole("button", { name: /Compare Library architecture and Reading list/ }).first().click();
   await page.getByRole("complementary", { name: "Knowledge issue comparison" }).getByRole("button", { name: "Ask", exact: true }).click();
   await expect(page.getByLabel("Question", { exact: true })).toHaveValue(/Explain this knowledge issue/);

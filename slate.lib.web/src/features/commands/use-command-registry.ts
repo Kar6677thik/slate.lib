@@ -62,8 +62,10 @@ import { useCommandRuntime } from "./runtime";
 import type { CommandDefinition } from "./types";
 import { availableCommands } from "./registry";
 import { openAskSlate } from "@/components/ask/ask-slate";
+import { usePreferences } from "@/lib/storage/preferences";
 
 export function useCommandRegistry() {
+  const { prefs, set } = usePreferences();
   const api = useApi();
   const cache = useQueryClient();
   const workspace = useWorkspace();
@@ -71,10 +73,22 @@ export function useCommandRegistry() {
   const runtime = useCommandRuntime();
   const { theme, setTheme } = useTheme();
   const active = workspace.tabs.find((tab) => tab.id === workspace.active);
-  const favorite = !!active && local.preferences.favorites.some((item) => item.id === active.id);
-  const projectContext = workspace.projectPath || local.preferences.projects
-    .filter((project) => active && (active.path === project.path || active.path.startsWith(`${project.path}/`)))
-    .sort((a, b) => b.path.length - a.path.length)[0]?.path || (active?.path.includes("/") ? active.path.split("/").slice(0, -1).join("/") : "");
+  const favorite =
+    !!active &&
+    local.preferences.favorites.some((item) => item.id === active.id);
+  const projectContext =
+    workspace.projectPath ||
+    local.preferences.projects
+      .filter(
+        (project) =>
+          active &&
+          (active.path === project.path ||
+            active.path.startsWith(`${project.path}/`)),
+      )
+      .sort((a, b) => b.path.length - a.path.length)[0]?.path ||
+    (active?.path.includes("/")
+      ? active.path.split("/").slice(0, -1).join("/")
+      : "");
   const commands = useMemo<CommandDefinition[]>(() => {
     const entry = active
       ? {
@@ -87,7 +101,15 @@ export function useCommandRegistry() {
       : undefined;
     const showDetails = async (id: string) => {
       await runtime.run("workspace.show-details");
-      await runtime.run(id);
+      // The details pane loads on demand. Wait for its handler rather than
+      // dropping the first command while the module is still loading.
+      for (let attempt = 0; attempt < 120; attempt++) {
+        if (await runtime.run(id)) return;
+        await new Promise<void>((resolve) => setTimeout(resolve, 25));
+      }
+      throw new Error(
+        "Document details are still loading. Try the command again.",
+      );
     };
     const invalidateLibrary = () => {
       void cache.invalidateQueries({ queryKey: ["folder"] });
@@ -117,7 +139,8 @@ export function useCommandRegistry() {
         keywords: ["create", "write", "document"],
         group: "Create",
         shortcut: "Ctrl N",
-        execute: () => workspace.setOperation({ kind: "create-note", folder: "" }),
+        execute: () =>
+          workspace.setOperation({ kind: "create-note", folder: "" }),
       },
       {
         id: "create.folder",
@@ -126,7 +149,8 @@ export function useCommandRegistry() {
         icon: FolderPlus,
         keywords: ["create", "directory"],
         group: "Create",
-        execute: () => workspace.setOperation({ kind: "create-folder", folder: "" }),
+        execute: () =>
+          workspace.setOperation({ kind: "create-folder", folder: "" }),
       },
       {
         id: "create.capture",
@@ -141,7 +165,7 @@ export function useCommandRegistry() {
       {
         id: "create.daily",
         title: "Open daily note",
-        description: "Create or open today’s note",
+        description: "Create or open todayâ€™s note",
         icon: CalendarDays,
         keywords: ["today", "journal"],
         group: "Create",
@@ -203,7 +227,8 @@ export function useCommandRegistry() {
       {
         id: "evolution.open",
         title: "Evolution of Thought",
-        description: "Trace how a topic changed across notes and committed history",
+        description:
+          "Trace how a topic changed across notes and committed history",
         icon: History,
         keywords: ["evolution", "timeline", "thinking", "changed"],
         group: "Intelligence",
@@ -212,7 +237,8 @@ export function useCommandRegistry() {
       {
         id: "knowledge.open",
         title: "Knowledge Issues",
-        description: "Review current contradictions and possibly stale knowledge",
+        description:
+          "Review current contradictions and possibly stale knowledge",
         icon: ShieldQuestion,
         keywords: ["contradictions", "stale", "conflicts", "review"],
         group: "Intelligence",
@@ -229,7 +255,8 @@ export function useCommandRegistry() {
       {
         id: "knowledge.review",
         title: "Review Knowledge Issues",
-        description: "Continue the open contradiction and stale-knowledge review queue",
+        description:
+          "Continue the open contradiction and stale-knowledge review queue",
         icon: ShieldQuestion,
         keywords: ["review", "resolve", "dismiss", "maintenance"],
         group: "Intelligence",
@@ -258,7 +285,9 @@ export function useCommandRegistry() {
         keywords: ["current", "note", "contradiction"],
         group: "Intelligence",
         when: () => !!active,
-        execute: () => active && workspace.openKnowledgeIssues({ kind: "note", noteId: active.id }),
+        execute: () =>
+          active &&
+          workspace.openKnowledgeIssues({ kind: "note", noteId: active.id }),
       },
       {
         id: "knowledge.current-project",
@@ -267,12 +296,17 @@ export function useCommandRegistry() {
         keywords: ["project", "stale", "contradiction"],
         group: "Intelligence",
         when: () => !!projectContext,
-        execute: () => workspace.openKnowledgeIssues({ kind: "project", path: projectContext }),
+        execute: () =>
+          workspace.openKnowledgeIssues({
+            kind: "project",
+            path: projectContext,
+          }),
       },
       {
         id: "overlap.open",
         title: "Knowledge Overlap",
-        description: "Review duplicates, shared sections, and consolidation opportunities",
+        description:
+          "Review duplicates, shared sections, and consolidation opportunities",
         icon: Layers3,
         keywords: ["overlap", "duplicate", "consolidate", "merge"],
         group: "Intelligence",
@@ -309,7 +343,9 @@ export function useCommandRegistry() {
         keywords: ["current", "note", "duplicate", "overlap"],
         group: "Intelligence",
         when: () => !!active,
-        execute: () => active && workspace.openKnowledgeOverlap({ kind: "note", noteId: active.id }),
+        execute: () =>
+          active &&
+          workspace.openKnowledgeOverlap({ kind: "note", noteId: active.id }),
       },
       {
         id: "concepts.open",
@@ -349,7 +385,8 @@ export function useCommandRegistry() {
       {
         id: "links.opportunities",
         title: "Link Opportunities",
-        description: "Review useful relationships missing from the authored graph",
+        description:
+          "Review useful relationships missing from the authored graph",
         icon: Link2,
         keywords: ["smart links", "missing", "relationships", "graph"],
         group: "Intelligence",
@@ -370,7 +407,14 @@ export function useCommandRegistry() {
         keywords: ["current", "note", "mentions", "links"],
         group: "Intelligence",
         when: () => !!active,
-        execute: () => runtime.has("document.link-opportunities") ? runtime.run("document.link-opportunities") : active && workspace.openLinkOpportunities({ kind: "note", noteId: active.id }),
+        execute: () =>
+          runtime.has("document.link-opportunities")
+            ? runtime.run("document.link-opportunities")
+            : active &&
+              workspace.openLinkOpportunities({
+                kind: "note",
+                noteId: active.id,
+              }),
       },
       {
         id: "links.project",
@@ -379,7 +423,12 @@ export function useCommandRegistry() {
         keywords: ["project", "relationships", "missing links"],
         group: "Intelligence",
         when: () => !!projectContext,
-        execute: () => projectContext && workspace.openLinkOpportunities({ kind: "project", path: projectContext }),
+        execute: () =>
+          projectContext &&
+          workspace.openLinkOpportunities({
+            kind: "project",
+            path: projectContext,
+          }),
       },
       {
         id: "health.open",
@@ -404,7 +453,11 @@ export function useCommandRegistry() {
         icon: AlertTriangle,
         keywords: ["urgent", "maintenance", "health"],
         group: "Intelligence",
-        execute: () => workspace.openLibraryHealth({ status: "open", priority: "needs-attention" }),
+        execute: () =>
+          workspace.openLibraryHealth({
+            status: "open",
+            priority: "needs-attention",
+          }),
       },
       {
         id: "health.broken-links",
@@ -412,7 +465,8 @@ export function useCommandRegistry() {
         icon: Unlink,
         keywords: ["unresolved", "ambiguous", "link health"],
         group: "Intelligence",
-        execute: () => workspace.openLibraryHealth({ status: "open", category: "links" }),
+        execute: () =>
+          workspace.openLibraryHealth({ status: "open", category: "links" }),
       },
       {
         id: "health.duplicates",
@@ -420,7 +474,8 @@ export function useCommandRegistry() {
         icon: Layers3,
         keywords: ["overlap", "copies", "maintenance"],
         group: "Intelligence",
-        execute: () => workspace.openLibraryHealth({ status: "open", category: "overlap" }),
+        execute: () =>
+          workspace.openLibraryHealth({ status: "open", category: "overlap" }),
       },
       {
         id: "health.assets",
@@ -428,7 +483,8 @@ export function useCommandRegistry() {
         icon: Image,
         keywords: ["missing", "unused", "attachments"],
         group: "Intelligence",
-        execute: () => workspace.openLibraryHealth({ status: "open", category: "assets" }),
+        execute: () =>
+          workspace.openLibraryHealth({ status: "open", category: "assets" }),
       },
       {
         id: "health.failed-intelligence",
@@ -436,12 +492,17 @@ export function useCommandRegistry() {
         icon: AlertTriangle,
         keywords: ["indexing", "failed", "diagnostics"],
         group: "Intelligence",
-        execute: () => workspace.openLibraryHealth({ status: "open", category: "intelligence" }),
+        execute: () =>
+          workspace.openLibraryHealth({
+            status: "open",
+            category: "intelligence",
+          }),
       },
       {
         id: "gaps.open",
         title: "Knowledge Gaps",
-        description: "Review conservative coverage observations from your library",
+        description:
+          "Review conservative coverage observations from your library",
         icon: CircleHelp,
         keywords: ["coverage", "missing", "thin", "fragmented"],
         group: "Intelligence",
@@ -462,7 +523,12 @@ export function useCommandRegistry() {
         keywords: ["project", "coverage", "missing overview", "architecture"],
         group: "Intelligence",
         when: () => !!projectContext,
-        execute: () => projectContext && workspace.openKnowledgeGaps({ project: projectContext, status: "open" }),
+        execute: () =>
+          projectContext &&
+          workspace.openKnowledgeGaps({
+            project: projectContext,
+            status: "open",
+          }),
       },
       {
         id: "gaps.concept",
@@ -471,7 +537,12 @@ export function useCommandRegistry() {
         keywords: ["concept", "coverage", "sources"],
         group: "Intelligence",
         when: () => !!workspace.conceptIdentity,
-        execute: () => workspace.conceptIdentity && workspace.openKnowledgeGaps({ concept: workspace.conceptIdentity, status: "open" }),
+        execute: () =>
+          workspace.conceptIdentity &&
+          workspace.openKnowledgeGaps({
+            concept: workspace.conceptIdentity,
+            status: "open",
+          }),
       },
       {
         id: "gaps.thin",
@@ -479,7 +550,11 @@ export function useCommandRegistry() {
         icon: CircleHelp,
         keywords: ["thin", "incidental", "concepts"],
         group: "Intelligence",
-        execute: () => workspace.openKnowledgeGaps({ kind: "thin-coverage", status: "open" }),
+        execute: () =>
+          workspace.openKnowledgeGaps({
+            kind: "thin-coverage",
+            status: "open",
+          }),
       },
       {
         id: "gaps.questions",
@@ -487,7 +562,11 @@ export function useCommandRegistry() {
         icon: FileQuestion,
         keywords: ["unanswered", "recurring", "questions"],
         group: "Intelligence",
-        execute: () => workspace.openKnowledgeGaps({ kind: "recurring-unanswered-question", status: "open" }),
+        execute: () =>
+          workspace.openKnowledgeGaps({
+            kind: "recurring-unanswered-question",
+            status: "open",
+          }),
       },
       {
         id: "evolution.current-note",
@@ -497,7 +576,9 @@ export function useCommandRegistry() {
         keywords: ["history", "compare", "before", "after"],
         group: "Intelligence",
         when: () => !!active,
-        execute: () => active && workspace.openEvolution({ kind: "note", noteId: active.id }),
+        execute: () =>
+          active &&
+          workspace.openEvolution({ kind: "note", noteId: active.id }),
       },
       {
         id: "evolution.selected-notes",
@@ -507,7 +588,11 @@ export function useCommandRegistry() {
         keywords: ["selected", "tabs", "compare", "history"],
         group: "Intelligence",
         when: () => workspace.tabs.length > 0,
-        execute: () => workspace.openEvolution({ kind: "selected", noteIds: workspace.tabs.slice(0, 20).map((tab) => tab.id) }),
+        execute: () =>
+          workspace.openEvolution({
+            kind: "selected",
+            noteIds: workspace.tabs.slice(0, 20).map((tab) => tab.id),
+          }),
       },
       {
         id: "evolution.compare-earlier",
@@ -516,7 +601,9 @@ export function useCommandRegistry() {
         keywords: ["current", "original", "version", "diff"],
         group: "Intelligence",
         when: () => !!active,
-        execute: () => active && workspace.openEvolution({ kind: "note", noteId: active.id }),
+        execute: () =>
+          active &&
+          workspace.openEvolution({ kind: "note", noteId: active.id }),
       },
       {
         id: "evolution.project",
@@ -526,7 +613,8 @@ export function useCommandRegistry() {
         keywords: ["project", "timeline", "decisions", "architecture"],
         group: "Intelligence",
         when: () => !!projectContext,
-        execute: () => workspace.openEvolution({ kind: "project", path: projectContext }),
+        execute: () =>
+          workspace.openEvolution({ kind: "project", path: projectContext }),
       },
       {
         id: "project.open-brain",
@@ -584,8 +672,14 @@ export function useCommandRegistry() {
         when: () => !!projectContext,
         execute: () => openAskSlate({ scope: "project", path: projectContext }),
       },
-      navigate("navigate.library", "Library", "library", FolderOpen, ["files", "folders"]),
-      navigate("navigate.search", "Search library", "search", Search, ["find", "notes"]),
+      navigate("navigate.library", "Library", "library", FolderOpen, [
+        "files",
+        "folders",
+      ]),
+      navigate("navigate.search", "Search library", "search", Search, [
+        "find",
+        "notes",
+      ]),
       navigate("navigate.inbox", "Inbox", "inbox", Inbox, ["capture"]),
       {
         id: "inbox.triage",
@@ -603,7 +697,10 @@ export function useCommandRegistry() {
         icon: Check,
         keywords: ["focus", "captures", "review next"],
         group: "Navigation",
-        execute: () => { sessionStorage.setItem("slate.inbox-zero", "1"); workspace.navigate("inbox"); },
+        execute: () => {
+          sessionStorage.setItem("slate.inbox-zero", "1");
+          workspace.navigate("inbox");
+        },
       },
       {
         id: "inbox.review-next",
@@ -611,15 +708,54 @@ export function useCommandRegistry() {
         icon: ArrowRight,
         keywords: ["inbox", "triage", "next"],
         group: "Navigation",
-        execute: () => { sessionStorage.setItem("slate.inbox-zero", "1"); workspace.navigate("inbox"); },
+        execute: () => {
+          sessionStorage.setItem("slate.inbox-zero", "1");
+          workspace.navigate("inbox");
+        },
       },
-      navigate("navigate.recent", "Recent notes", "recent", FileClock, ["history", "opened"]),
-      navigate("navigate.favorites", "Favorites", "favorites", Star, ["bookmarks", "starred"]),
-      navigate("navigate.rediscover", "Rediscover notes", "rediscover", Compass, ["forgotten", "review"]),
-      navigate("navigate.recovery", "Recover deleted notes", "recovery", ArchiveRestore, ["trash", "restore"]),
-      navigate("navigate.link-health", "Link diagnostics", "link-health", Unlink, ["broken", "unresolved", "health"]),
-      navigate("navigate.library-health", "Library Health", "library-health", HeartPulse, ["maintenance", "quality", "review"]),
-      navigate("navigate.knowledge-gaps", "Knowledge Gaps", "knowledge-gaps", CircleHelp, ["coverage", "missing", "review"]),
+      navigate("navigate.recent", "Recent notes", "recent", FileClock, [
+        "history",
+        "opened",
+      ]),
+      navigate("navigate.favorites", "Favorites", "favorites", Star, [
+        "bookmarks",
+        "starred",
+      ]),
+      navigate(
+        "navigate.rediscover",
+        "Rediscover notes",
+        "rediscover",
+        Compass,
+        ["forgotten", "review"],
+      ),
+      navigate(
+        "navigate.recovery",
+        "Recover deleted notes",
+        "recovery",
+        ArchiveRestore,
+        ["trash", "restore"],
+      ),
+      navigate(
+        "navigate.link-health",
+        "Link diagnostics",
+        "link-health",
+        Unlink,
+        ["broken", "unresolved", "health"],
+      ),
+      navigate(
+        "navigate.library-health",
+        "Library Health",
+        "library-health",
+        HeartPulse,
+        ["maintenance", "quality", "review"],
+      ),
+      navigate(
+        "navigate.knowledge-gaps",
+        "Knowledge Gaps",
+        "knowledge-gaps",
+        CircleHelp,
+        ["coverage", "missing", "review"],
+      ),
       ...SMART_VIEWS.map<CommandDefinition>((view) => ({
         id: `navigate.${view.id}`,
         title: view.title,
@@ -675,10 +811,19 @@ export function useCommandRegistry() {
         when: () => !!active,
         execute: () => active && local.toggleFavorite(active),
       },
-      ...(["rename", "move", "copy", "duplicate"] as const).map<CommandDefinition>((kind) => ({
+      ...(
+        ["rename", "move", "copy", "duplicate"] as const
+      ).map<CommandDefinition>((kind) => ({
         id: `document.${kind}`,
-        title: `${kind[0].toUpperCase()}${kind.slice(1)} note${kind === "move" || kind === "copy" ? " to…" : ""}`,
-        icon: kind === "rename" ? Pencil : kind === "move" ? Folder : kind === "copy" ? ClipboardCopy : Copy,
+        title: `${kind[0].toUpperCase()}${kind.slice(1)} note${kind === "move" || kind === "copy" ? " toâ€¦" : ""}`,
+        icon:
+          kind === "rename"
+            ? Pencil
+            : kind === "move"
+              ? Folder
+              : kind === "copy"
+                ? ClipboardCopy
+                : Copy,
         keywords: ["file", kind],
         group: "Document",
         when: () => !!entry,
@@ -693,7 +838,8 @@ export function useCommandRegistry() {
         group: "Document",
         dangerous: true,
         when: () => !!entry,
-        execute: () => entry && workspace.setOperation({ kind: "delete", entry }),
+        execute: () =>
+          entry && workspace.setOperation({ kind: "delete", entry }),
       },
       {
         id: "document.answer-question",
@@ -729,7 +875,7 @@ export function useCommandRegistry() {
         icon: Link,
         keywords: ["incoming", "links"],
         group: "Document",
-        when: () => !!active && runtime.has("details.links"),
+        when: () => !!active,
         execute: () => showDetails("details.links"),
       },
       {
@@ -738,7 +884,7 @@ export function useCommandRegistry() {
         icon: Link,
         keywords: ["resolved", "links"],
         group: "Document",
-        when: () => !!active && runtime.has("details.links"),
+        when: () => !!active,
         execute: () => showDetails("details.links"),
       },
       {
@@ -747,7 +893,7 @@ export function useCommandRegistry() {
         icon: History,
         keywords: ["restore", "compare", "versions"],
         group: "Document",
-        when: () => !!active && runtime.has("details.history"),
+        when: () => !!active,
         execute: () => showDetails("details.history"),
       },
       {
@@ -756,7 +902,7 @@ export function useCommandRegistry() {
         icon: Network,
         keywords: ["connections", "links"],
         group: "Document",
-        when: () => !!active && runtime.has("details.graph"),
+        when: () => !!active,
         execute: () => showDetails("details.graph"),
       },
       {
@@ -765,7 +911,7 @@ export function useCommandRegistry() {
         icon: Waypoints,
         keywords: ["similar", "connections"],
         group: "Document",
-        when: () => !!active && runtime.has("details.related"),
+        when: () => !!active,
         execute: () => showDetails("details.related"),
       },
       {
@@ -774,7 +920,7 @@ export function useCommandRegistry() {
         icon: Info,
         keywords: ["metadata", "path", "size"],
         group: "Document",
-        when: () => !!active && runtime.has("details.info"),
+        when: () => !!active,
         execute: () => showDetails("details.info"),
       },
       {
@@ -786,8 +932,14 @@ export function useCommandRegistry() {
         shortcut: "Ctrl Tab",
         when: () => workspace.tabs.length > 1,
         execute: () => {
-          const index = workspace.tabs.findIndex((tab) => tab.id === workspace.active);
-          workspace.open(workspace.tabs[(index + 1 + workspace.tabs.length) % workspace.tabs.length].id);
+          const index = workspace.tabs.findIndex(
+            (tab) => tab.id === workspace.active,
+          );
+          workspace.open(
+            workspace.tabs[
+              (index + 1 + workspace.tabs.length) % workspace.tabs.length
+            ].id,
+          );
         },
       },
       {
@@ -799,8 +951,14 @@ export function useCommandRegistry() {
         shortcut: "Ctrl Shift Tab",
         when: () => workspace.tabs.length > 1,
         execute: () => {
-          const index = workspace.tabs.findIndex((tab) => tab.id === workspace.active);
-          workspace.open(workspace.tabs[(index - 1 + workspace.tabs.length) % workspace.tabs.length].id);
+          const index = workspace.tabs.findIndex(
+            (tab) => tab.id === workspace.active,
+          );
+          workspace.open(
+            workspace.tabs[
+              (index - 1 + workspace.tabs.length) % workspace.tabs.length
+            ].id,
+          );
         },
       },
       {
@@ -904,7 +1062,27 @@ export function useCommandRegistry() {
         execute: () => workspace.setSettingsOpen(true),
       },
     ];
-    return result;
+    result.push({
+      id: "appearance.ai",
+      title: prefs.aiEnabled ? "Turn AI features off" : "Turn AI features on",
+      icon: BrainCircuit,
+      keywords: ["AI", "intelligence", "toggle"],
+      group: "Appearance",
+      execute: () => set({ aiEnabled: !prefs.aiEnabled }),
+    });
+    return prefs.aiEnabled
+      ? result
+      : result.filter(
+          (command) =>
+            command.group !== "Intelligence" &&
+            ![
+              "navigate.library-health",
+              "navigate.knowledge-gaps",
+              "inbox.triage",
+              "inbox.zero",
+              "inbox.review-next",
+            ].includes(command.id),
+        );
   }, [
     active,
     api,
@@ -912,16 +1090,15 @@ export function useCommandRegistry() {
     favorite,
     local,
     projectContext,
+    prefs.aiEnabled,
+    set,
     runtime,
     setTheme,
     theme,
     workspace,
   ]);
 
-  const available = useMemo(
-    () => availableCommands(commands),
-    [commands],
-  );
+  const available = useMemo(() => availableCommands(commands), [commands]);
 
   const executeById = useCallback(
     async (id: string) => {

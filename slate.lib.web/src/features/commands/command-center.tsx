@@ -2,14 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  FileText,
-  Folder,
-  Search,
-  Star,
-  X,
-  Atom,
-} from "lucide-react";
+import { FileText, Folder, Search, Star, X, Atom } from "lucide-react";
 import { useApi } from "@/lib/auth/context";
 import { useWorkspace } from "@/features/notes/workspace-context";
 import { useWorkspacePreferences } from "@/lib/storage/workspace-preferences";
@@ -19,8 +12,14 @@ import { Modal } from "@/components/common/primitives";
 import { useCommandRegistry } from "./use-command-registry";
 import { fuzzyScore } from "./ranking";
 import { collectCommandSources, commandResults } from "./registry";
-import { readCommandHistory, recordCommandUse } from "@/lib/storage/command-history";
+import {
+  readCommandHistory,
+  recordCommandUse,
+} from "@/lib/storage/command-history";
 import type { CommandGroup, CommandResult } from "./types";
+import { usePreferences } from "@/lib/storage/preferences";
+import type { SearchMode } from "@/lib/api/contracts";
+import { SearchPage } from "@/components/search/search";
 
 const groupOrder: CommandGroup[] = [
   "Create",
@@ -41,11 +40,17 @@ const groupOrder: CommandGroup[] = [
 ];
 
 function cleanText(value?: string) {
-  return value?.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+  return value
+    ?.replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function CommandCenter() {
   const workspace = useWorkspace();
+  const { prefs } = usePreferences();
+  const [mode, setMode] = useState<SearchMode>("hybrid");
+  const [advanced, setAdvanced] = useState(false);
   const api = useApi();
   const local = useWorkspacePreferences(workspace.scope);
   const { commands } = useCommandRegistry();
@@ -58,24 +63,37 @@ export function CommandCenter() {
   const term = query.trimStart().replace(/^>\s*/, "");
   const debounced = useDebounce(term, 160);
   const remote = useQuery({
-    queryKey: ["command-search", debounced],
+    queryKey: ["command-search", debounced, prefs.aiEnabled ? mode : "lexical"],
     queryFn: async ({ signal }) => {
-      try { return await api.hybridSearch(debounced, "hybrid", 0, signal); }
-      catch { return api.search(debounced, 0, signal); }
+      if (!prefs.aiEnabled || mode === "lexical")
+        return api.search(debounced, 0, signal);
+      try {
+        return await api.hybridSearch(debounced, mode, 0, signal);
+      } catch {
+        return api.search(debounced, 0, signal);
+      }
     },
     enabled: workspace.searchOpen && !commandOnly && !!debounced,
     staleTime: 20_000,
   });
   const conceptIndex = useQuery({
     queryKey: ["command-concepts"],
-    queryFn: ({ signal }) => api.concepts({}, signal) as Promise<import("@/lib/intelligence/concepts").ConceptSnapshot>,
-    enabled: workspace.searchOpen && !commandOnly && debounced.length >= 2,
+    queryFn: ({ signal }) =>
+      api.concepts({}, signal) as Promise<
+        import("@/lib/intelligence/concepts").ConceptSnapshot
+      >,
+    enabled:
+      prefs.aiEnabled &&
+      workspace.searchOpen &&
+      !commandOnly &&
+      debounced.length >= 2,
     staleTime: 60_000,
     retry: false,
   });
 
   useEffect(() => {
     if (workspace.searchOpen) {
+      setAdvanced(false);
       setQuery(workspace.commandInitialQuery);
       setActive(0);
       setError(null);
@@ -88,10 +106,12 @@ export function CommandCenter() {
     const commandHistory = readCommandHistory(workspace.scope);
     const recentIds = commandHistory.map((item) => item.id);
     const output = collectCommandSources(
-      [{
-        id: "registered-commands",
-        collect: (value) => commandResults(commands, value, recentIds),
-      }],
+      [
+        {
+          id: "registered-commands",
+          collect: (value) => commandResults(commands, value, recentIds),
+        },
+      ],
       term,
     );
 
@@ -154,31 +174,51 @@ export function CommandCenter() {
       });
       output.push(
         ...collectCommandSources(
-          [{
-            id: "server-notes",
-            collect: () => term && remote.data
-              ? remote.data.results.map<CommandResult>((note, index) => ({
-            key: `note:${note.id}`,
-            title: note.title,
-            description: cleanText(note.snippet),
-            path: note.path,
-            icon: FileText,
-            group: "Notes",
-            score: 240 + (note.score ?? 0) - index / 10,
-            execute: () => workspace.open(note.id),
-              }))
-              : [],
-          }],
+          [
+            {
+              id: "server-notes",
+              collect: () =>
+                term && remote.data
+                  ? remote.data.results.map<CommandResult>((note, index) => ({
+                      key: `note:${note.id}`,
+                      title: note.title,
+                      description: cleanText(note.snippet),
+                      path: note.path,
+                      icon: FileText,
+                      group: "Notes",
+                      score: 240 + (note.score ?? 0) - index / 10,
+                      execute: () => workspace.open(note.id),
+                    }))
+                  : [],
+            },
+          ],
           term,
         ),
       );
-      if (term && conceptIndex.data) {
+      if (prefs.aiEnabled && term && conceptIndex.data) {
         const normalized = term.toLowerCase();
-        output.push(...conceptIndex.data.concepts.flatMap((concept, index) => {
-          const score = fuzzyScore(term, [concept.canonicalName, ...concept.aliases, ...concept.tags]);
-          if (!score && !concept.normalizedName.includes(normalized)) return [];
-          return [{ key: `concept:${concept.id}`, title: `Concept · ${concept.canonicalName}`, description: `${concept.kind} · ${concept.sourceCount} sources`, icon: Atom, group: "Concepts" as const, score: 190 + score - index / 100, execute: () => workspace.openConcept(concept.canonicalName) }];
-        }));
+        output.push(
+          ...conceptIndex.data.concepts.flatMap((concept, index) => {
+            const score = fuzzyScore(term, [
+              concept.canonicalName,
+              ...concept.aliases,
+              ...concept.tags,
+            ]);
+            if (!score && !concept.normalizedName.includes(normalized))
+              return [];
+            return [
+              {
+                key: `concept:${concept.id}`,
+                title: `Concept · ${concept.canonicalName}`,
+                description: `${concept.kind} · ${concept.sourceCount} sources`,
+                icon: Atom,
+                group: "Concepts" as const,
+                score: 190 + score - index / 100,
+                execute: () => workspace.openConcept(concept.canonicalName),
+              },
+            ];
+          }),
+        );
       }
     }
 
@@ -192,7 +232,8 @@ export function CommandCenter() {
     return [...deduped.values()]
       .sort((a, b) => {
         if (!term) {
-          const group = groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group);
+          const group =
+            groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group);
           if (group) return group;
         }
         return b.score - a.score || a.title.localeCompare(b.title);
@@ -207,6 +248,7 @@ export function CommandCenter() {
     remote.data,
     term,
     workspace,
+    prefs.aiEnabled,
   ]);
 
   useEffect(() => setActive(0), [query, results.length]);
@@ -219,9 +261,17 @@ export function CommandCenter() {
         recordCommandUse(workspace.scope, result.commandId);
         setHistoryVersion((value) => value + 1);
       }
-      workspace.setSearchOpen(false);
+      if (
+        result.commandId !== "navigate.search" &&
+        !result.key.startsWith("search:")
+      )
+        workspace.setSearchOpen(false);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "That action could not be completed.");
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "That action could not be completed.",
+      );
     }
   }
 
@@ -233,100 +283,209 @@ export function CommandCenter() {
       description="Search notes and run workspace commands."
       wide
     >
-      <div className="command-center">
-        <div className="command-input">
-          <Search size={19} aria-hidden="true" />
-          <input
-            ref={input}
-            role="combobox"
-            aria-label="Quick search for notes and commands"
-            aria-controls="command-results"
-            aria-expanded="true"
-            aria-autocomplete="list"
-            aria-activedescendant={results[active] ? `command-result-${active}` : undefined}
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="Search notes or type > for commands"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown") {
-                event.preventDefault();
-                setActive((value) => Math.min(results.length - 1, value + 1));
-              } else if (event.key === "ArrowUp") {
-                event.preventDefault();
-                setActive((value) => Math.max(0, value - 1));
-              } else if (event.key === "Home") {
-                event.preventDefault();
-                setActive(0);
-              } else if (event.key === "End") {
-                event.preventDefault();
-                setActive(Math.max(0, results.length - 1));
-              } else if (event.key === "Enter" && results[active]) {
-                event.preventDefault();
-                void choose(results[active]);
-              }
-            }}
-          />
-          {query && (
-            <button className="command-clear" aria-label="Clear search" onClick={() => setQuery("")}>
-              <X size={16} />
+      {advanced ? (
+        <div className="command-center advanced-search">
+          <div className="advanced-search-heading">
+            <button
+              onClick={() => {
+                setQuery(workspace.query);
+                setAdvanced(false);
+              }}
+            >
+              Back to quick search
             </button>
-          )}
-          <span className="command-mode">{commandOnly ? "Commands" : "All"}</span>
+            <button
+              aria-label="Close search"
+              className="command-clear"
+              onClick={() => workspace.setSearchOpen(false)}
+            >
+              <X size={17} />
+            </button>
+          </div>
+          <SearchPage />
         </div>
-        {error && <div className="command-error" role="alert">{error}</div>}
-        <div
-          id="command-results"
-          className="quick-results command-results"
-          role="listbox"
-          aria-label="Command Center results"
-        >
-          {results.map((result, index) => {
-            const previous = results[index - 1];
-            const Icon = result.icon;
-            return (
-              <div className="command-result-wrap" key={result.key}>
-                {previous?.group !== result.group && (
-                  <div className="command-group" role="presentation">{result.group}</div>
-                )}
+      ) : (
+        <>
+          <div className="command-center">
+            <div className="command-input">
+              <Search size={19} aria-hidden="true" />
+              <input
+                ref={input}
+                role="combobox"
+                aria-label="Quick search for notes and commands"
+                aria-controls="command-results"
+                aria-expanded="true"
+                aria-autocomplete="list"
+                aria-activedescendant={
+                  results[active] ? `command-result-${active}` : undefined
+                }
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Search notes or type > for commands"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setActive((value) =>
+                      Math.min(results.length - 1, value + 1),
+                    );
+                  } else if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setActive((value) => Math.max(0, value - 1));
+                  } else if (event.key === "Home") {
+                    event.preventDefault();
+                    setActive(0);
+                  } else if (event.key === "End") {
+                    event.preventDefault();
+                    setActive(Math.max(0, results.length - 1));
+                  } else if (event.key === "Enter" && results[active]) {
+                    event.preventDefault();
+                    void choose(results[active]);
+                  }
+                }}
+              />
+              {query && (
                 <button
-                  id={`command-result-${index}`}
-                  className={`command-result ${index === active ? "active" : ""} ${result.dangerous ? "dangerous" : ""}`}
-                  role="option"
-                  aria-selected={index === active}
-                  onMouseEnter={() => setActive(index)}
-                  onClick={() => void choose(result)}
+                  className="command-clear"
+                  aria-label="Clear search"
+                  onClick={() => setQuery("")}
                 >
-                  <Icon size={17} aria-hidden="true" />
-                  <span className="command-result-copy">
-                    <strong>{result.title}</strong>
-                    {(result.path || result.description) && (
-                      <small>{result.path ?? result.description}</small>
-                    )}
-                  </span>
-                  {result.shortcut && <kbd aria-label={`Shortcut ${result.shortcut}`}>{result.shortcut}</kbd>}
+                  <X size={16} />
+                </button>
+              )}
+              <span className="command-mode">
+                {commandOnly ? "Commands" : "All"}
+              </span>
+            </div>
+            {!commandOnly && (
+              <div className="command-search-options">
+                <button
+                  className="advanced-search-trigger"
+                  onClick={() => {
+                    workspace.setQuery(query);
+                    setAdvanced(true);
+                  }}
+                >
+                  Filters & saved searches
+                </button>
+                {prefs.aiEnabled && (
+                  <div
+                    className="search-modes"
+                    role="radiogroup"
+                    aria-label="Search mode"
+                  >
+                    {(
+                      [
+                        ["lexical", "Keyword"],
+                        ["semantic", "Meaning"],
+                        ["hybrid", "All"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        role="radio"
+                        aria-checked={mode === value}
+                        className={mode === value ? "active" : ""}
+                        onClick={() => setMode(value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <span>
+                  Filter with <code>path:</code>, <code>tag:</code> or{" "}
+                  <code>type:</code>
+                </span>
+                <button
+                  aria-label="Close search"
+                  className="command-clear"
+                  onClick={() => workspace.setSearchOpen(false)}
+                >
+                  <X size={16} />
                 </button>
               </div>
-            );
-          })}
-          {!results.length && !remote.isPending && (
-            <div className="command-empty">No matching notes or commands.</div>
-          )}
-          {remote.isPending && term && !commandOnly && (
-            <div className="command-searching" role="status">Searching library…</div>
-          )}
-          {remote.error && (
-            <div className="command-searching" role="status">Server search is unavailable. Local commands still work.</div>
-          )}
-        </div>
-        <div className="overlay-hint command-footer">
-          <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
-          <span><kbd>Enter</kbd> open</span>
-          <span><kbd>Esc</kbd> close</span>
-          <span className="command-footer-mode"><kbd>&gt;</kbd> commands</span>
-        </div>
-      </div>
+            )}
+            {error && (
+              <div className="command-error" role="alert">
+                {error}
+              </div>
+            )}
+            <div
+              id="command-results"
+              className="quick-results command-results"
+              role="listbox"
+              aria-label="Command Center results"
+            >
+              {results.map((result, index) => {
+                const previous = results[index - 1];
+                const Icon = result.icon;
+                return (
+                  <div className="command-result-wrap" key={result.key}>
+                    {previous?.group !== result.group && (
+                      <div className="command-group" role="presentation">
+                        {result.group}
+                      </div>
+                    )}
+                    <button
+                      id={`command-result-${index}`}
+                      className={`command-result ${index === active ? "active" : ""} ${result.dangerous ? "dangerous" : ""}`}
+                      role="option"
+                      aria-selected={index === active}
+                      onMouseEnter={() => setActive(index)}
+                      onClick={() => void choose(result)}
+                    >
+                      <Icon size={17} aria-hidden="true" />
+                      <span className="command-result-copy">
+                        <strong>{result.title}</strong>
+                        {(result.path || result.description) && (
+                          <small>{result.path ?? result.description}</small>
+                        )}
+                      </span>
+                      {result.shortcut && (
+                        <kbd aria-label={`Shortcut ${result.shortcut}`}>
+                          {result.shortcut}
+                        </kbd>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+              {!results.length && !remote.isPending && (
+                <div className="command-empty">
+                  No matching notes or commands.
+                </div>
+              )}
+            </div>
+            {remote.isPending && term && !commandOnly && (
+              <div className="command-searching" role="status">
+                Searching library…
+              </div>
+            )}
+            {remote.error && (
+              <div className="command-searching" role="status">
+                Server search is unavailable. Local commands still work.
+              </div>
+            )}
+            <div className="overlay-hint command-footer">
+              <span>
+                <kbd>↑</kbd>
+                <kbd>↓</kbd> navigate
+              </span>
+              <span>
+                <kbd>Enter</kbd> open
+              </span>
+              <span>
+                <kbd>Esc</kbd> close
+              </span>
+              <span className="command-footer-mode">
+                <kbd>&gt;</kbd> commands
+              </span>
+            </div>
+          </div>
+        </>
+      )}
     </Modal>
   );
 }

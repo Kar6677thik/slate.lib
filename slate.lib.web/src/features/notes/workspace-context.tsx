@@ -83,12 +83,23 @@ export function WorkspaceProvider({
     [nav, setNav] = useState<Destination>("library"),
     [projectPath, setProjectPath] = useState(""),
     [projectSection, setProjectSection] = useState<string | null>(null),
-    [evolutionScope, setEvolutionScope] = useState<EvolutionScope>({ kind: "topic", topic: "" }),
-    [knowledgeScope, setKnowledgeScope] = useState<KnowledgeSnapshot["scope"]>({ kind: "library" }),
-    [overlapScope, setOverlapScope] = useState<OverlapSnapshot["scope"]>({ kind: "library" }),
-    [linkScope, setLinkScope] = useState<LinkOpportunitySnapshot["scope"]>({ kind: "library" }),
+    [evolutionScope, setEvolutionScope] = useState<EvolutionScope>({
+      kind: "topic",
+      topic: "",
+    }),
+    [knowledgeScope, setKnowledgeScope] = useState<KnowledgeSnapshot["scope"]>({
+      kind: "library",
+    }),
+    [overlapScope, setOverlapScope] = useState<OverlapSnapshot["scope"]>({
+      kind: "library",
+    }),
+    [linkScope, setLinkScope] = useState<LinkOpportunitySnapshot["scope"]>({
+      kind: "library",
+    }),
     [conceptIdentity, setConceptIdentity] = useState(""),
-    [healthFilters, setHealthFilters] = useState<HealthFilters>({ status: "open" }),
+    [healthFilters, setHealthFilters] = useState<HealthFilters>({
+      status: "open",
+    }),
     [gapFilters, setGapFilters] = useState<GapFilters>({ status: "open" }),
     [query, setQuery] = useState(""),
     [searchOpen, setSearchOpen] = useState(false),
@@ -119,19 +130,67 @@ export function WorkspaceProvider({
     const linkPath = url.searchParams.get("linkPath") ?? "";
     const linkNote = url.searchParams.get("linkNote") ?? "";
     setConceptIdentity(url.searchParams.get("concept") ?? "");
-    setHealthFilters({ status: (url.searchParams.get("healthStatus") as HealthFilters["status"]) ?? "open", category: (url.searchParams.get("healthCategory") as HealthFilters["category"]) ?? undefined, priority: (url.searchParams.get("healthPriority") as HealthFilters["priority"]) ?? undefined, project: url.searchParams.get("healthProject") ?? undefined, concept: url.searchParams.get("healthConcept") ?? undefined, noteId: url.searchParams.get("healthNote") ?? undefined });
-    setGapFilters({ status: (url.searchParams.get("gapStatus") as GapFilters["status"]) ?? "open", kind: (url.searchParams.get("gapKind") as GapFilters["kind"]) ?? undefined, importance: (url.searchParams.get("gapImportance") as GapFilters["importance"]) ?? undefined, project: url.searchParams.get("gapProject") ?? undefined, concept: url.searchParams.get("gapConcept") ?? undefined, selected: url.searchParams.get("gapSelected") ?? undefined });
-    if (evolutionKind === "note" && /^[0-9a-f-]{36}$/i.test(evolutionNote)) setEvolutionScope({ kind: "note", noteId: evolutionNote, topic: evolutionTopic || undefined });
-    else if ((evolutionKind === "project" || evolutionKind === "folder") && evolutionPath) setEvolutionScope({ kind: evolutionKind, path: evolutionPath, topic: evolutionTopic || undefined });
-    else setEvolutionScope({ kind: "topic", topic: evolutionTopic, path: evolutionPath || undefined });
-    if (knowledgeKind === "note" && /^[0-9a-f-]{36}$/i.test(knowledgeNote)) setKnowledgeScope({ kind: "note", noteId: knowledgeNote });
-    else if (knowledgeKind === "project" && knowledgePath) setKnowledgeScope({ kind: "project", path: knowledgePath });
+    setHealthFilters({
+      status:
+        (url.searchParams.get("healthStatus") as HealthFilters["status"]) ??
+        "open",
+      category:
+        (url.searchParams.get("healthCategory") as HealthFilters["category"]) ??
+        undefined,
+      priority:
+        (url.searchParams.get("healthPriority") as HealthFilters["priority"]) ??
+        undefined,
+      project: url.searchParams.get("healthProject") ?? undefined,
+      concept: url.searchParams.get("healthConcept") ?? undefined,
+      noteId: url.searchParams.get("healthNote") ?? undefined,
+    });
+    setGapFilters({
+      status:
+        (url.searchParams.get("gapStatus") as GapFilters["status"]) ?? "open",
+      kind:
+        (url.searchParams.get("gapKind") as GapFilters["kind"]) ?? undefined,
+      importance:
+        (url.searchParams.get("gapImportance") as GapFilters["importance"]) ??
+        undefined,
+      project: url.searchParams.get("gapProject") ?? undefined,
+      concept: url.searchParams.get("gapConcept") ?? undefined,
+      selected: url.searchParams.get("gapSelected") ?? undefined,
+    });
+    if (evolutionKind === "note" && /^[0-9a-f-]{36}$/i.test(evolutionNote))
+      setEvolutionScope({
+        kind: "note",
+        noteId: evolutionNote,
+        topic: evolutionTopic || undefined,
+      });
+    else if (
+      (evolutionKind === "project" || evolutionKind === "folder") &&
+      evolutionPath
+    )
+      setEvolutionScope({
+        kind: evolutionKind,
+        path: evolutionPath,
+        topic: evolutionTopic || undefined,
+      });
+    else
+      setEvolutionScope({
+        kind: "topic",
+        topic: evolutionTopic,
+        path: evolutionPath || undefined,
+      });
+    if (knowledgeKind === "note" && /^[0-9a-f-]{36}$/i.test(knowledgeNote))
+      setKnowledgeScope({ kind: "note", noteId: knowledgeNote });
+    else if (knowledgeKind === "project" && knowledgePath)
+      setKnowledgeScope({ kind: "project", path: knowledgePath });
     else setKnowledgeScope({ kind: "library" });
-    if (overlapKind === "note" && /^[0-9a-f-]{36}$/i.test(overlapNote)) setOverlapScope({ kind: "note", noteId: overlapNote });
-    else if (overlapKind === "project" && overlapPath) setOverlapScope({ kind: "project", path: overlapPath });
+    if (overlapKind === "note" && /^[0-9a-f-]{36}$/i.test(overlapNote))
+      setOverlapScope({ kind: "note", noteId: overlapNote });
+    else if (overlapKind === "project" && overlapPath)
+      setOverlapScope({ kind: "project", path: overlapPath });
     else setOverlapScope({ kind: "library" });
-    if (linkKind === "note" && /^[0-9a-f-]{36}$/i.test(linkNote)) setLinkScope({ kind: "note", noteId: linkNote });
-    else if (linkKind === "project" && linkPath) setLinkScope({ kind: "project", path: linkPath });
+    if (linkKind === "note" && /^[0-9a-f-]{36}$/i.test(linkNote))
+      setLinkScope({ kind: "note", noteId: linkNote });
+    else if (linkKind === "project" && linkPath)
+      setLinkScope({ kind: "project", path: linkPath });
     else setLinkScope({ kind: "library" });
     setNav(
       view === "inbox" ||
@@ -207,7 +266,8 @@ export function WorkspaceProvider({
     else url.searchParams.delete("note");
     if (q) url.searchParams.set("q", q);
     else url.searchParams.delete("q");
-    if (view === "project-brain" && projectPath) url.searchParams.set("project", projectPath);
+    if (view === "project-brain" && projectPath)
+      url.searchParams.set("project", projectPath);
     else if (view !== "project-brain") url.searchParams.delete("section");
     if (view !== "evolution") {
       url.searchParams.delete("evolutionKind");
@@ -226,11 +286,31 @@ export function WorkspaceProvider({
       url.searchParams.delete("overlapNote");
     }
     if (view !== "link-opportunities") {
-      url.searchParams.delete("linkKind"); url.searchParams.delete("linkPath"); url.searchParams.delete("linkNote");
+      url.searchParams.delete("linkKind");
+      url.searchParams.delete("linkPath");
+      url.searchParams.delete("linkNote");
     }
     if (view !== "concepts") url.searchParams.delete("concept");
-    if (view !== "library-health") for (const key of ["healthStatus", "healthCategory", "healthPriority", "healthProject", "healthConcept", "healthNote"]) url.searchParams.delete(key);
-    if (view !== "knowledge-gaps") for (const key of ["gapStatus", "gapKind", "gapImportance", "gapProject", "gapConcept", "gapSelected"]) url.searchParams.delete(key);
+    if (view !== "library-health")
+      for (const key of [
+        "healthStatus",
+        "healthCategory",
+        "healthPriority",
+        "healthProject",
+        "healthConcept",
+        "healthNote",
+      ])
+        url.searchParams.delete(key);
+    if (view !== "knowledge-gaps")
+      for (const key of [
+        "gapStatus",
+        "gapKind",
+        "gapImportance",
+        "gapProject",
+        "gapConcept",
+        "gapSelected",
+      ])
+        url.searchParams.delete(key);
     history.pushState({}, "", url);
   }
   function open(id: string) {
@@ -314,6 +394,16 @@ export function WorkspaceProvider({
         },
         update,
         navigate(view) {
+          if (view === "search") {
+            commandReturnFocus.current =
+              document.activeElement as HTMLElement | null;
+            setCommandInitialQuery(
+              new URL(location.href).searchParams.get("q") ?? "",
+            );
+            setSearchOpen(true);
+            return;
+          }
+          setSearchOpen(false);
           setNav(view);
           setActive(null);
           urlChange(
@@ -326,6 +416,7 @@ export function WorkspaceProvider({
           const normalized = path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
           setProjectPath(normalized);
           setProjectSection(section ?? null);
+          setSearchOpen(false);
           setNav("project-brain");
           setActive(null);
           const url = new URL(location.href);
@@ -338,6 +429,7 @@ export function WorkspaceProvider({
         },
         openEvolution(scope) {
           setEvolutionScope(scope);
+          setSearchOpen(false);
           setNav("evolution");
           setActive(null);
           const url = new URL(location.href);
@@ -346,60 +438,122 @@ export function WorkspaceProvider({
           url.searchParams.delete("note");
           url.searchParams.delete("project");
           url.searchParams.delete("section");
-          if ("topic" in scope && scope.topic) url.searchParams.set("topic", scope.topic);
+          if ("topic" in scope && scope.topic)
+            url.searchParams.set("topic", scope.topic);
           else url.searchParams.delete("topic");
-          if ("path" in scope && scope.path) url.searchParams.set("evolutionPath", scope.path);
+          if ("path" in scope && scope.path)
+            url.searchParams.set("evolutionPath", scope.path);
           else url.searchParams.delete("evolutionPath");
-          if (scope.kind === "note") url.searchParams.set("evolutionNote", scope.noteId);
+          if (scope.kind === "note")
+            url.searchParams.set("evolutionNote", scope.noteId);
           else url.searchParams.delete("evolutionNote");
           history.pushState({}, "", url);
         },
         openKnowledgeIssues(scope = { kind: "library" }) {
           setKnowledgeScope(scope);
+          setSearchOpen(false);
           setNav("knowledge-issues");
           setActive(null);
           const url = new URL(location.href);
           url.searchParams.set("view", "knowledge-issues");
           url.searchParams.set("knowledgeKind", scope.kind);
           url.searchParams.delete("note");
-          if (scope.kind === "project") url.searchParams.set("knowledgePath", scope.path ?? "");
+          if (scope.kind === "project")
+            url.searchParams.set("knowledgePath", scope.path ?? "");
           else url.searchParams.delete("knowledgePath");
-          if (scope.kind === "note") url.searchParams.set("knowledgeNote", scope.noteId ?? "");
+          if (scope.kind === "note")
+            url.searchParams.set("knowledgeNote", scope.noteId ?? "");
           else url.searchParams.delete("knowledgeNote");
           history.pushState({}, "", url);
         },
         openKnowledgeOverlap(scope = { kind: "library" }) {
-          setOverlapScope(scope); setNav("knowledge-overlap"); setActive(null);
-          const url = new URL(location.href); url.searchParams.set("view", "knowledge-overlap"); url.searchParams.set("overlapKind", scope.kind); url.searchParams.delete("note");
-          if (scope.kind === "project") url.searchParams.set("overlapPath", scope.path ?? ""); else url.searchParams.delete("overlapPath");
-          if (scope.kind === "note") url.searchParams.set("overlapNote", scope.noteId ?? ""); else url.searchParams.delete("overlapNote");
+          setOverlapScope(scope);
+          setSearchOpen(false);
+          setNav("knowledge-overlap");
+          setActive(null);
+          const url = new URL(location.href);
+          url.searchParams.set("view", "knowledge-overlap");
+          url.searchParams.set("overlapKind", scope.kind);
+          url.searchParams.delete("note");
+          if (scope.kind === "project")
+            url.searchParams.set("overlapPath", scope.path ?? "");
+          else url.searchParams.delete("overlapPath");
+          if (scope.kind === "note")
+            url.searchParams.set("overlapNote", scope.noteId ?? "");
+          else url.searchParams.delete("overlapNote");
           history.pushState({}, "", url);
         },
         openLinkOpportunities(scope = { kind: "library" }) {
-          setLinkScope(scope); setNav("link-opportunities"); setActive(null);
-          const url = new URL(location.href); url.searchParams.set("view", "link-opportunities"); url.searchParams.set("linkKind", scope.kind); url.searchParams.delete("note");
-          if (scope.kind === "project") url.searchParams.set("linkPath", scope.path ?? ""); else url.searchParams.delete("linkPath");
-          if (scope.kind === "note") url.searchParams.set("linkNote", scope.noteId ?? ""); else url.searchParams.delete("linkNote");
+          setLinkScope(scope);
+          setSearchOpen(false);
+          setNav("link-opportunities");
+          setActive(null);
+          const url = new URL(location.href);
+          url.searchParams.set("view", "link-opportunities");
+          url.searchParams.set("linkKind", scope.kind);
+          url.searchParams.delete("note");
+          if (scope.kind === "project")
+            url.searchParams.set("linkPath", scope.path ?? "");
+          else url.searchParams.delete("linkPath");
+          if (scope.kind === "note")
+            url.searchParams.set("linkNote", scope.noteId ?? "");
+          else url.searchParams.delete("linkNote");
           history.pushState({}, "", url);
         },
         openConcept(identity = "") {
-          setConceptIdentity(identity.trim()); setNav("concepts"); setActive(null);
-          const url = new URL(location.href); url.searchParams.set("view", "concepts"); url.searchParams.delete("note");
-          if (identity.trim()) url.searchParams.set("concept", identity.trim()); else url.searchParams.delete("concept");
+          setConceptIdentity(identity.trim());
+          setSearchOpen(false);
+          setNav("concepts");
+          setActive(null);
+          const url = new URL(location.href);
+          url.searchParams.set("view", "concepts");
+          url.searchParams.delete("note");
+          if (identity.trim()) url.searchParams.set("concept", identity.trim());
+          else url.searchParams.delete("concept");
           history.pushState({}, "", url);
         },
         openLibraryHealth(filters = { status: "open" }) {
-          const next = { status: "open" as const, ...filters }; setHealthFilters(next); setNav("library-health"); setActive(null);
-          const url = new URL(location.href); url.searchParams.set("view", "library-health"); url.searchParams.delete("note");
-          const values: Array<[string, string | undefined]> = [["healthStatus", next.status], ["healthCategory", next.category], ["healthPriority", next.priority], ["healthProject", next.project], ["healthConcept", next.concept], ["healthNote", next.noteId]];
-          for (const [key, value] of values) if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
+          const next = { status: "open" as const, ...filters };
+          setHealthFilters(next);
+          setSearchOpen(false);
+          setNav("library-health");
+          setActive(null);
+          const url = new URL(location.href);
+          url.searchParams.set("view", "library-health");
+          url.searchParams.delete("note");
+          const values: Array<[string, string | undefined]> = [
+            ["healthStatus", next.status],
+            ["healthCategory", next.category],
+            ["healthPriority", next.priority],
+            ["healthProject", next.project],
+            ["healthConcept", next.concept],
+            ["healthNote", next.noteId],
+          ];
+          for (const [key, value] of values)
+            if (value) url.searchParams.set(key, value);
+            else url.searchParams.delete(key);
           history.pushState({}, "", url);
         },
         openKnowledgeGaps(filters = { status: "open" }) {
-          const next = { status: "open" as const, ...filters }; setGapFilters(next); setNav("knowledge-gaps"); setActive(null);
-          const url = new URL(location.href); url.searchParams.set("view", "knowledge-gaps"); url.searchParams.delete("note");
-          const values: Array<[string, string | undefined]> = [["gapStatus", next.status], ["gapKind", next.kind], ["gapImportance", next.importance], ["gapProject", next.project], ["gapConcept", next.concept], ["gapSelected", next.selected]];
-          for (const [key, value] of values) if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
+          const next = { status: "open" as const, ...filters };
+          setGapFilters(next);
+          setSearchOpen(false);
+          setNav("knowledge-gaps");
+          setActive(null);
+          const url = new URL(location.href);
+          url.searchParams.set("view", "knowledge-gaps");
+          url.searchParams.delete("note");
+          const values: Array<[string, string | undefined]> = [
+            ["gapStatus", next.status],
+            ["gapKind", next.kind],
+            ["gapImportance", next.importance],
+            ["gapProject", next.project],
+            ["gapConcept", next.concept],
+            ["gapSelected", next.selected],
+          ];
+          for (const [key, value] of values)
+            if (value) url.searchParams.set(key, value);
+            else url.searchParams.delete(key);
           history.pushState({}, "", url);
         },
         setQuery(q) {
@@ -414,11 +568,13 @@ export function WorkspaceProvider({
           if (!value) {
             setCommandInitialQuery("");
             const target = commandReturnFocus.current;
-            if (target?.isConnected) requestAnimationFrame(() => target.focus());
+            if (target?.isConnected)
+              requestAnimationFrame(() => target.focus());
           }
         },
         openCommandCenter(initial = "") {
-          commandReturnFocus.current = document.activeElement as HTMLElement | null;
+          commandReturnFocus.current =
+            document.activeElement as HTMLElement | null;
           setCommandInitialQuery(initial);
           setSearchOpen(true);
         },

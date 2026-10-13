@@ -39,7 +39,8 @@ test("opens project evolution from Project Brain", async ({ page }) => {
 
 test("search results expose a scoped evolution action", async ({ page }) => {
   const state = await mockSlate(page); await connect(page);
-  await page.getByRole("button", { name: "Search", exact: true }).first().click();
+  await page.getByRole("button", { name: "Search your library" }).click();
+  await page.getByRole("button", { name: "Filters & saved searches" }).click();
   await page.getByLabel("Search library").fill("architecture");
   await page.getByRole("button", { name: "Trace evolution of Library architecture" }).click();
   await expect(page.getByRole("heading", { name: "Library architecture", exact: true })).toBeVisible();

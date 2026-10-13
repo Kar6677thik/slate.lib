@@ -44,8 +44,11 @@ Optional real integration is **read-only** and skipped unless `SLATE_TEST_SERVER
 
 ## Workspace
 
-- Desktop: resizable navigation, document and details panes; UUID tabs; light/dark/system themes.
-- Mobile: full-page notes, bottom navigation and sheets for library, details, settings and actions.
+- Tabs sit at the top edge on every screen, with a close action for each note and horizontal scrolling when needed. Desktop keeps a Workspace tab; phones prioritize the open notes.
+- One search icon opens a floating window. Ctrl/Cmd+K also opens it; filters, pagination, and saved searches stay inside that window.
+- Desktop: resizable library and document panes; optional details pane; light/dark/system themes. Workspace menu contains settings, theme, and less frequent actions.
+- Mobile: full-page notes, three core navigation destinations, capture, and an optional AI menu. Library and document details open in dismissible sheets.
+- The AI switch is a persistent browser preference. Turning it off hides intelligence commands and suggestions, uses keyword search, and skips automatic client analysis requests. It does not change server indexing or other clients.
 - Editing: CodeMirror, Write/Read/Split, formatting, paste/drop/file uploads, explicit revision-protected saves.
 - Reading: GFM, tables/tasks, syntax-highlighted code, callouts, math, diagrams, links and authenticated assets. Arbitrary HTML and external images are not loaded.
 - Library: lazy paged folders, create/rename/move/copy/duplicate/delete, search, Inbox and capped local Recent.

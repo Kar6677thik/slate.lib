@@ -29,8 +29,10 @@ test("smart views, rediscovery, daily notes and related knowledge use canonical 
     window.history.replaceState({}, "", `/?note=${noteId}`);
   }, first);
   await page.reload();
+  if (!(await page.getByRole("button", { name: "Related notes", exact: true }).isVisible())) await page.getByRole("button", { name: "Toggle details" }).click();
   await page.getByRole("button", { name: "Related notes" }).click();
   await expect(page.getByText("Links to this note")).toBeVisible();
+  if (!(await page.getByRole("button", { name: "Note graph", exact: true }).isVisible())) await page.getByRole("button", { name: "Toggle details" }).click();
   await page.getByRole("button", { name: "Note graph" }).click();
   await expect(
     page.getByRole("button", { name: /Reading list Research\/Reading list\.md/ }),

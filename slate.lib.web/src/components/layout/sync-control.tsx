@@ -4,11 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Check, CloudOff } from "lucide-react";
 import { useApi } from "@/lib/auth/context";
 import { syncLabel } from "@/features/git/state";
-import {
-  IconButton,
-  Modal,
-  ErrorMessage,
-} from "@/components/common/primitives";
+import { Modal, ErrorMessage } from "@/components/common/primitives";
 import { Button } from "@/components/ui/button";
 export function SyncControl() {
   const api = useApi(),
@@ -47,7 +43,11 @@ export function SyncControl() {
   return (
     <>
       <div className="sync-control">
-        <button className="sync-label" onClick={() => setOpen(true)}>
+        <button
+          className="sync-label"
+          aria-label={`Library sync: ${label}`}
+          onClick={() => setOpen(true)}
+        >
           {q.error ? (
             <CloudOff size={13} />
           ) : busy ? (
@@ -57,9 +57,6 @@ export function SyncControl() {
           )}
           <span>{label}</span>
         </button>
-        <IconButton label="Sync library" disabled={busy} onClick={sync}>
-          <RefreshCw size={16} className={busy ? "spin" : ""} />
-        </IconButton>
       </div>
       <Modal
         open={open}

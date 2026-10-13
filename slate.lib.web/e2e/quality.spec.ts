@@ -12,10 +12,12 @@ test("accessible connection, reader, dark theme and settings", async ({
   await openNote(page);
   await expect(page.getByRole("article")).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-  await page.getByRole("button", { name: "Change theme" }).click();
+  await page.getByRole("button", { name: "Workspace menu" }).click();
+  await page.getByRole("menuitem", { name: "Change theme", exact: true }).click();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: "output/playwright/workspace-dark.png" });
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Workspace menu" }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: "output/playwright/settings-dark.png" });
 });
@@ -192,9 +194,11 @@ test("a failed background refresh keeps the open editor and its unsaved text", a
       ? route.fulfill({ status: 503 })
       : route.fallback(),
   );
-  await page.getByRole("button", { name: "Sync library", exact: true }).click();
+  await page.getByRole("button", { name: /^Library sync:/ }).click();
+  await page.getByRole("button", { name: "Sync now", exact: true }).click();
   await expect(
     page.getByRole("alert").filter({ hasText: "could not complete" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Close dialog" }).click();
   await expect(editor).toContainText("Keep this editor open");
 });

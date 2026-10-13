@@ -2,32 +2,104 @@
 import { useAuth } from "@/lib/auth/context";
 import { ConnectionScreen } from "./connection";
 import { Loading } from "@/components/common/primitives";
-import { SearchPage } from "@/components/search/search";
+import { useEffect } from "react";
+import dynamic from "next/dynamic";
+import { usePreferences } from "@/lib/storage/preferences";
 import { SyncControl } from "./sync-control";
-import { DetailsRail } from "@/components/links/details-rail";
-import { OperationDialog } from "@/components/library/operation-dialog";
-import { Capture } from "@/components/capture/capture";
+const DetailsRail = dynamic(
+  () =>
+    import("@/components/links/details-rail").then(
+      (module) => module.DetailsRail,
+    ),
+  { loading: () => <Loading /> },
+);
+const OperationDialog = dynamic(
+  () =>
+    import("@/components/library/operation-dialog").then(
+      (module) => module.OperationDialog,
+    ),
+  { loading: () => <Loading /> },
+);
+const Capture = dynamic(
+  () => import("@/components/capture/capture").then((module) => module.Capture),
+  { loading: () => <Loading /> },
+);
 import { DestinationPage } from "@/components/library/destinations";
 import { useShortcuts } from "@/hooks/use-shortcuts";
-import { Shell } from "./shell";
+import { Shell, intelligenceDestinations } from "./shell";
 import { useQuery } from "@tanstack/react-query";
 import {
   WorkspaceProvider,
   useWorkspace,
 } from "@/features/notes/workspace-context";
 import { Explorer } from "@/components/library/explorer";
-import { Document, Tabs } from "@/components/editor/document";
+import { Document } from "@/components/editor/document";
 import { ErrorMessage } from "@/components/common/primitives";
 import { CommandRuntimeProvider } from "@/features/commands/runtime";
-import { CommandCenter } from "@/features/commands/command-center";
-import { ProjectBrain } from "@/components/project/project-brain";
-import { EvolutionWorkspace } from "@/components/evolution/evolution-workspace";
-import { KnowledgeIssuesWorkspace } from "@/components/knowledge/knowledge-issues-workspace";
-import { OverlapWorkspace } from "@/components/overlap/overlap-workspace";
-import { LinkOpportunitiesWorkspace } from "@/components/links/link-opportunities";
-import { ConceptWorkspace } from "@/components/concepts/concept-workspace";
-import { LibraryHealthWorkspace } from "@/components/health/library-health";
-import { KnowledgeGapsWorkspace } from "@/components/gaps/knowledge-gaps";
+const CommandCenter = dynamic(
+  () =>
+    import("@/features/commands/command-center").then(
+      (module) => module.CommandCenter,
+    ),
+  { loading: () => <Loading /> },
+);
+const ProjectBrain = dynamic(
+  () =>
+    import("@/components/project/project-brain").then(
+      (module) => module.ProjectBrain,
+    ),
+  { loading: () => <Loading /> },
+);
+const EvolutionWorkspace = dynamic(
+  () =>
+    import("@/components/evolution/evolution-workspace").then(
+      (module) => module.EvolutionWorkspace,
+    ),
+  { loading: () => <Loading /> },
+);
+const KnowledgeIssuesWorkspace = dynamic(
+  () =>
+    import("@/components/knowledge/knowledge-issues-workspace").then(
+      (module) => module.KnowledgeIssuesWorkspace,
+    ),
+  { loading: () => <Loading /> },
+);
+const OverlapWorkspace = dynamic(
+  () =>
+    import("@/components/overlap/overlap-workspace").then(
+      (module) => module.OverlapWorkspace,
+    ),
+  { loading: () => <Loading /> },
+);
+const LinkOpportunitiesWorkspace = dynamic(
+  () =>
+    import("@/components/links/link-opportunities").then(
+      (module) => module.LinkOpportunitiesWorkspace,
+    ),
+  { loading: () => <Loading /> },
+);
+const ConceptWorkspace = dynamic(
+  () =>
+    import("@/components/concepts/concept-workspace").then(
+      (module) => module.ConceptWorkspace,
+    ),
+  { loading: () => <Loading /> },
+);
+const LibraryHealthWorkspace = dynamic(
+  () =>
+    import("@/components/health/library-health").then(
+      (module) => module.LibraryHealthWorkspace,
+    ),
+  { loading: () => <Loading /> },
+);
+const KnowledgeGapsWorkspace = dynamic(
+  () =>
+    import("@/components/gaps/knowledge-gaps").then(
+      (module) => module.KnowledgeGapsWorkspace,
+    ),
+  { loading: () => <Loading /> },
+);
+import { FolderPicker } from "@/components/library/folder-picker";
 export function Workspace() {
   const { ready, api } = useAuth();
   if (!ready) return <Loading />;
@@ -61,6 +133,20 @@ function Connected() {
 }
 function LibraryWorkspace() {
   const w = useWorkspace();
+  const { prefs } = usePreferences();
+  useEffect(() => {
+    if (
+      !prefs.aiEnabled &&
+      !w.active &&
+      intelligenceDestinations.includes(w.nav)
+    )
+      w.navigate("library");
+    if (w.nav === "search") {
+      const query = w.query;
+      w.navigate("library");
+      w.openCommandCenter(query);
+    }
+  }, [prefs.aiEnabled, w]);
   useShortcuts();
   return (
     <Shell
@@ -73,33 +159,38 @@ function LibraryWorkspace() {
       onNew={() => w.setOperation({ kind: "create-note", folder: "" })}
       onCapture={() => w.setCaptureOpen(true)}
     >
-      <Tabs />
       {w.active ? (
         <Document key={w.active} id={w.active} />
-      ) : w.nav === "search" ? (
-        <SearchPage />
-      ) : w.nav === "project-brain" && w.projectPath ? (
+      ) : prefs.aiEnabled && w.nav === "project-brain" && w.projectPath ? (
         <ProjectBrain path={w.projectPath} initialSection={w.projectSection} />
-      ) : w.nav === "evolution" ? (
+      ) : prefs.aiEnabled && w.nav === "project-brain" ? (
+        <div className="view-body scroll-area">
+          <h1>Project Brain</h1>
+          <p className="muted">
+            Choose a project folder to review its notes, questions, and history.
+          </p>
+          <FolderPicker onSelect={(path) => path && w.openProjectBrain(path)} />
+        </div>
+      ) : prefs.aiEnabled && w.nav === "evolution" ? (
         <EvolutionWorkspace initialScope={w.evolutionScope} />
-      ) : w.nav === "knowledge-issues" ? (
+      ) : prefs.aiEnabled && w.nav === "knowledge-issues" ? (
         <KnowledgeIssuesWorkspace scope={w.knowledgeScope} />
-      ) : w.nav === "knowledge-overlap" ? (
+      ) : prefs.aiEnabled && w.nav === "knowledge-overlap" ? (
         <OverlapWorkspace scope={w.overlapScope} />
-      ) : w.nav === "link-opportunities" ? (
+      ) : prefs.aiEnabled && w.nav === "link-opportunities" ? (
         <LinkOpportunitiesWorkspace scope={w.linkScope} />
-      ) : w.nav === "concepts" ? (
+      ) : prefs.aiEnabled && w.nav === "concepts" ? (
         <ConceptWorkspace identity={w.conceptIdentity} />
-      ) : w.nav === "library-health" ? (
+      ) : prefs.aiEnabled && w.nav === "library-health" ? (
         <LibraryHealthWorkspace />
-      ) : w.nav === "knowledge-gaps" ? (
+      ) : prefs.aiEnabled && w.nav === "knowledge-gaps" ? (
         <KnowledgeGapsWorkspace />
       ) : (
         <DestinationPage key={w.nav} />
       )}
-      <CommandCenter />
-      <Capture />
-      <OperationDialog />
+      {w.searchOpen && <CommandCenter />}
+      {w.captureOpen && <Capture />}
+      {w.operation && <OperationDialog />}
     </Shell>
   );
 }

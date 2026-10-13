@@ -10,7 +10,6 @@ import {
   Folder,
   FolderOpen,
   FileText,
-  Plus,
   FolderPlus,
   RefreshCw,
   Star,
@@ -42,6 +41,7 @@ import { Modal } from "@/components/common/primitives";
 import { format } from "date-fns";
 import { BulkActions } from "./bulk-actions";
 import { useCommandRuntime } from "@/features/commands/runtime";
+import { usePreferences } from "@/lib/storage/preferences";
 
 type Selection = {
   paths: ReadonlySet<string>;
@@ -212,6 +212,7 @@ function FolderRow({
   );
 }
 export function Explorer() {
+  const { prefs } = usePreferences();
   const w = useWorkspace();
   const local = useWorkspacePreferences(w.scope);
   const [questionOpen, setQuestionOpen] = useState(false);
@@ -225,7 +226,8 @@ export function Explorer() {
   });
   const { register } = useCommandRuntime();
   useEffect(
-    () => register("explorer", { "create.question": () => setQuestionOpen(true) }),
+    () =>
+      register("explorer", { "create.question": () => setQuestionOpen(true) }),
     [register],
   );
   const api = useApi(),
@@ -274,7 +276,10 @@ export function Explorer() {
           >
             <CalendarDays size={15} />
           </IconButton>
-          <IconButton label="New question" onClick={() => setQuestionOpen(true)}>
+          <IconButton
+            label="New question"
+            onClick={() => setQuestionOpen(true)}
+          >
             <CircleHelp size={15} />
           </IconButton>
           <IconButton
@@ -301,12 +306,6 @@ export function Explorer() {
             }
           >
             <FolderPlus size={16} />
-          </IconButton>
-          <IconButton
-            label="New note"
-            onClick={() => w.setOperation({ kind: "create-note", folder: "" })}
-          >
-            <Plus size={17} />
           </IconButton>
         </div>
       </div>
@@ -393,12 +392,15 @@ export function Explorer() {
           </div>
         </details>
       )}
-      {local.preferences.projects.length > 0 && (
+      {prefs.aiEnabled && local.preferences.projects.length > 0 && (
         <details className="explorer-disclosure" open>
           <summary>Projects</summary>
           <div className="personal-nav" aria-label="Project roots">
             {local.preferences.projects.map((project) => (
-              <button key={project.path} onClick={() => w.openProjectBrain(project.path)}>
+              <button
+                key={project.path}
+                onClick={() => w.openProjectBrain(project.path)}
+              >
                 <BrainCircuit size={14} />
                 <span>{project.label}</span>
               </button>
@@ -521,7 +523,11 @@ export function Explorer() {
             />
           </label>
           <div className="dialog-actions">
-            <Button type="button" variant="outline" onClick={() => setQuestionOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setQuestionOpen(false)}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={createQuestion.isPending}>

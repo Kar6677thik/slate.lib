@@ -2,8 +2,9 @@ import { test, expect } from "@playwright/test";
 import { connect, first, mockSlate, openNote } from "./fixture";
 
 async function openSearch(page: import("@playwright/test").Page) {
-  await page.getByRole("button", { name: "Search", exact: true }).first().click();
-  await expect(page.getByRole("heading", { name: "Search", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Search your library" }).click();
+  await page.getByRole("button", { name: "Filters & saved searches" }).click();
+  await expect(page.getByLabel("Search library", { exact: true })).toBeVisible();
 }
 
 test("keyword mode returns an exact title match", async ({ page }) => {
@@ -72,7 +73,8 @@ test("provider outage visibly falls back to keyword search", async ({ page }) =>
 
 test("settings reports the derived index and confirms rebuild", async ({ page }) => {
   await mockSlate(page); await connect(page);
-  await page.getByRole("button", { name: "Settings" }).first().click();
+  await page.getByRole("button", { name: "Workspace menu" }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   await expect(page.getByText("fixture · fixture-v1")).toBeVisible();
   await page.getByRole("button", { name: "Rebuild derived index" }).click();
   await page.getByRole("button", { name: "Confirm rebuild" }).click();

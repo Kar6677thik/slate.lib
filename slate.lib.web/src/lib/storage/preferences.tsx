@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 type Preferences = {
+  aiEnabled: boolean;
   fontSize: number;
   lineNumbers: boolean;
   wrap: boolean;
@@ -14,6 +15,7 @@ type Preferences = {
   width: number;
 };
 const defaults: Preferences = {
+  aiEnabled: true,
   fontSize: 15,
   lineNumbers: true,
   wrap: true,
@@ -30,6 +32,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     try {
       const p = JSON.parse(localStorage.getItem("slate.preferences") ?? "{}");
       setPrefs({
+        aiEnabled: p.aiEnabled !== false,
         fontSize: Math.min(22, Math.max(12, Number(p.fontSize) || 15)),
         lineNumbers: p.lineNumbers !== false,
         wrap: p.wrap !== false,

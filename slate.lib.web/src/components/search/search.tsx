@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useApi } from "@/lib/auth/context";
 import { useWorkspace } from "@/features/notes/workspace-context";
+import { usePreferences } from "@/lib/storage/preferences";
 import { useDebounce } from "@/hooks/use-debounce";
 import {
   Modal,
@@ -20,7 +21,11 @@ import {
 } from "@/components/common/primitives";
 import { Button } from "@/components/ui/button";
 import { useWorkspacePreferences } from "@/lib/storage/workspace-preferences";
-import type { HybridSearchHit, HybridSearchPage, SearchMode } from "@/lib/api/contracts";
+import type {
+  HybridSearchHit,
+  HybridSearchPage,
+  SearchMode,
+} from "@/lib/api/contracts";
 
 export function setSearchFilter(query: string, key: string, value: string) {
   const pattern = new RegExp(`(?:^|\\s)${key}:(?:"[^"]*"|\\S+)`, "gi");
@@ -31,22 +36,42 @@ export function setSearchFilter(query: string, key: string, value: string) {
   return `${base} ${key}:${formatted}`.trim();
 }
 export function searchFilterChips(query: string) {
-  return [...query.matchAll(/(?:^|\s)([a-z][\w-]*):(?:"([^"]*)"|(\S+))/gi)].map((match) => ({ key: match[1].toLowerCase(), value: match[2] ?? match[3] }));
+  return [...query.matchAll(/(?:^|\s)([a-z][\w-]*):(?:"([^"]*)"|(\S+))/gi)].map(
+    (match) => ({ key: match[1].toLowerCase(), value: match[2] ?? match[3] }),
+  );
 }
-export function SearchResults({ query, mode = "hybrid" }: { query: string; mode?: SearchMode }) {
+export function SearchResults({
+  query,
+  mode = "hybrid",
+}: {
+  query: string;
+  mode?: SearchMode;
+}) {
+  const { prefs } = usePreferences();
   const api = useApi(),
     w = useWorkspace();
   const [page, setPage] = useState(0);
   const term = useDebounce(query);
   useEffect(() => setPage(0), [term]);
   const q = useQuery({
-    queryKey: ["search", term, page, mode],
+    queryKey: ["search", term, page, prefs.aiEnabled ? mode : "lexical"],
     queryFn: async ({ signal }) => {
-      if (mode === "lexical") return api.search(term, page, signal);
-      try { return await api.hybridSearch(term, mode, page, signal); }
-      catch {
+      if (!prefs.aiEnabled || mode === "lexical")
+        return api.search(term, page, signal);
+      try {
+        return await api.hybridSearch(term, mode, page, signal);
+      } catch {
         const lexical = await api.search(term, page, signal);
-        return { ...lexical, mode, effectiveMode: "lexical", degraded: "Meaning search is unavailable. Keyword results are shown.", results: lexical.results.map((hit) => ({ ...hit, match: "keyword" as const })) } satisfies HybridSearchPage;
+        return {
+          ...lexical,
+          mode,
+          effectiveMode: "lexical",
+          degraded: "Meaning search is unavailable. Keyword results are shown.",
+          results: lexical.results.map((hit) => ({
+            ...hit,
+            match: "keyword" as const,
+          })),
+        } satisfies HybridSearchPage;
       }
     },
     enabled: !!term.trim(),
@@ -64,9 +89,18 @@ export function SearchResults({ query, mode = "hybrid" }: { query: string; mode?
   return (
     <>
       <div className="results-meta">
-        {q.data.total.toLocaleString()} results <span>{"effectiveMode" in q.data && q.data.effectiveMode !== "lexical" ? "Keyword and meaning relevance" : "Keyword relevance"}</span>
+        {q.data.total.toLocaleString()} results{" "}
+        <span>
+          {"effectiveMode" in q.data && q.data.effectiveMode !== "lexical"
+            ? "Keyword and meaning relevance"
+            : "Keyword relevance"}
+        </span>
       </div>
-      {"degraded" in q.data && q.data.degraded && <p className="search-degraded" role="status">{q.data.degraded}</p>}
+      {"degraded" in q.data && q.data.degraded && (
+        <p className="search-degraded" role="status">
+          {q.data.degraded}
+        </p>
+      )}
       <div
         className="results-list"
         role="list"
@@ -87,20 +121,43 @@ export function SearchResults({ query, mode = "hybrid" }: { query: string; mode?
       >
         {q.data.results.map((r) => {
           const hybrid = r as Partial<HybridSearchHit>;
-          return <div className="search-result-wrapper" role="listitem" key={r.id}>
-            <button className="result-row" onClick={() => w.open(r.id)}>
-              <FileText size={19} />
-              <div>
-                <strong>{r.title}</strong>
-                <span className="result-path">{r.path}</span>
-                {typeof hybrid.heading === "string" && hybrid.heading && <span className="result-heading">Under {hybrid.heading}</span>}
-                <p>{r.snippet.replace(/<[^>]*>/g, "")}</p>
-              </div>
-              {hybrid.match === "meaning" && <span className="meaning-match">Meaning match</span>}
-              <ArrowUpRight size={15} />
-            </button>
-            <button className="search-result-evolution" aria-label={`Trace evolution of ${r.title}`} onClick={() => w.openEvolution({ kind: "note", noteId: r.id, topic: query.trim() || undefined })}><History size={15} /><span>Evolution</span></button>
-          </div>;
+          return (
+            <div className="search-result-wrapper" role="listitem" key={r.id}>
+              <button className="result-row" onClick={() => w.open(r.id)}>
+                <FileText size={19} />
+                <div>
+                  <strong>{r.title}</strong>
+                  <span className="result-path">{r.path}</span>
+                  {typeof hybrid.heading === "string" && hybrid.heading && (
+                    <span className="result-heading">
+                      Under {hybrid.heading}
+                    </span>
+                  )}
+                  <p>{r.snippet.replace(/<[^>]*>/g, "")}</p>
+                </div>
+                {hybrid.match === "meaning" && (
+                  <span className="meaning-match">Meaning match</span>
+                )}
+                <ArrowUpRight size={15} />
+              </button>
+              {prefs.aiEnabled && (
+                <button
+                  className="search-result-evolution"
+                  aria-label={`Trace evolution of ${r.title}`}
+                  onClick={() =>
+                    w.openEvolution({
+                      kind: "note",
+                      noteId: r.id,
+                      topic: query.trim() || undefined,
+                    })
+                  }
+                >
+                  <History size={15} />
+                  <span>Evolution</span>
+                </button>
+              )}
+            </div>
+          );
         })}
       </div>
       {q.data.total === 0 && (
@@ -132,6 +189,7 @@ export function SearchResults({ query, mode = "hybrid" }: { query: string; mode?
   );
 }
 export function SearchPage() {
+  const { prefs } = usePreferences();
   const w = useWorkspace();
   const local = useWorkspacePreferences(w.scope);
   const [saving, setSaving] = useState(false);
@@ -143,11 +201,32 @@ export function SearchPage() {
       <div className="view-header">
         <p className="eyebrow">ALL NOTES</p>
         <h1>Search</h1>
-        <div className="search-modes" role="radiogroup" aria-label="Search mode">
-          {([ ["hybrid", "All"], ["lexical", "Keyword"], ["semantic", "Meaning"] ] as const).map(([value, label]) => (
-            <button key={value} type="button" role="radio" aria-checked={mode === value} className={mode === value ? "active" : ""} onClick={() => setMode(value)}>{label}</button>
-          ))}
-        </div>
+        {prefs.aiEnabled && (
+          <div
+            className="search-modes"
+            role="radiogroup"
+            aria-label="Search mode"
+          >
+            {(
+              [
+                ["hybrid", "All"],
+                ["lexical", "Keyword"],
+                ["semantic", "Meaning"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={mode === value}
+                className={mode === value ? "active" : ""}
+                onClick={() => setMode(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="search-field">
           <Search size={18} />
           <input
@@ -160,7 +239,11 @@ export function SearchPage() {
         </div>
         {w.query.trim() && (
           <div className="search-actions">
-            <Button variant="ghost" size="sm" onClick={() => setFilters((value) => !value)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setFilters((value) => !value)}
+            >
               <SlidersHorizontal size={15} />
               Filters
             </Button>
@@ -178,10 +261,22 @@ export function SearchPage() {
           </div>
         )}
         {searchFilterChips(w.query).length > 0 && (
-          <div className="search-filter-chips" aria-label="Active search filters">
+          <div
+            className="search-filter-chips"
+            aria-label="Active search filters"
+          >
             {searchFilterChips(w.query).map((filter) => (
-              <button type="button" key={`${filter.key}:${filter.value}`} onClick={() => w.setQuery(setSearchFilter(w.query, filter.key, ""))} aria-label={`Remove ${filter.key} filter`}>
-                <span>{filter.key}</span>{filter.value}<strong aria-hidden="true">×</strong>
+              <button
+                type="button"
+                key={`${filter.key}:${filter.value}`}
+                onClick={() =>
+                  w.setQuery(setSearchFilter(w.query, filter.key, ""))
+                }
+                aria-label={`Remove ${filter.key} filter`}
+              >
+                <span>{filter.key}</span>
+                {filter.value}
+                <strong aria-hidden="true">×</strong>
               </button>
             ))}
           </div>
@@ -190,7 +285,14 @@ export function SearchPage() {
           <div className="search-filters">
             <label>
               Type
-              <select onChange={(event) => w.setQuery(setSearchFilter(w.query, "type", event.target.value))} defaultValue="">
+              <select
+                onChange={(event) =>
+                  w.setQuery(
+                    setSearchFilter(w.query, "type", event.target.value),
+                  )
+                }
+                defaultValue=""
+              >
                 <option value="">Any</option>
                 <option value="question">Question</option>
                 <option value="link">Link</option>
@@ -199,7 +301,14 @@ export function SearchPage() {
             </label>
             <label>
               Status
-              <select onChange={(event) => w.setQuery(setSearchFilter(w.query, "status", event.target.value))} defaultValue="">
+              <select
+                onChange={(event) =>
+                  w.setQuery(
+                    setSearchFilter(w.query, "status", event.target.value),
+                  )
+                }
+                defaultValue=""
+              >
                 <option value="">Any</option>
                 <option value="open">Open</option>
                 <option value="answered">Answered</option>
@@ -209,7 +318,14 @@ export function SearchPage() {
             </label>
             <label>
               Contains
-              <select onChange={(event) => w.setQuery(setSearchFilter(w.query, "has", event.target.value))} defaultValue="">
+              <select
+                onChange={(event) =>
+                  w.setQuery(
+                    setSearchFilter(w.query, "has", event.target.value),
+                  )
+                }
+                defaultValue=""
+              >
                 <option value="">Anything</option>
                 <option value="code">Code</option>
                 <option value="diagram">Diagram</option>
@@ -222,10 +338,20 @@ export function SearchPage() {
               Tags
               <input
                 placeholder="research"
-                onBlur={(event) => w.setQuery(setSearchFilter(w.query, "tag", event.target.value))}
+                onBlur={(event) =>
+                  w.setQuery(
+                    setSearchFilter(w.query, "tag", event.target.value),
+                  )
+                }
                 onKeyDown={(event) => {
                   if (event.key === "Enter")
-                    w.setQuery(setSearchFilter(w.query, "tag", event.currentTarget.value));
+                    w.setQuery(
+                      setSearchFilter(
+                        w.query,
+                        "tag",
+                        event.currentTarget.value,
+                      ),
+                    );
                 }}
               />
             </label>
@@ -233,10 +359,20 @@ export function SearchPage() {
               Folder
               <input
                 placeholder="projects/slate"
-                onBlur={(event) => w.setQuery(setSearchFilter(w.query, "path", event.target.value))}
+                onBlur={(event) =>
+                  w.setQuery(
+                    setSearchFilter(w.query, "path", event.target.value),
+                  )
+                }
                 onKeyDown={(event) => {
                   if (event.key === "Enter")
-                    w.setQuery(setSearchFilter(w.query, "path", event.currentTarget.value));
+                    w.setQuery(
+                      setSearchFilter(
+                        w.query,
+                        "path",
+                        event.currentTarget.value,
+                      ),
+                    );
                 }}
               />
             </label>
@@ -245,7 +381,11 @@ export function SearchPage() {
               <input
                 type="date"
                 aria-label="Modified date filter"
-                onChange={(event) => w.setQuery(setSearchFilter(w.query, "modified", event.target.value))}
+                onChange={(event) =>
+                  w.setQuery(
+                    setSearchFilter(w.query, "modified", event.target.value),
+                  )
+                }
               />
             </label>
           </div>
@@ -283,7 +423,11 @@ export function SearchPage() {
             />
           </label>
           <div className="dialog-actions">
-            <Button type="button" variant="outline" onClick={() => setSaving(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSaving(false)}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={!name.trim()}>

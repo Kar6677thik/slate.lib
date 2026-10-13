@@ -57,7 +57,10 @@ import { WikiExportDialog } from "@/components/links/wiki-export-dialog";
 import { useCommandRuntime } from "@/features/commands/runtime";
 import { openAskSlate } from "@/components/ask/ask-slate";
 import { LinkOpportunityList } from "@/components/links/link-opportunities";
-import { applyLinkSuggestionDraft, type LinkSuggestion } from "@/lib/intelligence/smart-links";
+import {
+  applyLinkSuggestionDraft,
+  type LinkSuggestion,
+} from "@/lib/intelligence/smart-links";
 const Editor = dynamic(() => import("./codemirror"), {
   ssr: false,
   loading: () => <Loading label="Loading editor…" />,
@@ -67,12 +70,36 @@ export function NoteWorkbench({ note }: { note: Note }) {
     cache = useQueryClient(),
     w = useWorkspace();
   const { prefs } = usePreferences();
-  const issueQuery = useQuery({ queryKey: ["knowledge-issues", { kind: "note", noteId: note.id }], queryFn: ({ signal }) => api.knowledgeIssues({ kind: "note", noteId: note.id }, signal), staleTime: 60_000 });
-  const issueCount = issueQuery.data?.issues.filter((issue) => issue.state === "open").length ?? 0;
-  const overlapQuery = useQuery({ queryKey: ["knowledge-overlap", { kind: "note", noteId: note.id }], queryFn: ({ signal }) => api.knowledgeOverlap({ kind: "note", noteId: note.id }, signal), staleTime: 60_000 });
-  const overlapCount = overlapQuery.data?.findings.filter((item) => item.state === "open").length ?? 0;
-  const linkQuery = useQuery({ queryKey: ["link-opportunities", { kind: "note", noteId: note.id }], queryFn: ({ signal }) => api.linkOpportunities({ kind: "note", noteId: note.id }, signal), staleTime: 60_000 });
-  const linkCount = linkQuery.data?.suggestions.filter((item) => item.status === "open").length ?? 0;
+  const issueQuery = useQuery({
+    queryKey: ["knowledge-issues", { kind: "note", noteId: note.id }],
+    queryFn: ({ signal }) =>
+      api.knowledgeIssues({ kind: "note", noteId: note.id }, signal),
+    staleTime: 60_000,
+    enabled: prefs.aiEnabled,
+  });
+  const issueCount =
+    issueQuery.data?.issues.filter((issue) => issue.state === "open").length ??
+    0;
+  const overlapQuery = useQuery({
+    queryKey: ["knowledge-overlap", { kind: "note", noteId: note.id }],
+    queryFn: ({ signal }) =>
+      api.knowledgeOverlap({ kind: "note", noteId: note.id }, signal),
+    staleTime: 60_000,
+    enabled: prefs.aiEnabled,
+  });
+  const overlapCount =
+    overlapQuery.data?.findings.filter((item) => item.state === "open")
+      .length ?? 0;
+  const linkQuery = useQuery({
+    queryKey: ["link-opportunities", { kind: "note", noteId: note.id }],
+    queryFn: ({ signal }) =>
+      api.linkOpportunities({ kind: "note", noteId: note.id }, signal),
+    staleTime: 60_000,
+    enabled: prefs.aiEnabled,
+  });
+  const linkCount =
+    linkQuery.data?.suggestions.filter((item) => item.status === "open")
+      .length ?? 0;
   const { update } = w;
   const [base, setBase] = useState(note),
     [source, setSource] = useState(note.markdown),
@@ -102,10 +129,19 @@ export function NoteWorkbench({ note }: { note: Note }) {
   const answered = /^status:\s*["']?answered["']?\s*$/im.test(base.markdown);
   const preview = useDeferredValue(source);
   const askSelection = useCallback(() => {
+    if (!prefs.aiEnabled) return;
     const view = editor.current;
-    const selection = view ? view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to) : window.getSelection()?.toString() ?? "";
-    openAskSlate({ scope: "note", selectedText: selection.trim().slice(0, 4_000) || undefined });
-  }, []);
+    const selection = view
+      ? view.state.sliceDoc(
+          view.state.selection.main.from,
+          view.state.selection.main.to,
+        )
+      : (window.getSelection()?.toString() ?? "");
+    openAskSlate({
+      scope: "note",
+      selectedText: selection.trim().slice(0, 4_000) || undefined,
+    });
+  }, [prefs.aiEnabled]);
   const [uploading, setUploading] = useState(false);
   const uploadIds = useRef(new WeakMap<File, string>());
   useEffect(() => {
@@ -209,21 +245,44 @@ export function NoteWorkbench({ note }: { note: Note }) {
         requestAnimationFrame(() => editor.current?.focus());
       },
       "document.ask-selection": askSelection,
-      "document.link-opportunities": () => { setLinkPanelOpen(true); void linkQuery.refetch(); },
+      "document.link-opportunities": () => {
+        setLinkPanelOpen(true);
+        void linkQuery.refetch();
+      },
     };
     if (questionNote && !answered && !dirty && !saving)
       actions["document.answer-question"] = () => setAnswerOpen(true);
     return register(`note:${note.id}`, actions);
-  }, [answered, askSelection, dirty, linkQuery, note.id, questionNote, register, saving]);
-  const insertSuggestedLink = useCallback((suggestion: LinkSuggestion) => {
-    const current = editor.current?.state.doc.toString() ?? source;
-    const result = applyLinkSuggestionDraft(current, base.revision, suggestion);
-    if (!result.ok) return result.reason;
-    setMode("write");
-    if (editor.current) editor.current.dispatch({ changes: { from: result.from, to: result.to, insert: result.insert }, selection: { anchor: result.from + result.insert.length } });
-    else change(result.markdown);
-    return null;
-  }, [base.revision, change, source]);
+  }, [
+    answered,
+    askSelection,
+    dirty,
+    linkQuery,
+    note.id,
+    questionNote,
+    register,
+    saving,
+  ]);
+  const insertSuggestedLink = useCallback(
+    (suggestion: LinkSuggestion) => {
+      const current = editor.current?.state.doc.toString() ?? source;
+      const result = applyLinkSuggestionDraft(
+        current,
+        base.revision,
+        suggestion,
+      );
+      if (!result.ok) return result.reason;
+      setMode("write");
+      if (editor.current)
+        editor.current.dispatch({
+          changes: { from: result.from, to: result.to, insert: result.insert },
+          selection: { anchor: result.from + result.insert.length },
+        });
+      else change(result.markdown);
+      return null;
+    },
+    [base.revision, change, source],
+  );
   async function upload(files: File[]) {
     if (uploading || saving || !checked || recovery) return;
     setUploading(true);
@@ -291,7 +350,6 @@ export function NoteWorkbench({ note }: { note: Note }) {
             <h1>{note.title}</h1>
           </div>
           <div className="note-heading-actions">
-            {linkCount > 0 && <button className="note-link-mobile" onClick={() => setLinkPanelOpen(true)} aria-label={`${linkCount} link opportunit${linkCount === 1 ? "y" : "ies"} for this note`}><Link2 size={16} /><span>{linkCount}</span></button>}
             <ItemMenu
               entry={{
                 name: note.path.split("/").at(-1)!,
@@ -346,21 +404,53 @@ export function NoteWorkbench({ note }: { note: Note }) {
             <MessageCircleQuestion size={17} />
           </IconButton>
         )}
-        <IconButton
-          label="Ask about selection"
-          onClick={askSelection}
-        >
-          <MessageCircleQuestion size={17} />
-        </IconButton>
-        <IconButton
-          label="Evolution of this note"
-          onClick={() => w.openEvolution({ kind: "note", noteId: note.id })}
-        >
-          <History size={17} />
-        </IconButton>
-        {issueCount > 0 && <button className="note-issue-indicator" onClick={() => w.openKnowledgeIssues({ kind: "note", noteId: note.id })} aria-label={`${issueCount} knowledge issue${issueCount === 1 ? "" : "s"} for this note`}><ShieldQuestion size={15} />{issueCount} knowledge issue{issueCount === 1 ? "" : "s"}</button>}
-        {overlapCount > 0 && <button className="note-issue-indicator" onClick={() => w.openKnowledgeOverlap({ kind: "note", noteId: note.id })} aria-label={`${overlapCount} overlap suggestion${overlapCount === 1 ? "" : "s"} for this note`}><Layers3 size={15} />{overlapCount} overlap</button>}
-        {linkCount > 0 && <button className="note-issue-indicator" onClick={() => setLinkPanelOpen(true)} aria-label={`${linkCount} link opportunit${linkCount === 1 ? "y" : "ies"} for this note`}><Link2 size={15} />Links · {linkCount}</button>}
+        {prefs.aiEnabled && (
+          <>
+            <IconButton label="Ask about selection" onClick={askSelection}>
+              <MessageCircleQuestion size={17} />
+            </IconButton>
+            <IconButton
+              label="Evolution of this note"
+              onClick={() => w.openEvolution({ kind: "note", noteId: note.id })}
+            >
+              <History size={17} />
+            </IconButton>
+            {prefs.aiEnabled && issueCount > 0 && (
+              <button
+                className="note-issue-indicator"
+                onClick={() =>
+                  w.openKnowledgeIssues({ kind: "note", noteId: note.id })
+                }
+                aria-label={`${issueCount} knowledge issue${issueCount === 1 ? "" : "s"} for this note`}
+              >
+                <ShieldQuestion size={15} />
+                {issueCount} knowledge issue{issueCount === 1 ? "" : "s"}
+              </button>
+            )}
+            {prefs.aiEnabled && overlapCount > 0 && (
+              <button
+                className="note-issue-indicator"
+                onClick={() =>
+                  w.openKnowledgeOverlap({ kind: "note", noteId: note.id })
+                }
+                aria-label={`${overlapCount} overlap suggestion${overlapCount === 1 ? "" : "s"} for this note`}
+              >
+                <Layers3 size={15} />
+                {overlapCount} overlap
+              </button>
+            )}
+            {prefs.aiEnabled && linkCount > 0 && (
+              <button
+                className="note-issue-indicator note-link-control"
+                onClick={() => setLinkPanelOpen(true)}
+                aria-label={`${linkCount} link opportunit${linkCount === 1 ? "y" : "ies"} for this note`}
+              >
+                <Link2 size={15} />
+                Links · {linkCount}
+              </button>
+            )}
+          </>
+        )}
         <IconButton
           label="Export wiki links"
           disabled={dirty || saving}
@@ -528,7 +618,11 @@ export function NoteWorkbench({ note }: { note: Note }) {
             />
           </label>
           <div className="dialog-actions">
-            <Button type="button" variant="outline" onClick={() => setAnswerOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAnswerOpen(false)}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={saving || !answer.trim()}>
@@ -552,8 +646,26 @@ export function NoteWorkbench({ note }: { note: Note }) {
           }}
         />
       )}
-      <Modal open={linkPanelOpen} onClose={() => setLinkPanelOpen(false)} title="Link opportunities" description="Insertions become unsaved editor changes. Save normally when you are ready.">
-        {linkQuery.isPending ? <Loading label="Checking this note for missing links…" /> : linkQuery.error ? <ErrorMessage error={linkQuery.error} retry={() => linkQuery.refetch()} /> : linkQuery.data ? <LinkOpportunityList snapshot={linkQuery.data} compact onInsert={insertSuggestedLink} /> : null}
+      <Modal
+        open={linkPanelOpen}
+        onClose={() => setLinkPanelOpen(false)}
+        title="Link opportunities"
+        description="Insertions become unsaved editor changes. Save normally when you are ready."
+      >
+        {linkQuery.isPending ? (
+          <Loading label="Checking this note for missing links…" />
+        ) : linkQuery.error ? (
+          <ErrorMessage
+            error={linkQuery.error}
+            retry={() => linkQuery.refetch()}
+          />
+        ) : linkQuery.data ? (
+          <LinkOpportunityList
+            snapshot={linkQuery.data}
+            compact
+            onInsert={insertSuggestedLink}
+          />
+        ) : null}
       </Modal>
     </>
   );

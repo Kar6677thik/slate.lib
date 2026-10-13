@@ -23,7 +23,8 @@ test("opens Note A and Note B from comparison", async ({ page }) => {
   await openOverlap(page); let comparison = await compareFirst(page);
   await comparison.getByRole("button", { name: "Open full note" }).first().click();
   await expect(page.getByRole("heading", { name: "Library architecture", exact: true }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Knowledge Overlap", exact: true }).first().click(); comparison = await compareFirst(page);
+  await page.getByRole("button", { name: "AI tools" }).click();
+  await page.getByRole("menuitem", { name: "Knowledge Overlap", exact: true }).click(); comparison = await compareFirst(page);
   await comparison.getByRole("button", { name: "Open full note" }).nth(1).click();
   await expect(page.getByRole("heading", { name: "Reading list", exact: true }).first()).toBeVisible();
 });

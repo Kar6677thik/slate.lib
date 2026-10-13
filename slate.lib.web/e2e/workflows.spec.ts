@@ -30,6 +30,7 @@ test("connection, lazy folders, tabs, read, edit, save, search and history", asy
   await expect(
     page.getByRole("tab", { name: "Library architecture" }),
   ).toHaveCount(1);
+  if (!(await page.getByRole("button", { name: "History", exact: true }).isVisible())) await page.getByRole("button", { name: "Toggle details" }).click();
   await page.getByRole("button", { name: "History", exact: true }).click();
   await page
     .getByRole("button", { name: /Document library structure/ })
@@ -173,6 +174,7 @@ test("attachments upload, backlinks navigate, and sync runs", async ({
   await expect(
     page.getByRole("button", { name: /reference.txt/ }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Toggle details" }).click();
   await page
     .getByRole("button", {
       name: "Reading list Research/Reading list.md",
@@ -182,7 +184,8 @@ test("attachments upload, backlinks navigate, and sync runs", async ({
     .click();
   await expect(page.getByRole("tab", { name: "Reading list" })).toBeVisible();
   expect(page.url()).toContain(second);
-  await page.getByRole("button", { name: "Sync library", exact: true }).click();
+  await page.getByRole("button", { name: /^Library sync:/ }).click();
+  await page.getByRole("button", { name: "Sync now", exact: true }).click();
   await expect
     .poll(() => state.requests.some((r) => r.path === "v1/sync"))
     .toBe(true);
@@ -194,7 +197,8 @@ test("light defaults, dark preference persists, and recent opens the note", asyn
   await connect(page);
   await expect(page.locator("html")).toHaveClass(/light/);
   await openNote(page);
-  await page.getByRole("button", { name: "Change theme" }).click();
+  await page.getByRole("button", { name: "Workspace menu" }).click();
+  await page.getByRole("menuitem", { name: "Change theme", exact: true }).click();
   await expect(page.locator("html")).toHaveClass(/dark/);
   await page.reload();
   await expect(page.locator("html")).toHaveClass(/dark/);
@@ -237,7 +241,8 @@ for (const [width, height] of [
       await expect(
         page.getByRole("navigation", { name: "Main navigation" }),
       ).toBeVisible();
-      await page.getByRole("button", { name: "Toggle details" }).click();
+      await page.getByRole("button", { name: "Workspace menu" }).click();
+      await page.getByRole("menuitem", { name: "Document details" }).click();
       await expect(page.getByRole("dialog")).toBeVisible();
       await page.getByRole("button", { name: "Close dialog" }).click();
     }
@@ -262,7 +267,8 @@ test("small-screen capture and search work without desktop panes", async ({
   await expect(
     page.getByRole("heading", { name: "Quick Thought", exact: true }).first(),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByRole("button", { name: "Search your library" }).click();
+  await page.getByRole("button", { name: "Filters & saved searches" }).click();
   await page.getByLabel("Search library", { exact: true }).fill("distributed");
   await page.getByRole("listitem").filter({ hasText: "Reading list" }).click();
   await expect(

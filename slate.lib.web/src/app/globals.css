@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./workspace.css";
 :root {
   --bg: #fff;
   --surface: #f7f8fa;

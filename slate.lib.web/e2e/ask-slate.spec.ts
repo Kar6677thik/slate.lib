@@ -146,7 +146,8 @@ test("Ask Slate passes desktop accessibility checks", async ({ page }) => {
 test("mobile Ask Slate is a full-screen, source-oriented workspace and passes axe", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSlate(page); await connect(page);
-  await page.getByRole("button", { name: "Ask Slate" }).first().click();
+  await page.getByRole("button", { name: "AI tools" }).click();
+  await page.getByRole("menuitem", { name: "Ask Slate", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
   const box = await dialog.boundingBox();

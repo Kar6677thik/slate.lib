@@ -18,7 +18,9 @@ import { RediscoveryPage } from "./rediscovery-page";
 import { LinkHealthPage } from "@/components/links/link-health-page";
 import { useWorkspacePreferences } from "@/lib/storage/workspace-preferences";
 import { InboxTriage } from "@/components/inbox/inbox-triage";
+import { usePreferences } from "@/lib/storage/preferences";
 export function DestinationPage() {
+  const { prefs } = usePreferences();
   const w = useWorkspace();
   const local = useWorkspacePreferences(w.scope);
   const [recent] = useState(() => readRecent(w.scope));
@@ -36,7 +38,11 @@ export function DestinationPage() {
         <div className="scroll-area view-body">
           {local.preferences.favorites.length ? (
             local.preferences.favorites.map((favorite) => (
-              <button className="result-row" key={favorite.id} onClick={() => w.open(favorite.id)}>
+              <button
+                className="result-row"
+                key={favorite.id}
+                onClick={() => w.open(favorite.id)}
+              >
                 <Star size={18} fill="currentColor" />
                 <div>
                   <strong>{favorite.title}</strong>
@@ -46,7 +52,10 @@ export function DestinationPage() {
               </button>
             ))
           ) : (
-            <Empty title="No favorites" detail="Star a note from its menu or the Command Center." />
+            <Empty
+              title="No favorites"
+              detail="Star a note from its menu or the Command Center."
+            />
           )}
         </div>
       </>
@@ -91,25 +100,27 @@ export function DestinationPage() {
       </>
     );
   const inbox = w.nav === "inbox";
-  if (inbox) return <InboxTriage />;
+  if (inbox && prefs.aiEnabled) return <InboxTriage />;
   return (
     <>
       <div className="view-header">
         <p className="eyebrow">{inbox ? "CAPTURE & ORGANIZE" : "WORKSPACE"}</p>
         <div className="section-heading">
           <h1>{inbox ? "Inbox" : "Library"}</h1>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              inbox
-                ? w.setCaptureOpen(true)
-                : w.setOperation({ kind: "create-note", folder: "" })
-            }
-          >
-            <Plus size={15} />
-            {inbox ? "Capture" : "New note"}
-          </Button>
+          {inbox && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                inbox
+                  ? w.setCaptureOpen(true)
+                  : w.setOperation({ kind: "create-note", folder: "" })
+              }
+            >
+              <Plus size={15} />
+              {inbox ? "Capture" : "New note"}
+            </Button>
+          )}
         </div>
         <p>
           {inbox
@@ -127,8 +138,8 @@ export function DestinationPage() {
           role="tree"
           aria-label={inbox ? "Inbox notes" : "Browse library"}
         >
-          {inbox && <InboxOverlapIndicator />}
-          {inbox && <InboxLinkIndicator />}
+          {inbox && prefs.aiEnabled && <InboxOverlapIndicator />}
+          {inbox && prefs.aiEnabled && <InboxLinkIndicator />}
           <FolderChildren key={w.nav} path={inbox ? "inbox" : ""} />
         </div>
       </div>
@@ -208,7 +219,9 @@ function SmartViewPage({
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={(page + 1) * query.data.pageSize >= query.data.total}
+                  disabled={
+                    (page + 1) * query.data.pageSize >= query.data.total
+                  }
                   onClick={() => setPage((value) => value + 1)}
                 >
                   Next

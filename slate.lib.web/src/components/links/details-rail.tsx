@@ -20,9 +20,11 @@ import {
   Empty,
 } from "@/components/common/primitives";
 import { useCommandRuntime } from "@/features/commands/runtime";
+import { usePreferences } from "@/lib/storage/preferences";
 import { CurrentNoteConcepts } from "@/components/concepts/concept-workspace";
 import { CurrentNoteMaintenance } from "@/components/health/library-health";
 export function DetailsRail() {
+  const { prefs } = usePreferences();
   const api = useApi(),
     w = useWorkspace();
   const [tab, setTab] = useState<
@@ -149,8 +151,8 @@ export function DetailsRail() {
               </dd>
             </dl>
           )}
-          <CurrentNoteConcepts noteId={w.active} />
-          <CurrentNoteMaintenance noteId={w.active} />
+          {prefs.aiEnabled && <CurrentNoteConcepts noteId={w.active} />}
+          {prefs.aiEnabled && <CurrentNoteMaintenance noteId={w.active} />}
         </div>
       ) : (
         <HistoryPanel id={w.active} />
@@ -160,17 +162,33 @@ export function DetailsRail() {
 }
 
 function RelatedPanel({ id }: { id: string }) {
+  const { prefs } = usePreferences();
   const api = useApi();
   const w = useWorkspace();
   const query = useQuery({
-    queryKey: ["related", id],
+    queryKey: ["related", id, prefs.aiEnabled],
     queryFn: async ({ signal }) => {
-      try { return await api.hybridRelated(id, signal); }
-      catch { return api.related(id, signal); }
+      if (!prefs.aiEnabled) return api.related(id, signal);
+      try {
+        return await api.hybridRelated(id, signal);
+      } catch {
+        return api.related(id, signal);
+      }
     },
   });
-  const opportunities = useQuery({ queryKey: ["link-opportunities", { kind: "note", noteId: id }], queryFn: ({ signal }) => api.linkOpportunities({ kind: "note", noteId: id }, signal), staleTime: 60_000 });
-  const byTarget = new Map((opportunities.data?.suggestions ?? []).map((item) => [item.target.noteId, item]));
+  const opportunities = useQuery({
+    queryKey: ["link-opportunities", { kind: "note", noteId: id }],
+    queryFn: ({ signal }) =>
+      api.linkOpportunities({ kind: "note", noteId: id }, signal),
+    staleTime: 60_000,
+    enabled: prefs.aiEnabled,
+  });
+  const byTarget = new Map(
+    (opportunities.data?.suggestions ?? []).map((item) => [
+      item.target.noteId,
+      item,
+    ]),
+  );
   return (
     <div className="rail-content">
       <h3>Related notes</h3>
@@ -189,7 +207,11 @@ function RelatedPanel({ id }: { id: string }) {
             <ArrowUpRight size={13} />
             <small>{note.path}</small>
             <span>{note.reasons.join(" · ")}</span>
-            {byTarget.has(note.id) && <span className="link-opportunity-badge">Link opportunity · {byTarget.get(note.id)!.explanation}</span>}
+            {prefs.aiEnabled && byTarget.has(note.id) && (
+              <span className="link-opportunity-badge">
+                Link opportunity · {byTarget.get(note.id)!.explanation}
+              </span>
+            )}
           </button>
         ))
       ) : (
@@ -202,6 +224,7 @@ function RelatedPanel({ id }: { id: string }) {
 }
 
 function GraphPanel({ id }: { id: string }) {
+  const { prefs } = usePreferences();
   const api = useApi();
   const w = useWorkspace();
   const [depth, setDepth] = useState(1);
@@ -210,7 +233,13 @@ function GraphPanel({ id }: { id: string }) {
     queryKey: ["graph", id, depth],
     queryFn: ({ signal }) => api.graph(id, { depth, limit: 40 }, signal),
   });
-  const opportunities = useQuery({ queryKey: ["link-opportunities", { kind: "note", noteId: id }], queryFn: ({ signal }) => api.linkOpportunities({ kind: "note", noteId: id }, signal), staleTime: 60_000 });
+  const opportunities = useQuery({
+    queryKey: ["link-opportunities", { kind: "note", noteId: id }],
+    queryFn: ({ signal }) =>
+      api.linkOpportunities({ kind: "note", noteId: id }, signal),
+    staleTime: 60_000,
+    enabled: prefs.aiEnabled,
+  });
   return (
     <div className="rail-content">
       <div className="rail-section-heading">
@@ -226,7 +255,16 @@ function GraphPanel({ id }: { id: string }) {
             <option value={3}>3</option>
           </select>
         </label>
-        <label><input type="checkbox" checked={suggested} onChange={(event) => setSuggested(event.target.checked)} />Suggested</label>
+        {prefs.aiEnabled && (
+          <label>
+            <input
+              type="checkbox"
+              checked={suggested}
+              onChange={(event) => setSuggested(event.target.checked)}
+            />
+            Suggested
+          </label>
+        )}
       </div>
       {query.isPending ? (
         <Loading label="Building bounded graph…" />
@@ -237,7 +275,10 @@ function GraphPanel({ id }: { id: string }) {
           <p className="rail-summary">
             {query.data.nodes.length} notes · {query.data.edges.length} links
           </p>
-          <p className="graph-legend"><span>Authored</span>{suggested && <span>Suggested</span>}</p>
+          <p className="graph-legend">
+            <span>Authored</span>
+            {prefs.aiEnabled && suggested && <span>Suggested</span>}
+          </p>
           {query.data.limited && (
             <p className="rail-warning">Showing the first 40 notes.</p>
           )}
@@ -254,7 +295,24 @@ function GraphPanel({ id }: { id: string }) {
                 </button>
               ))}
           </div>
-          {suggested && (opportunities.data?.suggestions ?? []).filter((item) => item.suggestionType === "graph_bridge").slice(0, 8).map((item) => <button className="graph-suggested-edge" key={item.fingerprint} onClick={() => w.open(item.target.noteId)}><GitBranch size={14} /><span><strong>{item.target.title}</strong><small>Suggested · {item.explanation}</small></span></button>)}
+          {prefs.aiEnabled &&
+            suggested &&
+            (opportunities.data?.suggestions ?? [])
+              .filter((item) => item.suggestionType === "graph_bridge")
+              .slice(0, 8)
+              .map((item) => (
+                <button
+                  className="graph-suggested-edge"
+                  key={item.fingerprint}
+                  onClick={() => w.open(item.target.noteId)}
+                >
+                  <GitBranch size={14} />
+                  <span>
+                    <strong>{item.target.title}</strong>
+                    <small>Suggested · {item.explanation}</small>
+                  </span>
+                </button>
+              ))}
           {query.data.nodes.length <= 1 && (
             <p className="rail-empty">This note has no resolved graph links.</p>
           )}

@@ -37,7 +37,7 @@ test("Ctrl+Shift+P and the > prefix stay in command-only mode", async ({ page })
   await openCenter(page, true);
   await expect(page.getByText("Commands", { exact: true })).toBeVisible();
   await page.getByRole("combobox").fill("> library");
-  await expect(page.getByRole("option", { name: /^Library/ })).toBeVisible();
+  await expect(page.getByRole("option", { name: "Library", exact: true })).toBeVisible();
   await expect(page.getByRole("option", { name: /Library architecture/ })).toHaveCount(0);
 });
 
@@ -116,7 +116,8 @@ test("saved searches, smart views, Favorites, and create actions are reachable",
   await openCenter(page);
   await page.getByRole("combobox").fill("Architecture search");
   await page.keyboard.press("Enter");
-  await expect(page.getByLabel("Search library", { exact: true })).toHaveValue("architecture");
+  await expect(page.getByRole("combobox")).toHaveValue("architecture");
+  await page.keyboard.press("Escape");
   await openCenter(page, true);
   await page.getByRole("combobox").fill("> unanswered questions");
   await page.keyboard.press("Enter");
