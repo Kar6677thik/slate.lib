@@ -131,3 +131,7 @@ Inbox is a dedicated review workspace with a queue, selected-capture detail, and
 Capture remains immediate. Triage begins only after storage or when Inbox opens. Keep and Later update browser review state. Move and Delete reuse existing confirmations, Convert to Question uses the existing question format, Create Note uses the normal note endpoint, and Append creates an editable browser draft for the target note. No suggestion changes canonical Markdown by itself.
 
 Keyboard review supports J/Down, K/Up, Enter, E, M, Q, A, and D outside text inputs. Safe local states support multi-select; canonical bulk move/delete still use the existing server preview.
+
+## Workspace layout
+
+Each surface has one home. The sidebar holds only the file tree, bookmarks, and project roots. The Library page is the landing page: search, recently opened notes, favorites, and every smart view, plus Rediscover, Link health, and Deleted notes. On phones, where there is no sidebar, it also shows the folder tree. A note opens with a single toolbar: a labelled Read / Write / Split switch, the folder path (Read) or formatting and attachment tools (Write, Split), AI indicators, word count, save state, Save, and one actions menu. That menu holds Answer question, Evolution of this note, Export wiki links, favorites, and file operations. In Read mode, the note title opens the document instead of sitting in fixed chrome. The status bar shows the connected server and sync state.

@@ -47,7 +47,7 @@ jobs:
                 application=true
                 mcp=true
                 ;;
-              docs/MCP_*|tests/*)
+              docs/MCP_*|tests/*|slate.lib.web/tests/*|slate.lib.web/e2e/*|slate.lib.web/docs/*|slate.lib.web/README.md)
                 ;;
               *)
                 application=true
@@ -93,6 +93,36 @@ jobs:
       - name: Check web client
         run: pnpm --dir slate.lib.web check
 
+  web-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: slate.lib.web/pnpm-lock.yaml
+      - name: Install web dependencies
+        run: pnpm --dir slate.lib.web install --frozen-lockfile
+      - name: Install Playwright browser
+        run: pnpm --dir slate.lib.web exec playwright install --with-deps chromium
+      - name: Build web client
+        run: pnpm --dir slate.lib.web build
+      - name: Run end-to-end tests
+        run: pnpm --dir slate.lib.web test:e2e
+        env:
+          CI: "true"
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: slate.lib.web/playwright-report
+          retention-days: 7
+
   validate-mcp-container:
     runs-on: ubuntu-latest
     steps:
@@ -107,7 +137,7 @@ jobs:
 
   publish-and-deploy:
     if: github.event_name == 'push' && needs.plan-deploy.outputs.application == 'true'
-    needs: [plan-deploy, validate, validate-mcp-container]
+    needs: [plan-deploy, validate, web-e2e, validate-mcp-container]
     runs-on: ubuntu-latest
     permissions:
       contents: read

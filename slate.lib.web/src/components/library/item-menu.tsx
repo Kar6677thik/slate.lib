@@ -14,6 +14,7 @@ import {
   Pin,
   BrainCircuit,
   FolderCog,
+  type LucideIcon,
 } from "lucide-react";
 import {
   useWorkspace,
@@ -25,7 +26,20 @@ import { useWorkspacePreferences } from "@/lib/storage/workspace-preferences";
 import { usePreferences } from "@/lib/storage/preferences";
 import { useMedia } from "@/hooks/use-media";
 import { Button } from "@/components/ui/button";
-export function ItemMenu({ entry }: { entry: Entry }) {
+export type ItemMenuAction = {
+  label: string;
+  icon: LucideIcon;
+  onSelect: () => void;
+  disabled?: boolean;
+};
+export function ItemMenu({
+  entry,
+  extra = [],
+}: {
+  entry: Entry;
+  /** Context-specific actions shown above the standard file actions. */
+  extra?: ItemMenuAction[];
+}) {
   const { prefs } = usePreferences();
   const w = useWorkspace();
   const local = useWorkspacePreferences(w.scope);
@@ -62,6 +76,21 @@ export function ItemMenu({ entry }: { entry: Entry }) {
   };
   const actions = (
     <>
+      {extra.map((action) => (
+        <Button
+          role="menuitem"
+          variant="ghost"
+          key={action.label}
+          disabled={action.disabled}
+          onClick={() => choose(action.onSelect)}
+        >
+          <action.icon size={18} />
+          {action.label}
+        </Button>
+      ))}
+      {extra.length > 0 && (
+        <span className="mobile-action-separator" role="separator" />
+      )}
       {entry.isDirectory ? (
         <>
           {prefs.aiEnabled && (
@@ -200,6 +229,17 @@ export function ItemMenu({ entry }: { entry: Entry }) {
           align="end"
           collisionPadding={12}
         >
+          {extra.map((action) => (
+            <Menu.Item
+              key={action.label}
+              disabled={action.disabled}
+              onSelect={action.onSelect}
+            >
+              <action.icon size={16} />
+              {action.label}
+            </Menu.Item>
+          ))}
+          {extra.length > 0 && <Menu.Separator />}
           {entry.isDirectory ? (
             <>
               {prefs.aiEnabled && (

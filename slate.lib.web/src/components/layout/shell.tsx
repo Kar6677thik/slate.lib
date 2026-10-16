@@ -93,6 +93,15 @@ const aiDestinations = [
   ["knowledge-gaps", CircleHelp, "Knowledge Gaps"],
 ] as const;
 
+function serverLabel(server?: string) {
+  if (!server) return "Slate";
+  try {
+    return new URL(server).host;
+  } catch {
+    return server;
+  }
+}
+
 export function Shell({
   children,
   sidebar,
@@ -268,9 +277,16 @@ export function Shell({
           <Plus size={18} />
         </IconButton>
         <div className="workspace-actions">
-          <IconButton label="Search your library" onClick={onSearch}>
-            <Search size={18} />
-          </IconButton>
+          <button
+            className="search-trigger"
+            aria-label="Search your library"
+            title="Search notes and commands (Ctrl K)"
+            onClick={onSearch}
+          >
+            <Search size={15} />
+            <span className="search-trigger-label">Search</span>
+            <kbd>Ctrl K</kbd>
+          </button>
           <button
             className="ai-switch"
             role="switch"
@@ -284,15 +300,18 @@ export function Shell({
               <span />
             </span>
           </button>
-          <IconButton
-            label="Toggle details"
-            aria-expanded={wide ? right : mobileRight}
-            onClick={() =>
-              wide ? setRight((v) => !v) : setMobileRight((v) => !v)
-            }
-          >
-            <PanelRight size={17} />
-          </IconButton>
+          {w.active && (
+            <IconButton
+              label="Toggle details"
+              aria-expanded={wide ? right : mobileRight}
+              className={(wide ? right : mobileRight) ? "active" : ""}
+              onClick={() =>
+                wide ? setRight((v) => !v) : setMobileRight((v) => !v)
+              }
+            >
+              <PanelRight size={17} />
+            </IconButton>
+          )}
           {moreMenu}
         </div>
       </header>
@@ -320,6 +339,13 @@ export function Shell({
               >
                 <Zap size={18} />
               </IconButton>
+              <IconButton
+                label="Settings"
+                className="activity-button"
+                onClick={() => w.setSettingsOpen(true)}
+              >
+                <Settings size={18} />
+              </IconButton>
             </div>
           </nav>
         )}
@@ -337,21 +363,7 @@ export function Shell({
                 maxSize="35%"
               >
                 <aside className="sidebar" aria-label="Library navigation">
-                  <div className="sidebar-heading">
-                    <strong>Files</strong>
-                  </div>
                   {sidebar}
-                  <footer className="sidebar-footer">
-                    <img
-                      src="/icons/slate-192.png"
-                      width="18"
-                      height="18"
-                      alt=""
-                    />
-                    <strong>Slate</strong>
-                    <span className="server-dot" />
-                    <span>Connected</span>
-                  </footer>
                 </aside>
               </Panel>
               <Separator className="pane-separator" />
@@ -378,10 +390,9 @@ export function Shell({
         </Group>
       </div>
       <footer className="workspace-statusbar">
-        <span>
-          {w.tabs.length
-            ? `${w.tabs.length} open note${w.tabs.length === 1 ? "" : "s"}`
-            : "Slate Library"}
+        <span className="statusbar-connection" title={auth.connection?.server}>
+          <span className="server-dot" aria-hidden="true" />
+          {serverLabel(auth.connection?.server)}
         </span>
         {sync}
       </footer>

@@ -14,7 +14,6 @@ import {
 import { useApi } from "@/lib/auth/context";
 import { useWorkspace } from "@/features/notes/workspace-context";
 import {
-  IconButton,
   Loading,
   ErrorMessage,
   Empty,
@@ -57,21 +56,24 @@ export function DetailsRail() {
       <div className="rail-tabs">
         {(
           [
-            ["links", Link, "Links"],
-            ["related", Waypoints, "Related notes"],
-            ["graph", Network, "Note graph"],
-            ["info", Info, "Info"],
-            ["history", History, "History"],
+            ["links", Link, "Links", "Links"],
+            ["related", Waypoints, "Related notes", "Related"],
+            ["graph", Network, "Note graph", "Graph"],
+            ["info", Info, "Info", "Info"],
+            ["history", History, "History", "History"],
           ] as const
-        ).map(([key, Icon, label]) => (
-          <IconButton
+        ).map(([key, Icon, label, short]) => (
+          <button
             key={key}
-            label={label}
-            className={key === tab ? "active" : ""}
+            type="button"
+            aria-label={label}
+            aria-pressed={key === tab}
+            className={`rail-tab ${key === tab ? "active" : ""}`}
             onClick={() => setTab(key)}
           >
-            <Icon size={17} />
-          </IconButton>
+            <Icon size={15} />
+            <span>{short}</span>
+          </button>
         ))}
       </div>
       {!w.active ? (

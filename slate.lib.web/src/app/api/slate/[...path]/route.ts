@@ -1,4 +1,4 @@
-import { normalizeServer } from "@/lib/api/client";
+import { resolveSlateUpstream, upstreamHeaders, type SlateUpstream } from "@/lib/server/slate-upstream";
 export const dynamic = "force-dynamic";
 const allowedPaths = [
   /^v1\/status$/,
@@ -29,36 +29,6 @@ export function isAllowedPath(path: string) {
   return allowedPaths.some((pattern) => pattern.test(path));
 }
 
-function trustedUpstream() {
-  const value = process.env.SLATE_UPSTREAM_URL?.trim();
-  if (!value) return null;
-  const url = new URL(value);
-  if (
-    !["http:", "https:"].includes(url.protocol) ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash
-  )
-    throw new Error("SLATE_UPSTREAM_URL must be a plain HTTP(S) base URL.");
-  return url.href.replace(/\/+$/, "");
-}
-
-function trustedPublicOrigin(request: Request) {
-  const value = process.env.SLATE_PUBLIC_ORIGIN?.trim();
-  if (!value) return new URL(request.url).origin;
-  const url = new URL(value);
-  if (
-    !["http:", "https:"].includes(url.protocol) ||
-    url.username ||
-    url.password ||
-    url.pathname !== "/" ||
-    url.search ||
-    url.hash
-  )
-    throw new Error("SLATE_PUBLIC_ORIGIN must be an HTTP(S) origin.");
-  return url.origin;
-}
 async function proxy(
   request: Request,
   { params }: { params: Promise<{ path: string[] }> },
@@ -68,36 +38,14 @@ async function proxy(
       { error: "Slate request could not be forwarded." },
       { status, headers: { "Cache-Control": "no-store" } },
     );
-  let server: string;
+  let connection: SlateUpstream;
   try {
-    server = normalizeServer(request.headers.get("X-Slate-Server") ?? "");
-  } catch {
-    return fail(400);
-  }
-  const approved = (
-    process.env.SLATE_ALLOWED_SERVERS ??
-    process.env.NEXT_PUBLIC_SLATE_DEFAULT_SERVER ??
-    "http://localhost:5080"
-  )
-    .split(",")
-    .map((s) => {
-      try {
-        return normalizeServer(s);
-      } catch {
-        return "";
-      }
-    });
-  if (!approved.includes(server)) return fail(403);
-  const origin = request.headers.get("origin");
-  try {
-    if (origin && origin !== trustedPublicOrigin(request)) return fail(403);
-  } catch {
-    return fail(502);
+    connection = resolveSlateUpstream(request);
+  } catch (caught) {
+    return fail(caught instanceof Response ? caught.status : 502);
   }
   const path = (await params).path.join("/");
   if (!isAllowedPath(path)) return fail(404);
-  const auth = request.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) return fail(401);
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > 26 * 1024 * 1024) return fail(413);
   let tooLarge = false;
@@ -115,16 +63,14 @@ async function proxy(
       },
     }),
   );
-  const headers = new Headers({ Authorization: auth });
+  const headers = upstreamHeaders(connection);
   for (const key of ["content-type", "if-match", "x-slate-sha256", "accept"]) {
     const v = request.headers.get(key);
     if (v) headers.set(key, v);
   }
   try {
-    const upstream = trustedUpstream() ?? server;
-    if (upstream !== server) headers.set("X-Forwarded-Proto", "https");
     const response = await fetch(
-      `${upstream}/${path}${new URL(request.url).search}`,
+      `${connection.upstream}/${path}${new URL(request.url).search}`,
       {
         method: request.method,
         headers,

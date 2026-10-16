@@ -32,6 +32,7 @@ export function Modal({
   open,
   onClose,
   wide = false,
+  dismissible = true,
 }: {
   title: string;
   description?: string;
@@ -39,6 +40,8 @@ export function Modal({
   open: boolean;
   onClose: () => void;
   wide?: boolean;
+  /** When false the dialog demands an explicit choice: no close button, Escape or outside click. */
+  dismissible?: boolean;
 }) {
   return (
     <Dialog.Root
@@ -52,6 +55,12 @@ export function Modal({
         <Dialog.Content
           className={`modal ${wide ? "modal-wide" : ""}`}
           aria-describedby={description ? undefined : undefined}
+          onEscapeKeyDown={(e) => {
+            if (!dismissible) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (!dismissible) e.preventDefault();
+          }}
         >
           <div className="modal-heading">
             <div>
@@ -60,16 +69,18 @@ export function Modal({
                 <Dialog.Description>{description}</Dialog.Description>
               )}
             </div>
-            <Dialog.Close asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Close dialog"
-                title="Close dialog"
-              >
-                <X size={18} />
-              </Button>
-            </Dialog.Close>
+            {dismissible && (
+              <Dialog.Close asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Close dialog"
+                  title="Close dialog"
+                >
+                  <X size={18} />
+                </Button>
+              </Dialog.Close>
+            )}
           </div>
           {children}
         </Dialog.Content>

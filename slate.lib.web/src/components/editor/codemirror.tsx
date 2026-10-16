@@ -6,6 +6,25 @@ import { EditorState, Compartment } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { indentWithTab } from "@codemirror/commands";
 import { useTheme } from "next-themes";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { tags } from "@lezer/highlight";
+
+// Replaces CodeMirror's default style, which underlines every heading and link in Markdown.
+const markdownHighlight = HighlightStyle.define([
+  { tag: tags.heading1, fontWeight: "700", fontSize: "1.3em" },
+  { tag: tags.heading2, fontWeight: "700", fontSize: "1.15em" },
+  { tag: [tags.heading3, tags.heading4, tags.heading5, tags.heading6], fontWeight: "700" },
+  { tag: tags.strong, fontWeight: "700" },
+  { tag: tags.emphasis, fontStyle: "italic" },
+  { tag: tags.strikethrough, textDecoration: "line-through" },
+  { tag: [tags.link, tags.url], color: "var(--accent)" },
+  { tag: tags.monospace, color: "var(--accent)" },
+  { tag: [tags.processingInstruction, tags.meta, tags.contentSeparator], color: "var(--muted)" },
+  { tag: tags.quote, color: "var(--muted)", fontStyle: "italic" },
+  { tag: [tags.keyword, tags.atom, tags.bool], color: "var(--accent)" },
+  { tag: [tags.string, tags.special(tags.string)], color: "#2f8f5b" },
+  { tag: tags.comment, color: "var(--muted)" },
+]);
 export type Format =
   | "bold"
   | "italic"
@@ -81,6 +100,7 @@ export default function MarkdownEditor({
         doc: initial.current,
         extensions: [
           basicSetup,
+          syntaxHighlighting(markdownHighlight),
           markdown(),
           keymap.of([
             {
@@ -178,6 +198,7 @@ export default function MarkdownEditor({
             ".cm-content": {
               fontFamily: '"Cascadia Code", Consolas, monospace',
               padding: "24px 16px",
+              maxWidth: "var(--reader-width, 860px)",
               caretColor: "var(--accent)",
             },
             ".cm-gutters": {

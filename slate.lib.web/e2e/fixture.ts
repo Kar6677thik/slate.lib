@@ -761,3 +761,7 @@ export async function openNote(page: Page) {
     .first()
     .waitFor();
 }
+export async function noteAction(page: Page, name: string) {
+  await page.locator(".note-toolbar").getByRole("button", { name: /^Actions for / }).click();
+  await page.getByRole("menuitem", { name, exact: true }).click();
+}

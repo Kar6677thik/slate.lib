@@ -1,0 +1,418 @@
+/*
+ * Workspace layout refinements. Loaded after globals.css so these rules win without extra specificity.
+ * Goal: the note itself gets the space; chrome is one slim bar above it and one status bar below.
+ */
+
+/* ---------- Top bar ---------- */
+.search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 190px;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.search-trigger:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text) 25%, var(--border));
+}
+.search-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.search-trigger kbd {
+  margin-left: auto;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: inherit;
+}
+.workspace-actions .button-icon.active {
+  color: var(--text);
+  background: var(--hover);
+}
+.app-shell .workspace-topbar .tab-items:empty,
+.app-shell .workspace-topbar .tab-items:has(> .sr-only:only-child) {
+  padding: 0;
+}
+
+/* ---------- Status bar ---------- */
+.statusbar-connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Note toolbar ---------- */
+.app-shell .note-toolbar {
+  position: relative;
+  z-index: 2;
+  gap: 6px;
+  min-height: 44px;
+  padding: 4px 12px;
+  border-top: 0;
+  background: var(--bg);
+}
+.note-toolbar .mode-switch {
+  flex-shrink: 0;
+  gap: 0;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.mode-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.mode-button:hover {
+  color: var(--text);
+}
+.mode-button.active {
+  color: var(--text);
+  background: var(--bg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+}
+.mode-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.toolbar-path {
+  min-width: 0;
+  margin: 0 0 0 6px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-toolbar .format-tools {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+}
+.note-toolbar .upload-tools {
+  display: flex;
+  gap: 1px;
+}
+.toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.note-insights {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 6px;
+  border-right: 1px solid var(--border);
+}
+.note-toolbar .note-issue-indicator {
+  min-height: 26px;
+  padding: 0 7px;
+  gap: 4px;
+  border-radius: 13px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.note-toolbar .save-status {
+  margin-left: 0;
+}
+.save-button {
+  gap: 5px;
+}
+.save-button:disabled {
+  opacity: 0.55;
+}
+
+/* ---------- Details rail ---------- */
+.app-shell .rail-tabs {
+  justify-content: space-between;
+  gap: 2px;
+  height: 44px;
+  padding: 0 8px;
+}
+.rail-tab {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+  gap: 2px;
+  min-width: 0;
+  height: 38px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.rail-tab:hover,
+.rail-tab.active {
+  color: var(--text);
+  background: var(--hover);
+}
+.rail-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* ---------- Reading ---------- */
+.reader-title {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 40px 46px 0;
+}
+.reader-title h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.reader-title + .markdown {
+  padding-top: 18px;
+}
+.mode-split .reader-title {
+  padding-top: 28px;
+}
+
+/* ---------- Library home ---------- */
+.library-home {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.home-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 40px 80px;
+}
+.home-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.home-header h1 {
+  margin: 2px 0 4px;
+  font-size: 30px;
+  letter-spacing: -0.6px;
+}
+.home-header p {
+  margin: 0;
+}
+.home-actions {
+  display: flex;
+  gap: 8px;
+}
+.home-actions .button {
+  gap: 6px;
+}
+.home-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  margin: 24px 0 8px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.home-search:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text) 25%, var(--border));
+}
+.home-search:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.home-search kbd {
+  margin-left: auto;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+}
+.home-section {
+  margin-top: 30px;
+}
+.home-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.home-section-heading h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.home-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home-card:hover {
+  background: var(--hover);
+}
+.home-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.home-card > svg {
+  grid-row: span 3;
+  align-self: start;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.home-card strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-card .result-path,
+.home-card small,
+.home-card > span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-view > span {
+  white-space: normal;
+  line-height: 1.4;
+}
+.home-hint {
+  margin-top: 28px;
+  font-size: 13px;
+}
+/* The file tree already lives in the sidebar on desktop. */
+@media (min-width: 768px) {
+  .home-folders {
+    display: none;
+  }
+}
+
+@media (max-width: 1099px) {
+  .search-trigger {
+    min-width: 0;
+  }
+  .search-trigger kbd,
+  .search-trigger-label {
+    display: none;
+  }
+  .note-toolbar .word-count {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .search-trigger {
+    width: 34px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+  }
+  .app-shell .note-toolbar {
+    padding: 4px 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .note-toolbar .mode-button span {
+    display: none;
+  }
+  .note-toolbar .mode-button {
+    padding: 0 9px;
+  }
+  .toolbar-path {
+    display: none;
+  }
+  .save-button span {
+    display: none;
+  }
+  .note-toolbar .note-issue-indicator {
+    display: none;
+  }
+  .note-toolbar .note-issue-indicator.note-link-control {
+    display: inline-flex;
+  }
+  .reader-title {
+    padding: 24px 20px 0;
+  }
+  .reader-title h1 {
+    font-size: 24px;
+  }
+  .home-inner {
+    padding: 24px 16px 40px;
+  }
+  .home-header h1 {
+    font-size: 26px;
+  }
+  .home-search kbd {
+    display: none;
+  }
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
+}

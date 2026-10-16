@@ -158,6 +158,7 @@ test("attachments upload, backlinks navigate, and sync runs", async ({
   const state = await mockSlate(page);
   await connect(page);
   await openNote(page);
+  await page.getByRole("button", { name: "Write", exact: true }).click();
   await page.getByLabel("Upload attachments").setInputFiles({
     name: "reference.txt",
     mimeType: "text/plain",

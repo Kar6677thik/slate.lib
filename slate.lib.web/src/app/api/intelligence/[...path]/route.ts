@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { after } from "next/server";
 import { z } from "zod";
 import type { AssetPage, Entry, FolderPage, HistoricalNote, HistoryEntry, LinkIssuePage, Links, Note, RelatedNote, SearchPage, Status } from "@/lib/api/contracts";
@@ -88,6 +89,13 @@ const gapSchema = z.object({
 
 function error(status: number, message: string) { return Response.json({ error: message }, { status, headers: noStore }); }
 
+/** Reports an analysis failure without exposing database, provider or upstream error text to the browser. */
+function failure(caught: unknown, message: string) {
+  if (caught instanceof Response) return error(caught.status, message);
+  console.error(`[intelligence] ${message}`, caught);
+  return error(502, message);
+}
+
 async function readJsonBody(request: Request, maxBytes = 16 * 1024) {
   if (!request.body) return {};
   const reader = request.body.getReader();
@@ -116,15 +124,20 @@ async function readJsonBody(request: Request, maxBytes = 16 * 1024) {
 }
 
 async function canonicalLibraryId(connection: ReturnType<typeof resolveSlateUpstream>, signal: AbortSignal) {
-  const cached = libraryCache.get(connection.server);
-  if (cached && cached.expires > Date.now()) return cached.id;
+  // The cache is per credential: a cached identity must never stand in for proving a different bearer token upstream.
+  const key = `${connection.server}
+${createHash("sha256").update(connection.authorization).digest("hex")}`;
+  const now = Date.now();
+  const cached = libraryCache.get(key);
+  if (cached && cached.expires > now) return cached.id;
   const response = await fetchSlate(connection, "v1/status", signal);
   if (!response.ok) throw new Response("Canonical library is unavailable", { status: response.status });
   const status = await response.json() as Status;
   const id = status.libraryId;
   if (!/^[a-f0-9-]{36}$/i.test(id)) throw new Response("Canonical library identity is invalid", { status: 502 });
   if (Number.isFinite(status.noteCount)) libraryTotals.set(id, Math.max(0, status.noteCount));
-  libraryCache.set(connection.server, { id, expires: Date.now() + 60_000 });
+  if (libraryCache.size > 1_000) for (const [entry, value] of libraryCache) if (value.expires <= now) libraryCache.delete(entry);
+  libraryCache.set(key, { id, expires: now + 60_000 });
   return id;
 }
 
@@ -368,7 +381,7 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
   if (Number(request.headers.get("content-length") ?? 0) > requestLimit) return error(413, "Request is too large");
   let connection;
   try { connection = resolveSlateUpstream(request); }
-  catch (caught) { return caught instanceof Response ? error(caught.status, "Request is not authorized") : error(400, "Invalid Slate connection"); }
+  catch (caught) { return caught instanceof Response ? error(caught.status, "Request is not authorized") : failure(caught, "Slate connection is misconfigured"); }
   let json: unknown = {};
   if (request.method === "POST") {
     try { json = await readJsonBody(request, requestLimit); }
@@ -383,7 +396,7 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
     try {
       return Response.json(await inboxTriageSnapshot(libraryId, knowledgeCanonical(connection, libraryId), request.signal), { headers: noStore });
     } catch (caught) {
-      return error(502, caught instanceof Error ? caught.message : "Inbox triage is unavailable");
+      return failure(caught, "Inbox triage is unavailable");
     }
   }
   if (path === "health" && request.method === "POST") {
@@ -391,14 +404,14 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
     try {
       const status = { ...await intelligenceStatus(libraryId), totalNotes: libraryTotals.get(libraryId) ?? 0, ...generationStatus(libraryId) };
       return Response.json(await libraryHealth(libraryId, healthCanonical(connection), status, parsed.data.filters as HealthFilters, parsed.data.reviews, request.signal, parsed.data.refresh), { headers: noStore });
-    } catch (caught) { return error(502, caught instanceof Error ? caught.message : "Library Health is unavailable"); }
+    } catch (caught) { return failure(caught, "Library Health is unavailable"); }
   }
   if (path === "knowledge-gaps" && request.method === "POST") {
     const parsed = gapSchema.safeParse(json); if (!parsed.success) return error(422, "Invalid Knowledge Gaps request");
     try {
       const status = await intelligenceStatus(libraryId);
       return Response.json(await knowledgeGapSnapshot(libraryId, knowledgeCanonical(connection, libraryId), parsed.data.filters as GapFilters, parsed.data.reviews, request.signal, { rebuild: parsed.data.action === "rebuild", semanticAvailable: status.enabled, pending: status.pendingJobs, failed: status.failedJobs }), { headers: noStore });
-    } catch (caught) { return error(502, caught instanceof Error ? caught.message : "Knowledge Gap analysis is unavailable"); }
+    } catch (caught) { return failure(caught, "Knowledge Gap analysis is unavailable"); }
   }
   if (path === "ask" && request.method === "POST") {
     const parsed = askSchema.safeParse(json);
@@ -421,7 +434,7 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
         return Response.json(result, { headers: noStore });
       } finally { release(); }
     } catch (caught) {
-      return error(502, caught instanceof Error ? caught.message : "Project Brain is unavailable");
+      return failure(caught, "Project Brain is unavailable");
     }
   }
   if (path === "evolution" && request.method === "POST") {
@@ -440,7 +453,7 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
         return Response.json(result, { headers: noStore });
       } finally { release(); }
     } catch (caught) {
-      return error(502, caught instanceof Error ? caught.message : "Evolution of Thought is unavailable");
+      return failure(caught, "Evolution of Thought is unavailable");
     }
   }
   if (path === "knowledge-issues" && request.method === "POST") {
@@ -449,7 +462,7 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
     try {
       return Response.json(await knowledgeSnapshot(libraryId, knowledgeCanonical(connection, libraryId), parsed.data.scope, request.signal), { headers: noStore });
     } catch (caught) {
-      return error(502, caught instanceof Error ? caught.message : "Knowledge analysis is unavailable");
+      return failure(caught, "Knowledge analysis is unavailable");
     }
   }
   if (path === "knowledge-overlap" && request.method === "POST") {
@@ -458,7 +471,7 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
     try {
       return Response.json(await overlapSnapshot(libraryId, knowledgeCanonical(connection, libraryId), parsed.data.scope, request.signal), { headers: noStore });
     } catch (caught) {
-      return error(502, caught instanceof Error ? caught.message : "Overlap analysis is unavailable");
+      return failure(caught, "Overlap analysis is unavailable");
     }
   }
   if (path === "link-opportunities" && request.method === "POST") {
@@ -467,7 +480,7 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
     try {
       return Response.json(await smartLinkSnapshot(libraryId, knowledgeCanonical(connection, libraryId), parsed.data.scope, request.signal), { headers: noStore });
     } catch (caught) {
-      return error(502, caught instanceof Error ? caught.message : "Link opportunity analysis is unavailable");
+      return failure(caught, "Link opportunity analysis is unavailable");
     }
   }
   if (path === "concepts" && request.method === "POST") {
@@ -481,7 +494,7 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
       const result = await conceptSnapshot(libraryId, knowledgeCanonical(connection, libraryId), request.signal, parsed.data.reviews);
       return Response.json(result.snapshot, { headers: noStore });
     } catch (caught) {
-      return error(502, caught instanceof Error ? caught.message : "Concept analysis is unavailable");
+      return failure(caught, "Concept analysis is unavailable");
     }
   }
   if (path === "search" && request.method === "POST") {

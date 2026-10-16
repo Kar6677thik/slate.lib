@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, FolderOpen, X } from "lucide-react";
+import { FileText, X } from "lucide-react";
 import { useApi } from "@/lib/auth/context";
 import { useWorkspace } from "@/features/notes/workspace-context";
 import {
@@ -10,11 +10,8 @@ import {
   IconButton,
 } from "@/components/common/primitives";
 import { NoteWorkbench } from "./note-workbench";
-import { useMedia } from "@/hooks/use-media";
 export function Tabs() {
   const w = useWorkspace();
-  const desktop = useMedia("(min-width: 768px)");
-  const showWorkspace = desktop || !w.active;
   const list = useRef<HTMLDivElement>(null);
   useEffect(() => {
     list.current
@@ -56,26 +53,8 @@ export function Tabs() {
           className="sr-only"
           role="tablist"
           aria-label="Open notes"
-          aria-owns={[
-            ...(showWorkspace ? ["workspace-note-tab"] : []),
-            ...w.tabs.map((tab) => `note-tab-${tab.id}`),
-          ].join(" ")}
+          aria-owns={w.tabs.map((tab) => `note-tab-${tab.id}`).join(" ")}
         />
-        {showWorkspace && (
-          <div
-            className={`document-tab workspace-tab ${!w.active ? "active" : ""}`}
-          >
-            <button
-              role="tab"
-              id="workspace-note-tab"
-              aria-selected={!w.active}
-              onClick={() => w.navigate("library")}
-            >
-              <FolderOpen size={14} />
-              <span>Workspace</span>
-            </button>
-          </div>
-        )}
         {w.tabs.map((t) => (
           <div
             className={`document-tab ${w.active === t.id ? "active" : ""}`}

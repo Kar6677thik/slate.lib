@@ -41,7 +41,7 @@ export function clearEvolutionCache(libraryId?: string, noteId?: string, path?: 
 
 function safePath(path: string) {
   const value = path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-  if (!value || value.length > 1024 || value.split("/").some((part) => !part || part === "." || part === "..")) throw new Error("Invalid evolution path");
+  if (!value || value.length > 1024 || value.split("/").some((part) => !part || part === "." || part === "..")) throw new Response("Invalid evolution path", { status: 422 });
   return value;
 }
 

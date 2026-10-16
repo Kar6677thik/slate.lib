@@ -30,6 +30,7 @@ import {
   ShieldQuestion,
   Layers3,
   Link2,
+  Sparkles,
 } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 import type { Note } from "@/lib/api/contracts";
@@ -51,7 +52,7 @@ const Markdown = dynamic(() => import("@/components/reader/markdown"), {
 });
 import { UploadTools } from "@/components/assets/upload-tools";
 import { assetMarkdown } from "@/lib/markdown/assets";
-import { ItemMenu } from "@/components/library/item-menu";
+import { ItemMenu, type ItemMenuAction } from "@/components/library/item-menu";
 import type { Format } from "./codemirror";
 import { WikiExportDialog } from "@/components/links/wiki-export-dialog";
 import { useCommandRuntime } from "@/features/commands/runtime";
@@ -338,136 +339,153 @@ export function NoteWorkbench({ note }: { note: Note }) {
     const { formatSelection } = await import("./codemirror");
     if (editor.current) formatSelection(editor.current, kind);
   }
+  const words = source.trim().split(/\s+/).filter(Boolean).length;
+  const folders = note.path.split("/").slice(0, -1);
+  const noteActions: ItemMenuAction[] = [
+    ...(questionNote && !answered
+      ? [
+          {
+            label: "Answer question",
+            icon: MessageCircleQuestion,
+            disabled: dirty || saving,
+            onSelect: () => setAnswerOpen(true),
+          },
+        ]
+      : []),
+    ...(prefs.aiEnabled
+      ? [
+          {
+            label: "Evolution of this note",
+            icon: History,
+            onSelect: () => w.openEvolution({ kind: "note", noteId: note.id }),
+          },
+        ]
+      : []),
+    {
+      label: "Export wiki links",
+      icon: FileOutput,
+      disabled: dirty || saving,
+      onSelect: () => setWikiExportOpen(true),
+    },
+  ];
   return (
     <>
-      <div className="note-header">
-        <div className="note-heading-row">
-          <div>
-            <p className="breadcrumb">
-              Library <span>/</span>
-              {note.path}
-            </p>
-            <h1>{note.title}</h1>
-          </div>
-          <div className="note-heading-actions">
-            <ItemMenu
-              entry={{
-                name: note.path.split("/").at(-1)!,
-                path: note.path,
-                isDirectory: false,
-                id: note.id,
-                title: note.title,
-              }}
-            />
-          </div>
-        </div>
-      </div>
-      <div className="editor-toolbar">
-        <div className="mode-switch">
+      <div className="editor-toolbar note-toolbar">
+        <div className="mode-switch" role="group" aria-label="View mode">
           {(
             [
-              ["write", Pencil, "Write"],
               ["preview", Eye, "Read"],
+              ["write", Pencil, "Write"],
               ["split", Columns2, "Split"],
             ] as const
           ).map(([value, Icon, label]) => (
-            <IconButton
+            <button
               key={value}
-              label={label}
-              className={`${mode === value ? "active" : ""} ${value === "split" ? "desktop-only" : ""}`}
+              type="button"
+              aria-label={label}
+              aria-pressed={mode === value}
+              className={`mode-button ${mode === value ? "active" : ""} ${value === "split" ? "desktop-only" : ""}`}
               onClick={() => setMode(value)}
             >
-              <Icon size={17} />
-            </IconButton>
+              <Icon size={15} />
+              <span>{label}</span>
+            </button>
           ))}
         </div>
-        <span className="toolbar-divider" />
-        <div className="format-tools" hidden={mode === "preview"}>
-          {formats.map(([kind, Icon, label]) => (
-            <IconButton
-              key={kind}
-              label={label}
-              disabled={mode === "preview" || saving}
-              onClick={() => format(kind)}
-            >
-              <Icon size={16} />
-            </IconButton>
-          ))}
-        </div>
-        <UploadTools onFiles={upload} busy={uploading || saving} />
-        {questionNote && !answered && (
-          <IconButton
-            label="Answer question"
-            disabled={dirty || saving}
-            onClick={() => setAnswerOpen(true)}
+        {mode === "preview" ? (
+          <p className="toolbar-path" title={note.path}>
+            {folders.length ? folders.join(" / ") : "Library"}
+          </p>
+        ) : (
+          <div className="format-tools">
+            {formats.map(([kind, Icon, label]) => (
+              <IconButton
+                key={kind}
+                label={label}
+                disabled={saving}
+                onClick={() => format(kind)}
+              >
+                <Icon size={16} />
+              </IconButton>
+            ))}
+            <span className="toolbar-divider" />
+            <UploadTools onFiles={upload} busy={uploading || saving} />
+          </div>
+        )}
+        <div className="toolbar-end">
+          {prefs.aiEnabled && (
+            <div className="note-insights">
+              <IconButton label="Ask about selection" onClick={askSelection}>
+                <Sparkles size={16} />
+              </IconButton>
+              {issueCount > 0 && (
+                <button
+                  className="note-issue-indicator"
+                  title="Knowledge issues"
+                  onClick={() =>
+                    w.openKnowledgeIssues({ kind: "note", noteId: note.id })
+                  }
+                  aria-label={`${issueCount} knowledge issue${issueCount === 1 ? "" : "s"} for this note`}
+                >
+                  <ShieldQuestion size={14} />
+                  {issueCount}
+                </button>
+              )}
+              {overlapCount > 0 && (
+                <button
+                  className="note-issue-indicator"
+                  title="Overlapping notes"
+                  onClick={() =>
+                    w.openKnowledgeOverlap({ kind: "note", noteId: note.id })
+                  }
+                  aria-label={`${overlapCount} overlap suggestion${overlapCount === 1 ? "" : "s"} for this note`}
+                >
+                  <Layers3 size={14} />
+                  {overlapCount}
+                </button>
+              )}
+              {linkCount > 0 && (
+                <button
+                  className="note-issue-indicator note-link-control"
+                  title="Link opportunities"
+                  onClick={() => setLinkPanelOpen(true)}
+                  aria-label={`${linkCount} link opportunit${linkCount === 1 ? "y" : "ies"} for this note`}
+                >
+                  <Link2 size={14} />
+                  {linkCount}
+                </button>
+              )}
+            </div>
+          )}
+          <span className="save-status" aria-live="polite">
+            <span className="word-count">
+              {words.toLocaleString()} word{words === 1 ? "" : "s"} ·{" "}
+            </span>
+            <span>{saving ? "Saving…" : dirty ? "Unsaved changes" : "Saved"}</span>
+          </span>
+          <Button
+            size="sm"
+            variant={dirty ? "default" : "ghost"}
+            className="save-button"
+            aria-label="Save note"
+            title="Save note (Ctrl S)"
+            disabled={!dirty || saving || uploading || !checked || !!recovery}
+            onClick={save}
           >
-            <MessageCircleQuestion size={17} />
-          </IconButton>
-        )}
-        {prefs.aiEnabled && (
-          <>
-            <IconButton label="Ask about selection" onClick={askSelection}>
-              <MessageCircleQuestion size={17} />
-            </IconButton>
-            <IconButton
-              label="Evolution of this note"
-              onClick={() => w.openEvolution({ kind: "note", noteId: note.id })}
-            >
-              <History size={17} />
-            </IconButton>
-            {prefs.aiEnabled && issueCount > 0 && (
-              <button
-                className="note-issue-indicator"
-                onClick={() =>
-                  w.openKnowledgeIssues({ kind: "note", noteId: note.id })
-                }
-                aria-label={`${issueCount} knowledge issue${issueCount === 1 ? "" : "s"} for this note`}
-              >
-                <ShieldQuestion size={15} />
-                {issueCount} knowledge issue{issueCount === 1 ? "" : "s"}
-              </button>
-            )}
-            {prefs.aiEnabled && overlapCount > 0 && (
-              <button
-                className="note-issue-indicator"
-                onClick={() =>
-                  w.openKnowledgeOverlap({ kind: "note", noteId: note.id })
-                }
-                aria-label={`${overlapCount} overlap suggestion${overlapCount === 1 ? "" : "s"} for this note`}
-              >
-                <Layers3 size={15} />
-                {overlapCount} overlap
-              </button>
-            )}
-            {prefs.aiEnabled && linkCount > 0 && (
-              <button
-                className="note-issue-indicator note-link-control"
-                onClick={() => setLinkPanelOpen(true)}
-                aria-label={`${linkCount} link opportunit${linkCount === 1 ? "y" : "ies"} for this note`}
-              >
-                <Link2 size={15} />
-                Links · {linkCount}
-              </button>
-            )}
-          </>
-        )}
-        <IconButton
-          label="Export wiki links"
-          disabled={dirty || saving}
-          onClick={() => setWikiExportOpen(true)}
-        >
-          <FileOutput size={17} />
-        </IconButton>
-        <span className="save-status" aria-live="polite">
-          {saving ? "Saving…" : dirty ? "Unsaved changes" : "Saved"}
-        </span>
-        <IconButton
-          label="Save note"
-          disabled={!dirty || saving || uploading || !checked || !!recovery}
-          onClick={save}
-        >
-          <Save size={18} />
-        </IconButton>
+            <Save size={15} />
+            <span>Save</span>
+          </Button>
+          <ItemMenu
+            entry={{
+              name: note.path.split("/").at(-1)!,
+              path: note.path,
+              isDirectory: false,
+              id: note.id,
+              title: note.title,
+            }}
+            extra={noteActions}
+          />
+        </div>
       </div>
       {error != null && <ErrorMessage error={error} />}{" "}
       {conflict && (
@@ -501,6 +519,7 @@ export function NoteWorkbench({ note }: { note: Note }) {
           </Button>
         </div>
       )}
+      {mode === "write" && <h1 className="sr-only">{note.title}</h1>}
       <div className={`document-content mode-${mode}`}>
         <div className="editor-pane" hidden={mode === "preview"}>
           {(mode !== "preview" || editorLoaded) && (
@@ -522,20 +541,17 @@ export function NoteWorkbench({ note }: { note: Note }) {
         </div>
         {mode !== "write" && (
           <div className="reader-scroll">
+            <header className="reader-title">
+              <h1>{note.title}</h1>
+            </header>
             <Markdown source={preview} links={links.data} title={note.title} />
           </div>
         )}
       </div>
-      <footer className="document-footer">
-        <span>
-          {source.trim().split(/\s+/).filter(Boolean).length.toLocaleString()}{" "}
-          words
-        </span>
-        <span>Markdown · UTF-8</span>
-      </footer>
       <Modal
         open={!!recovery}
-        onClose={() => setRecovery(null)}
+        onClose={() => undefined}
+        dismissible={false}
         title={conflict ? "Review both versions" : "Recover your draft"}
         description="Nothing is written to the server until you explicitly save."
         wide
