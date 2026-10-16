@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { connect, first, mockSlate, openNote } from "./fixture";
+import { connect, first, mockSlate, openNote, noteAction } from "./fixture";
 
 test("smart views, rediscovery, daily notes and related knowledge use canonical APIs", async ({
   page,
@@ -13,6 +13,7 @@ test("smart views, rediscovery, daily notes and related knowledge use canonical 
   ).toBeVisible();
   await expect(page.getByText("An open question from the library.")).toBeVisible();
 
+  await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Rediscover", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Rediscover" })).toBeVisible();
   await expect(
@@ -72,7 +73,7 @@ test("wiki export previews portable Markdown before revision-checked apply", asy
   await connect(page);
   await openNote(page);
 
-  await page.getByRole("button", { name: "Export wiki links" }).click();
+  await noteAction(page, "Export wiki links");
   await expect(page.getByRole("heading", { name: "Export wiki links" })).toBeVisible();
   await expect(page.getByText("Portable Markdown", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Apply reviewed conversion" }).click();

@@ -18,9 +18,6 @@ import {
   X,
   CalendarDays,
   CircleHelp,
-  ArchiveRestore,
-  Compass,
-  Unlink,
   ListChecks,
   BrainCircuit,
 } from "lucide-react";
@@ -35,7 +32,6 @@ import {
 import { Button } from "@/components/ui/button";
 import type { Entry } from "@/lib/api/contracts";
 import { ItemMenu } from "./item-menu";
-import { SMART_VIEWS } from "@/features/views/smart-views";
 import { useWorkspacePreferences } from "@/lib/storage/workspace-preferences";
 import { Modal } from "@/components/common/primitives";
 import { format } from "date-fns";
@@ -267,7 +263,7 @@ export function Explorer() {
   return (
     <section className="explorer">
       <div className="sidebar-heading explorer-toolbar">
-        <span className="eyebrow">VAULT</span>
+        <span className="eyebrow">FILES</span>
         <div className="inline-actions">
           <IconButton
             label="Daily note"
@@ -408,42 +404,6 @@ export function Explorer() {
           </div>
         </details>
       )}
-      <details className="explorer-disclosure" open>
-        <summary>Views</summary>
-        <div className="smart-view-nav" aria-label="Smart views">
-          {SMART_VIEWS.map(({ id, title, icon: Icon }) => (
-            <button
-              key={id}
-              className={w.nav === id ? "active" : ""}
-              onClick={() => w.navigate(id)}
-            >
-              <Icon size={15} />
-              <span>{title}</span>
-            </button>
-          ))}
-          <button
-            className={w.nav === "rediscover" ? "active" : ""}
-            onClick={() => w.navigate("rediscover")}
-          >
-            <Compass size={15} />
-            <span>Rediscover</span>
-          </button>
-          <button
-            className={w.nav === "recovery" ? "active" : ""}
-            onClick={() => w.navigate("recovery")}
-          >
-            <ArchiveRestore size={15} />
-            <span>Deleted notes</span>
-          </button>
-          <button
-            className={w.nav === "link-health" ? "active" : ""}
-            onClick={() => w.navigate("link-health")}
-          >
-            <Unlink size={15} />
-            <span>Link health</span>
-          </button>
-        </div>
-      </details>
       {selecting && (
         <BulkActions
           paths={[...selected]}

@@ -1,18 +1,29 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Clock3, Plus, ArrowUpRight, Star } from "lucide-react";
+import {
+  FileText,
+  Clock3,
+  Plus,
+  ArrowUpRight,
+  Star,
+  Search,
+  Zap,
+  Compass,
+  ArchiveRestore,
+  Unlink,
+  type LucideIcon,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useWorkspace } from "@/features/notes/workspace-context";
 import { readRecent } from "@/lib/storage/recent";
 import { FolderChildren } from "./explorer";
-import { InboxOverlapIndicator } from "@/components/overlap/overlap-workspace";
-import { InboxLinkIndicator } from "@/components/links/link-opportunities";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/common/primitives";
 import { ErrorMessage, Loading } from "@/components/common/primitives";
-import { useApi } from "@/lib/auth/context";
-import { smartView } from "@/features/views/smart-views";
+import { useApi, useAuth } from "@/lib/auth/context";
+import { SMART_VIEWS, smartView } from "@/features/views/smart-views";
+import type { Destination } from "@/components/layout/shell";
 import { RecoveryPage } from "@/components/history/recovery-page";
 import { RediscoveryPage } from "./rediscovery-page";
 import { LinkHealthPage } from "@/components/links/link-health-page";
@@ -101,46 +112,31 @@ export function DestinationPage() {
     );
   const inbox = w.nav === "inbox";
   if (inbox && prefs.aiEnabled) return <InboxTriage />;
+  if (!inbox) return <LibraryHome />;
   return (
     <>
       <div className="view-header">
-        <p className="eyebrow">{inbox ? "CAPTURE & ORGANIZE" : "WORKSPACE"}</p>
+        <p className="eyebrow">CAPTURE &amp; ORGANIZE</p>
         <div className="section-heading">
-          <h1>{inbox ? "Inbox" : "Library"}</h1>
-          {inbox && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                inbox
-                  ? w.setCaptureOpen(true)
-                  : w.setOperation({ kind: "create-note", folder: "" })
-              }
-            >
-              <Plus size={15} />
-              {inbox ? "Capture" : "New note"}
-            </Button>
-          )}
+          <h1>Inbox</h1>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => w.setCaptureOpen(true)}
+          >
+            <Plus size={15} />
+            Capture
+          </Button>
         </div>
-        <p>
-          {inbox
-            ? "Capture now. Organize when you’re ready."
-            : "Browse folders or search your notes."}
-        </p>
+        <p>Capture now. Organize when you’re ready.</p>
       </div>
       <div className="view-body scroll-area">
         <div className="section-heading">
-          <h2>{inbox ? "Unsorted thoughts" : "Browse your library"}</h2>
+          <h2>Unsorted thoughts</h2>
           <Clock3 size={14} className="muted" />
         </div>
-        <div
-          className="library-browser"
-          role="tree"
-          aria-label={inbox ? "Inbox notes" : "Browse library"}
-        >
-          {inbox && prefs.aiEnabled && <InboxOverlapIndicator />}
-          {inbox && prefs.aiEnabled && <InboxLinkIndicator />}
-          <FolderChildren key={w.nav} path={inbox ? "inbox" : ""} />
+        <div className="library-browser" role="tree" aria-label="Inbox notes">
+          <FolderChildren key={w.nav} path="inbox" />
         </div>
       </div>
     </>
@@ -232,5 +228,156 @@ function SmartViewPage({
         )}
       </div>
     </>
+  );
+}
+
+const LIBRARY_VIEWS: {
+  id: Destination;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+}[] = [
+  ...SMART_VIEWS,
+  {
+    id: "rediscover",
+    title: "Rediscover",
+    description: "Older notes worth another look.",
+    icon: Compass,
+  },
+  {
+    id: "link-health",
+    title: "Link health",
+    description: "Broken, ambiguous, and unresolved links.",
+    icon: Unlink,
+  },
+  {
+    id: "recovery",
+    title: "Deleted notes",
+    description: "Restore notes from Git history.",
+    icon: ArchiveRestore,
+  },
+];
+
+/** The library landing page: everything that isn't already in the file tree, so nothing is shown twice. */
+function LibraryHome() {
+  const w = useWorkspace();
+  const { api, connection } = useAuth();
+  const local = useWorkspacePreferences(w.scope);
+  const [recent] = useState(() => readRecent(w.scope).slice(0, 6));
+  const status = useQuery({
+    queryKey: ["status", connection?.server],
+    queryFn: ({ signal }) => api!.status(signal),
+    enabled: !!api,
+  });
+  const favorites = local.preferences.favorites;
+  return (
+    <div className="library-home scroll-area">
+      <div className="home-inner">
+        <header className="home-header">
+          <div>
+            <p className="eyebrow">WORKSPACE</p>
+            <h1>Library</h1>
+            <p className="muted">
+              {status.data
+                ? `${status.data.noteCount.toLocaleString()} note${status.data.noteCount === 1 ? "" : "s"}`
+                : "Your notes"}
+            </p>
+          </div>
+          <div className="home-actions">
+            <Button
+              variant="outline"
+              onClick={() => w.setCaptureOpen(true)}
+              aria-label="Capture a thought"
+            >
+              <Zap size={15} />
+              Capture
+            </Button>
+            <Button
+              onClick={() => w.setOperation({ kind: "create-note", folder: "" })}
+              aria-label="Create note"
+            >
+              <Plus size={15} />
+              New note
+            </Button>
+          </div>
+        </header>
+        <button className="home-search" onClick={() => w.openCommandCenter()}>
+          <Search size={17} />
+          <span>Search notes, or type &gt; for commands</span>
+          <kbd>Ctrl K</kbd>
+        </button>
+        {recent.length > 0 && (
+          <section className="home-section" aria-labelledby="home-recent">
+            <div className="home-section-heading">
+              <h2 id="home-recent">Jump back in</h2>
+              <Button variant="ghost" size="sm" onClick={() => w.navigate("recent")}>
+                View all
+              </Button>
+            </div>
+            <div className="home-grid">
+              {recent.map((r) => (
+                <button className="home-card" key={r.id} onClick={() => w.open(r.id)}>
+                  <FileText size={17} />
+                  <strong>{r.title}</strong>
+                  <span className="result-path">{r.path}</span>
+                  <small>
+                    {formatDistanceToNow(new Date(r.openedAt), { addSuffix: true })}
+                  </small>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+        {favorites.length > 0 && (
+          <section className="home-section" aria-labelledby="home-favorites">
+            <div className="home-section-heading">
+              <h2 id="home-favorites">Favorites</h2>
+            </div>
+            <div className="home-grid">
+              {favorites.map((favorite) => (
+                <button className="home-card" key={favorite.id} onClick={() => w.open(favorite.id)}>
+                  <Star size={17} fill="currentColor" />
+                  <strong>{favorite.title}</strong>
+                  <span className="result-path">{favorite.path}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+        <section className="home-section home-folders" aria-labelledby="home-folders">
+          <div className="home-section-heading">
+            <h2 id="home-folders">Folders</h2>
+          </div>
+          <div className="library-browser" role="tree" aria-label="Browse library">
+            <FolderChildren path="" />
+          </div>
+        </section>
+        <section className="home-section" aria-labelledby="home-views">
+          <div className="home-section-heading">
+            <h2 id="home-views">Views</h2>
+          </div>
+          <div className="home-grid home-views">
+            {LIBRARY_VIEWS.map(({ id, title, description, icon: Icon }) => (
+              <button
+                className="home-card home-view"
+                key={id}
+                aria-label={title}
+                onClick={() => w.navigate(id)}
+              >
+                <Icon size={17} />
+                <strong>{title}</strong>
+                <span>{description}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+        {recent.length === 0 && favorites.length === 0 && (
+          <p className="home-hint muted">
+            Open a note from the file tree to start. Recently opened notes and
+            favorites will appear here.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

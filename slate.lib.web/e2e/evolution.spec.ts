@@ -1,10 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { connect, mockSlate, openNote } from "./fixture";
+import { connect, mockSlate, openNote, noteAction } from "./fixture";
 
 async function openNoteEvolution(page: Page) {
   await openNote(page);
-  await page.getByRole("button", { name: "Evolution of this note" }).click();
+  await noteAction(page, "Evolution of this note");
   await page.getByRole("heading", { name: "Library architecture", exact: true }).waitFor();
 }
 
