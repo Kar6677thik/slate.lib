@@ -200,6 +200,13 @@ export class SlateApi {
     const decoder = new TextDecoder();
     let buffer = "";
     let received = 0;
+    const emit = (frame: string) => {
+      const line = frame.split(/\r?\n/).find((value) => value.startsWith("data:"));
+      if (!line) return;
+      const event = JSON.parse(line.slice(5).trim()) as Parameters<AskStreamHandler>[0];
+      if (!event || typeof event.type !== "string") throw new Error("Ask Slate returned an invalid stream.");
+      onEvent(event);
+    };
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -209,14 +216,11 @@ export class SlateApi {
         buffer += decoder.decode(value, { stream: true });
         const frames = buffer.split(/\r?\n\r?\n/);
         buffer = frames.pop() ?? "";
-        for (const frame of frames) {
-          const line = frame.split(/\r?\n/).find((value) => value.startsWith("data:"));
-          if (!line) continue;
-          const event = JSON.parse(line.slice(5).trim()) as Parameters<AskStreamHandler>[0];
-          if (!event || typeof event.type !== "string") throw new Error("Ask Slate returned an invalid stream.");
-          onEvent(event);
-        }
+        frames.forEach(emit);
       }
+      // The final event may arrive without its trailing blank line.
+      buffer += decoder.decode();
+      if (buffer.trim()) emit(buffer);
     } finally {
       reader.releaseLock();
     }
