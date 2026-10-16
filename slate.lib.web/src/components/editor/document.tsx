@@ -23,6 +23,11 @@ export function Tabs() {
       <div
         className="tab-items"
         ref={list}
+        onWheel={(event) => {
+          // Let a vertical wheel scroll the strip sideways.
+          if (event.deltaY && !event.deltaX)
+            event.currentTarget.scrollLeft += event.deltaY;
+        }}
         onKeyDown={(event) => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
             return;
