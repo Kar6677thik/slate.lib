@@ -3,6 +3,23 @@
  * Goal: the note itself gets the space; chrome is one slim bar above it and one status bar below.
  */
 
+/* ---------- Scrollbars ---------- */
+/* Thin, arrowless overlays that only tint in while the pointer is over the scrolling area. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
+}
+/* The tab strip scrolls to the active tab and with the wheel; a bar there is only noise. */
+.app-shell .workspace-topbar .tab-items {
+  scrollbar-width: none;
+}
+.app-shell .workspace-topbar .tab-items::-webkit-scrollbar {
+  display: none;
+}
+
 /* ---------- Top bar ---------- */
 .search-trigger {
   display: inline-flex;
