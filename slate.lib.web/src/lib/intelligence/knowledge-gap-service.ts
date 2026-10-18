@@ -50,7 +50,7 @@ export async function knowledgeGapSnapshot(libraryId: string, canonical: GapCano
   } else analysis = analyzeKnowledgeGaps({ libraryId, notes, concepts, issues, overlaps, linkSuggestions: suggestions, semanticAvailable: options.semanticAvailable, postgresAvailable, pending: options.pending, failed: options.failed });
   session.set(libraryId, { expires: Date.now() + KNOWLEDGE_GAP_LIMITS.cacheMs, hits: 0, analysis, dirtyNoteIds: new Set(), dirtyPaths: new Set() });
   try { await store.replaceKnowledgeGaps(libraryId, analysis.gaps); }
-  catch { analysis.degraded = "Knowledge gaps are available for this session, but PostgreSQL persistence is unavailable."; analysis.diagnostics.postgresAvailable = false; }
+  catch { if (process.env.SLATE_INTELLIGENCE_DATABASE_URL) analysis.degraded = "Knowledge gaps are available for this session, but PostgreSQL persistence is unavailable."; analysis.diagnostics.postgresAvailable = false; }
   return pageKnowledgeGaps(analysis, filters, reviews, 0);
 }
 

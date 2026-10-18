@@ -123,10 +123,57 @@ async function readJsonBody(request: Request, maxBytes = 16 * 1024) {
   }
 }
 
+/** Identifies one bearer credential on one server without keeping the token itself as a map key. */
+function credentialKey(connection: ReturnType<typeof resolveSlateUpstream>) {
+  return `${connection.server}
+${createHash("sha256").update(connection.authorization).digest("hex")}`;
+}
+
+/*
+ * Analyses (health, gaps, concepts, overlap, links, triage...) each walk the whole library. Without sharing, every
+ * analysis re-downloads every note, and a note page that opens several at once multiplies that. Canonical reads are
+ * shared per credential for a short time and concurrent identical reads are merged into one upstream request.
+ */
+const CANONICAL_TTL_MS = 20_000;
+const CANONICAL_MAX_ENTRIES = 3_000;
+const canonicalCache = new Map<string, { expires: number; value: Promise<unknown> }>();
+
+function clearCanonicalCache(connection: ReturnType<typeof resolveSlateUpstream>) {
+  const prefix = `${credentialKey(connection)}
+`;
+  for (const key of canonicalCache.keys()) if (key.startsWith(prefix)) canonicalCache.delete(key);
+}
+
+async function canonicalValue<T>(connection: ReturnType<typeof resolveSlateUpstream>, path: string, signal: AbortSignal, label: string): Promise<T> {
+  const key = `${credentialKey(connection)}
+${path}`;
+  const now = Date.now();
+  let entry = canonicalCache.get(key);
+  if (!entry || entry.expires <= now) {
+    if (canonicalCache.size >= CANONICAL_MAX_ENTRIES) {
+      for (const [stale, value] of canonicalCache) if (value.expires <= now) canonicalCache.delete(stale);
+      if (canonicalCache.size >= CANONICAL_MAX_ENTRIES) canonicalCache.delete(canonicalCache.keys().next().value!);
+    }
+    // The shared read is not tied to one caller's abort signal; fetchSlate still bounds it with its own timeout.
+    const value = fetchSlate(connection, path).then(async (response) => {
+      if (!response.ok) throw new Error(`${label} (${response.status})`);
+      return response.json() as Promise<unknown>;
+    });
+    entry = { expires: now + CANONICAL_TTL_MS, value };
+    canonicalCache.set(key, entry);
+    value.catch(() => { if (canonicalCache.get(key) === entry) canonicalCache.delete(key); });
+  }
+  signal.throwIfAborted();
+  return await new Promise<T>((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    entry.value.then((value) => resolve(value as T), reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+}
+
 async function canonicalLibraryId(connection: ReturnType<typeof resolveSlateUpstream>, signal: AbortSignal) {
   // The cache is per credential: a cached identity must never stand in for proving a different bearer token upstream.
-  const key = `${connection.server}
-${createHash("sha256").update(connection.authorization).digest("hex")}`;
+  const key = credentialKey(connection);
   const now = Date.now();
   const cached = libraryCache.get(key);
   if (cached && cached.expires > now) return cached.id;
@@ -326,11 +373,7 @@ async function askResponse(connection: ReturnType<typeof resolveSlateUpstream>, 
 }
 
 function projectCanonical(connection: ReturnType<typeof resolveSlateUpstream>, libraryId: string): ProjectCanonical {
-  async function value<T>(path: string, signal: AbortSignal) {
-    const response = await fetchSlate(connection, path, signal);
-    if (!response.ok) throw new Error(`Canonical project request failed (${response.status})`);
-    return response.json() as Promise<T>;
-  }
+  const value = <T,>(path: string, signal: AbortSignal) => canonicalValue<T>(connection, path, signal, "Canonical project request failed");
   return {
     list: (path, page, signal) => value<FolderPage>(`v1/library?path=${encodeURIComponent(path)}&page=${page}`, signal),
     search: (query, signal) => value<SearchPage>(`v1/search?q=${encodeURIComponent(query)}&page=0&pageSize=50`, signal),
@@ -342,11 +385,7 @@ function projectCanonical(connection: ReturnType<typeof resolveSlateUpstream>, l
 }
 
 function evolutionCanonical(connection: ReturnType<typeof resolveSlateUpstream>, libraryId: string): EvolutionCanonical {
-  async function value<T>(path: string, signal: AbortSignal) {
-    const response = await fetchSlate(connection, path, signal);
-    if (!response.ok) throw new Error(`Canonical evolution request failed (${response.status})`);
-    return response.json() as Promise<T>;
-  }
+  const value = <T,>(path: string, signal: AbortSignal) => canonicalValue<T>(connection, path, signal, "Canonical evolution request failed");
   return {
     list: (path, page, signal) => value<FolderPage>(`v1/library?path=${encodeURIComponent(path)}&page=${page}`, signal),
     search: (query, signal) => value<SearchPage>(`v1/search?q=${encodeURIComponent(query)}&page=0&pageSize=50`, signal),
@@ -358,11 +397,7 @@ function evolutionCanonical(connection: ReturnType<typeof resolveSlateUpstream>,
 }
 
 function knowledgeCanonical(connection: ReturnType<typeof resolveSlateUpstream>, libraryId: string): SmartLinkCanonical {
-  async function value<T>(path: string, signal: AbortSignal) {
-    const response = await fetchSlate(connection, path, signal);
-    if (!response.ok) throw new Error(`Canonical knowledge request failed (${response.status})`);
-    return response.json() as Promise<T>;
-  }
+  const value = <T,>(path: string, signal: AbortSignal) => canonicalValue<T>(connection, path, signal, "Canonical knowledge request failed");
   return {
     list: (path, page, signal) => value<FolderPage>(`v1/library?path=${encodeURIComponent(path)}&page=${page}`, signal),
     note: (id, signal) => value<Note>(`v1/notes/${encodeURIComponent(id)}`, signal),
@@ -371,7 +406,7 @@ function knowledgeCanonical(connection: ReturnType<typeof resolveSlateUpstream>,
   };
 }
 function healthCanonical(connection: ReturnType<typeof resolveSlateUpstream>): HealthCanonical {
-  async function value<T>(path: string, signal: AbortSignal) { const response = await fetchSlate(connection, path, signal); if (!response.ok) throw new Error(`Canonical health source failed (${response.status})`); return response.json() as Promise<T>; }
+  const value = <T,>(path: string, signal: AbortSignal) => canonicalValue<T>(connection, path, signal, "Canonical health source failed");
   return { list: (path, page, signal) => value<FolderPage>(`v1/library?path=${encodeURIComponent(path)}&page=${page}`, signal), note: (id, signal) => value<Note>(`v1/notes/${encodeURIComponent(id)}`, signal), links: (id, signal) => value<Links>(`v1/notes/${encodeURIComponent(id)}/links`, signal), linkIssues: (page, signal) => value<LinkIssuePage>(`v1/links/issues?page=${page}`, signal), assets: (page, signal) => value<AssetPage>(`v1/assets?page=${page}&unreferenced=false`, signal) };
 }
 
@@ -391,6 +426,50 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
   try { libraryId = await canonicalLibraryId(connection, request.signal); }
   catch (caught) { return caught instanceof Response ? error(caught.status, await caught.text()) : error(502, "Canonical library is unavailable"); }
   after(() => resumePending(connection, libraryId));
+  if (!heavyAnalyses.has(path) || request.method !== "POST") return route(request, path, json, connection, libraryId);
+  let release: () => void;
+  try { release = await acquireAnalysisSlot(request.signal); }
+  catch { return error(499, "Request was cancelled"); }
+  try { return await route(request, path, json, connection, libraryId); }
+  finally { release(); }
+}
+
+/*
+ * Whole-library analyses hold every note's text and derived structures in memory. Running several at once (a note
+ * page alone starts three) exhausted the web pod's memory in production, so they take turns.
+ */
+const heavyAnalyses = new Set(["inbox-triage", "health", "knowledge-gaps", "knowledge-issues", "knowledge-overlap", "link-opportunities", "concepts"]);
+const MAX_CONCURRENT_ANALYSES = 2;
+let runningAnalyses = 0;
+const analysisQueue: (() => void)[] = [];
+
+function acquireAnalysisSlot(signal: AbortSignal) {
+  return new Promise<() => void>((resolve, reject) => {
+    const release = () => {
+      const next = analysisQueue.shift();
+      if (next) next();
+      else runningAnalyses--;
+    };
+    if (runningAnalyses < MAX_CONCURRENT_ANALYSES) {
+      runningAnalyses++;
+      resolve(release);
+      return;
+    }
+    const start = () => {
+      signal.removeEventListener("abort", cancel);
+      resolve(release);
+    };
+    const cancel = () => {
+      const index = analysisQueue.indexOf(start);
+      if (index >= 0) analysisQueue.splice(index, 1);
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", cancel, { once: true });
+    analysisQueue.push(start);
+  });
+}
+
+async function route(request: Request, path: string, json: unknown, connection: ReturnType<typeof resolveSlateUpstream>, libraryId: string) {
   if (path === "status" && request.method === "GET") return Response.json({ ...await intelligenceStatus(libraryId), totalNotes: libraryTotals.get(libraryId) ?? 0, ...generationStatus(libraryId) }, { headers: noStore });
   if (path === "inbox-triage" && request.method === "POST") {
     try {
@@ -505,10 +584,15 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
     const pageSize = Math.min(Math.max(Math.trunc(Number(body.pageSize) || 20), 1), 50);
     if (!query) return Response.json({ query, mode, effectiveMode: mode, page, pageSize, total: 0, results: [] }, { headers: noStore });
     const candidateSize = Math.min(Math.max((page + 1) * pageSize * 3, 30), 200);
-    const response = await fetchSlate(connection, `v1/search?q=${encodeURIComponent(query)}&page=0&pageSize=${candidateSize}`, request.signal);
-    if (!response.ok) return error(response.status, "Keyword search failed");
-    const lexical = await response.json() as SearchPage;
-    return Response.json(await hybridSearch(libraryId, query, mode, lexical.results, Boolean(body.diagnostics), page, pageSize, lexical.total), { headers: noStore });
+    // Slate caps a search page at 50 results, so larger candidate sets are read as consecutive pages.
+    const lexicalPageSize = 50;
+    const responses = await Promise.all(Array.from({ length: Math.ceil(candidateSize / lexicalPageSize) }, (_, index) =>
+      fetchSlate(connection, `v1/search?q=${encodeURIComponent(query)}&page=${index}&pageSize=${lexicalPageSize}`, request.signal)));
+    const failed = responses.find((response) => !response.ok);
+    if (failed) return error(failed.status, "Keyword search failed");
+    const pages = await Promise.all(responses.map((response) => response.json() as Promise<SearchPage>));
+    const lexical = pages.flatMap((result) => result.results).slice(0, candidateSize);
+    return Response.json(await hybridSearch(libraryId, query, mode, lexical, Boolean(body.diagnostics), page, pageSize, pages[0].total), { headers: noStore });
   }
   if (path === "related" && request.method === "POST") {
     const body = json as { noteId?: string };
@@ -529,6 +613,7 @@ async function handler(request: Request, context: { params: Promise<{ path: stri
     const parsed = eventSchema.safeParse(json);
     if (!parsed.success) return error(422, "Invalid indexing event");
     const body = parsed.data as IndexEvent;
+    clearCanonicalCache(connection);
     clearProjectBrainCache(libraryId);
     clearEvolutionCache(libraryId, "noteId" in body ? body.noteId : undefined, "path" in body ? body.path : undefined);
     try {

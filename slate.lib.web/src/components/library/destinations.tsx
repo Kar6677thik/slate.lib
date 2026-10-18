@@ -198,7 +198,10 @@ function SmartViewPage({
             {query.data.total === 0 && (
               <Empty
                 title={`No ${view.title.toLowerCase()}`}
-                detail="This view updates automatically as your library changes."
+                detail={
+                  ("emptyHint" in view ? view.emptyHint : undefined) ??
+                  "This view updates automatically as your library changes."
+                }
               />
             )}
             {query.data.total > query.data.pageSize && (

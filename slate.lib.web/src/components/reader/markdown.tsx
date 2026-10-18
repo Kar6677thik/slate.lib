@@ -11,12 +11,22 @@ import { Copy, Check } from "lucide-react";
 import { assetId } from "@/lib/markdown/assets";
 import { AssetView } from "@/components/assets/asset";
 import { slateMarkdown, headingSlug } from "@/lib/markdown/slate-markdown";
+import { useOptionalApi } from "@/lib/auth/context";
+import { resolveNoteHref } from "@/lib/markdown/links";
 import { useWorkspace } from "@/features/notes/workspace-context";
 import type { Links } from "@/lib/api/contracts";
 import { IconButton } from "@/components/common/primitives";
 const Diagram = dynamic(() => import("./diagram"), { ssr: false });
 const MathReader = dynamic(() => import("./math-reader"), { ssr: false });
-export type MarkdownProps = { source: string; links?: Links; title?: string };
+export type MarkdownProps = {
+  source: string;
+  links?: Links;
+  title?: string;
+  /** The note's library path, used to resolve relative links to other notes. */
+  path?: string;
+  /** Called with the source offset of a task list item whose checkbox the reader clicked. */
+  onToggleTask?: (offset: number) => void;
+};
 function plain(children: ReactNode): string {
   return Children.toArray(children)
     .map((c) =>
@@ -71,6 +81,8 @@ export function MarkdownBody({
   source,
   links,
   title,
+  path,
+  onToggleTask,
   remarkExtras = [],
   rehypeExtras = [],
 }: MarkdownProps & {
@@ -78,6 +90,7 @@ export function MarkdownBody({
   rehypeExtras?: PluggableList;
 }) {
   const w = useWorkspace();
+  const api = useOptionalApi();
   const seen = new Map<string, number>();
   function heading(level: 1 | 2 | 3 | 4 | 5 | 6, children: ReactNode) {
     const base = headingSlug(plain(children));
@@ -122,12 +135,41 @@ export function MarkdownBody({
         ]}
         skipHtml
         components={{
+          li: ({ node, children, className }) => (
+            <li
+              className={className}
+              data-task-offset={
+                className?.includes("task-list-item")
+                  ? node?.position?.start.offset
+                  : undefined
+              }
+            >
+              {children}
+            </li>
+          ),
           input: ({ checked }) => (
             <input
               type="checkbox"
-              disabled
-              checked={checked}
-              aria-label={checked ? "Completed task" : "Incomplete task"}
+              disabled={!onToggleTask}
+              checked={!!checked}
+              readOnly
+              aria-label={
+                onToggleTask
+                  ? checked
+                    ? "Mark task as not done"
+                    : "Mark task as done"
+                  : checked
+                    ? "Completed task"
+                    : "Incomplete task"
+              }
+              onClick={(event) => {
+                event.preventDefault();
+                const offset = Number(
+                  event.currentTarget.closest("li")?.dataset.taskOffset,
+                );
+                if (onToggleTask && Number.isFinite(offset))
+                  onToggleTask(offset);
+              }}
             />
           ),
           h1: ({ children }) => heading(1, children),
@@ -179,6 +221,26 @@ export function MarkdownBody({
                 </button>
               );
             }
+            // Relative links to other notes open inside Slate, even before (or without) the server's link index.
+            const local = path && api ? resolveNoteHref(path, href) : null;
+            if (local && api)
+              return (
+                <button
+                  className="wiki-link"
+                  title="Open note"
+                  onClick={() =>
+                    void api
+                      .noteByPath(local.path)
+                      .then((target) => w.open(target.id))
+                      .catch(() => {
+                        w.setQuery(local.path.split("/").at(-1)!.replace(/\.md$/i, ""));
+                        w.navigate("search");
+                      })
+                  }
+                >
+                  {children}
+                </button>
+              );
             return (
               <a
                 href={href}

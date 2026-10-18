@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { plainExcerpt } from "@/lib/markdown/plain";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowRight, Clock3, FileClock, MessageCircleQuestion, RefreshCw, Search, Sparkles } from "lucide-react";
 import { useApi } from "@/lib/auth/context";
@@ -37,12 +38,12 @@ function Comparison({ event, onOpen }: { event: EvolutionEvent; onOpen: (source:
     <div className="evolution-diff">
       <section>
         <span>Before</span>
-        {event.before ? <><p>{event.before.excerpt}</p><button type="button" onClick={() => onOpen(event.before!)}>Open historical source · {event.before.citationId}</button></> : <p className="muted">No earlier bounded snapshot was available.</p>}
+        {event.before ? <><p>{plainExcerpt(event.before.excerpt)}</p><button type="button" onClick={() => onOpen(event.before!)}>Open historical source · {event.before.citationId}</button></> : <p className="muted">No earlier bounded snapshot was available.</p>}
       </section>
       <ArrowRight size={18} aria-hidden="true" />
       <section>
         <span>After</span>
-        <p>{event.after.excerpt}</p>
+        <p>{plainExcerpt(event.after.excerpt)}</p>
         <button type="button" onClick={() => onOpen(event.after)}>{event.after.state === "current" ? "Open current note" : "Open historical source"} · {event.after.citationId}</button>
       </section>
     </div>
@@ -126,13 +127,13 @@ export function EvolutionWorkspace({ initialScope }: { initialScope: EvolutionSc
         <section className="evolution-detail">{active ? <Comparison event={active} onOpen={openSource} /> : <Empty title="No meaningful change found" detail="The bounded history contained only equivalent or cosmetic edits." />}</section>
         <aside className="evolution-current" aria-label="Current view">
           <header><span>Current only</span><h2>Current view</h2><p>These cards use the newest canonical revision, never an older snapshot.</p></header>
-          {snapshot.data.current.map((item) => <button key={item.noteId} onClick={() => workspace.open(item.noteId)}><strong>{item.title}</strong><small>{item.path}</small><p>{item.excerpt}</p>{(item.type || item.status) && <span>{[item.type, item.status].filter(Boolean).join(" · ")}</span>}</button>)}
+          {snapshot.data.current.map((item) => <button key={item.noteId} onClick={() => workspace.open(item.noteId)}><strong>{item.title}</strong><small>{item.path}</small><p>{plainExcerpt(item.excerpt)}</p>{(item.type || item.status) && <span>{[item.type, item.status].filter(Boolean).join(" · ")}</span>}</button>)}
         </aside>
       </div>
-      <details className="evolution-sources"><summary>Evidence sources <span>{snapshot.data.sources.length}</span></summary><div>{snapshot.data.sources.map((item) => <button id={`evolution-source-${item.citationId}`} key={item.citationId} onClick={() => openSource(item)}><strong>{item.citationId} · {item.title}</strong><small>{item.state} · {item.commit ? item.commit.slice(0, 8) : "current"} · {displayDate(item.timestamp)}</small><p>{item.excerpt}</p></button>)}</div></details>
+      <details className="evolution-sources"><summary>Evidence sources <span>{snapshot.data.sources.length}</span></summary><div>{snapshot.data.sources.map((item) => <button id={`evolution-source-${item.citationId}`} key={item.citationId} onClick={() => openSource(item)}><strong>{item.citationId} · {item.title}</strong><small>{item.state} · {item.commit ? item.commit.slice(0, 8) : "current"} · {displayDate(item.timestamp)}</small><p>{plainExcerpt(item.excerpt)}</p></button>)}</div></details>
     </>}
     <Modal open={Boolean(source)} onClose={() => setSource(null)} title={source?.title ?? "Historical source"} description={source ? `${source.path} · ${source.commit?.slice(0, 12) ?? source.revision} · ${displayDate(source.timestamp)}` : undefined} wide>
-      {source && <div className="historical-source"><p>{source.excerpt}</p><div className="dialog-actions"><Button variant="outline" onClick={() => setSource(null)}>Close</Button><Button onClick={() => { const id = source.noteId; setSource(null); workspace.open(id); }}>Open current note</Button></div></div>}
+      {source && <div className="historical-source"><p>{plainExcerpt(source.excerpt)}</p><div className="dialog-actions"><Button variant="outline" onClick={() => setSource(null)}>Close</Button><Button onClick={() => { const id = source.noteId; setSource(null); workspace.open(id); }}>Open current note</Button></div></div>}
     </Modal>
   </div>;
 }

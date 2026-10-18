@@ -202,10 +202,17 @@ function newer(a: KnowledgeClaim, b: KnowledgeClaim) {
   return null;
 }
 function stablePair(a: KnowledgeClaim, b: KnowledgeClaim) { return [a, b].sort((x, y) => x.claimId.localeCompare(y.claimId)); }
+// Pronouns, question words and fillers that end up as parsed "subjects" but name nothing two notes could disagree about.
+const vagueSubjectWords = new Set(["a", "an", "and", "are", "as", "at", "be", "but", "by", "can", "come", "do", "does", "for", "from", "full", "here", "how", "if", "in", "is", "it", "its", "not", "of", "on", "or", "so", "that", "the", "their", "then", "there", "these", "they", "this", "those", "to", "today", "was", "we", "what", "when", "where", "which", "who", "why", "with", "would", "you"]);
+function meaningfulSubject(subject: string) { return subject.split(/\s+/).some((word) => word.length >= 3 && !vagueSubjectWords.has(word)); }
 function classify(a: KnowledgeClaim, b: KnowledgeClaim): Omit<KnowledgeIssue, "issueId" | "fingerprint" | "state" | "createdAt"> | null {
   if (a.noteId === b.noteId || !sameContext(a, b)) return null;
+  // Two open questions never contradict each other, and a vague subject ("what", "these") can't be disagreed about.
+  if (a.claimType === "question" && b.claimType === "question") return null;
+  if (!meaningfulSubject(a.normalizedSubject) || !meaningfulSubject(b.normalizedSubject)) return null;
   const subject = tokenOverlap(a.normalizedSubject, b.normalizedSubject);
-  const exactProperty = a.normalizedPredicate === b.normalizedPredicate && subject >= .65;
+  // A plain statement has no named property, so its subjects must match closely before the values are compared.
+  const exactProperty = a.normalizedPredicate === b.normalizedPredicate && a.normalizedPredicate !== "asks" && subject >= (a.normalizedPredicate === "states" ? .85 : .65);
   const later = newer(a, b);
   const [older, newest] = later === a ? [b, a] : [a, b];
   let kind: IssueKind | null = null;

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { requestEditing } from "@/features/notes/edit-intent";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "@/lib/auth/context";
 import {
@@ -59,6 +60,7 @@ function OperationForm({ operation: o }: { operation: Operation }) {
         );
       if (o.kind === "create-note") {
         const n = await api.create(folder, name);
+        requestEditing(n.id);
         w.open(n.id);
       } else if (o.kind === "create-folder") await api.folder(folder, name);
       else if (o.kind === "rename") await api.rename(o.entry!.path, name);

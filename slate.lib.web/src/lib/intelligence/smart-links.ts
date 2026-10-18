@@ -41,6 +41,9 @@ type IndexedNote = LinkTarget & { markdown: string; aliases: string[]; headings:
 const generic = new Set(["app", "code", "data", "document", "file", "link", "note", "server", "service", "system", "test", "user"]);
 const weakHeadings = new Set(["overview", "introduction", "notes", "summary", "references", "links", "resources"]);
 const stop = new Set(["a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "is", "it", "of", "on", "or", "that", "the", "this", "to", "we", "with"]);
+// Words that recur across titles and headings without saying what two notes share ("Case study", "Start here").
+const weakTerms = new Set(["about", "answers", "architecture", "basics", "case", "chapter", "complete", "context", "decision", "design", "example", "examples", "exercise", "exercises", "guide", "here", "how", "introduction", "learning", "library", "notes", "overview", "part", "problem", "reference", "solution", "start", "studies", "study", "summary", "what", "why", "without", "zero"]);
+function meaningfulWords(value: string) { return words(value).filter((word) => !weakTerms.has(word) && !/^\d+$/.test(word)); }
 export function smartLinkHash(value: string) { let h = 2166136261; for (let i = 0; i < value.length; i++) { h ^= value.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
 function words(value: string) { return [...new Set(value.toLowerCase().replace(/[^a-z0-9.+#-]+/g, " ").split(/\s+/).filter((word) => word.length > 1 && !stop.has(word)))]; }
 function normalized(value: string) { return value.toLowerCase().normalize("NFKC").replace(/\.md$/i, "").replace(/[^a-z0-9.+#]+/g, " ").trim().replace(/\s+/g, " "); }
@@ -58,11 +61,12 @@ function indexNote(note: Note): IndexedNote {
 }
 function maskedProse(markdown: string) {
   const chars = [...markdown]; const blank = (from: number, to: number) => { for (let i = from; i < to; i++) if (chars[i] !== "\n") chars[i] = " "; };
-  const meta = parseMeta(markdown); blank(0, meta.bodyStart); const patterns = [/```[\s\S]*?```/g, /`[^`\n]+`/g, /^\s*>.*$/gm, /\[[^\]\n]*\]\([^\)\n]+\)/g, /\[\[[^\]\n]+\]\]/g, /https?:\/\/\S+/g, /^\s*(?:at\s+\S+|\w+(?:Exception|Error):).+$/gm];
+  // Headings are excluded too: a link inserted into a title or section heading changes the document's structure.
+  const meta = parseMeta(markdown); blank(0, meta.bodyStart); const patterns = [/^#{1,6}\s.*$/gm, /```[\s\S]*?```/g,/`[^`\n]+`/g, /^\s*>.*$/gm, /\[[^\]\n]*\]\([^\)\n]+\)/g, /\[\[[^\]\n]+\]\]/g, /https?:\/\/\S+/g, /^\s*(?:at\s+\S+|\w+(?:Exception|Error):).+$/gm];
   for (const pattern of patterns) for (const match of markdown.matchAll(pattern)) blank(match.index!, match.index! + match[0].length);
   return chars.join("");
 }
-function excerpt(markdown: string, from: number, to: number) { return markdown.slice(Math.max(0, from - 90), Math.min(markdown.length, to + 120)).replace(/\s+/g, " ").trim().slice(0, 320); }
+function excerpt(markdown: string, from: number, to: number) { return markdown.slice(Math.max(parseMeta(markdown).bodyStart, from - 90),Math.min(markdown.length, to + 120)).replace(/\s+/g, " ").trim().slice(0, 320); }
 function pairKey(a: string, b: string) { return [a, b].sort().join("|"); }
 export function linkSuggestionMarkdown(target: LinkTarget, visible: string) { const destination = target.title + (target.heading ? `#${target.heading}` : ""); return normalized(visible) === normalized(target.title) && !target.heading ? `[[${target.title}]]` : `[[${destination}|${visible}]]`; }
 function exactExisting(source: IndexedNote, target: IndexedNote, links?: Links) {
@@ -85,6 +89,11 @@ export function analyzeSmartLinks(notes: Note[], scope: LinkOpportunitySnapshot[
     for (const name of [note.title, ...note.aliases, ...note.headings.filter((h) => words(h).length >= 2 && !weakHeadings.has(normalized(h)))]) { const key = normalized(name); const existing = names.get(key) ?? []; if (key.length >= 4 && !generic.has(key) && !existing.some((value) => value.noteId === note.noteId)) names.set(key, [...existing, note]); }
     for (const token of [...words(note.title), ...note.headings.flatMap(words), ...note.claims.flatMap(words)].slice(0, 20)) tokenIndex.set(token, [...(tokenIndex.get(token) ?? []), note]);
   }
+  // A term in many titles and headings (a project name, say) says little about why two particular notes belong together.
+  const termFrequency = new Map<string, number>();
+  for (const note of boundedNotes) for (const word of new Set(meaningfulWords(note.title + " " + note.headings.join(" ")))) termFrequency.set(word, (termFrequency.get(word) ?? 0) + 1);
+  const distinctiveLimit = Math.max(3, Math.ceil(boundedNotes.length * 0.05));
+  const distinctive = (word: string) => (termFrequency.get(word) ?? 0) <= distinctiveLimit;
   const links = evidence.links ?? new Map<string, Links>(); const adjacency = new Map<string, Set<string>>(); const referrers = new Map<string, Set<string>>();
   for (const note of boundedNotes) { const outgoing = new Set((links.get(note.noteId)?.outgoing ?? []).flatMap((link) => link.targetId && byId.has(link.targetId) ? [link.targetId] : [])); adjacency.set(note.noteId, outgoing); for (const target of outgoing) referrers.set(target, new Set([...(referrers.get(target) ?? []), note.noteId])); }
   const overlaps = evidence.overlaps ?? analyzeOverlaps(notes, scope, now).findings; const overlapByPair = new Map(overlaps.map((item) => [pairKey(item.noteA.noteId, item.noteB.noteId), item]));
@@ -122,7 +131,7 @@ export function analyzeSmartLinks(notes: Note[], scope: LinkOpportunitySnapshot[
     }).filter((id) => id !== source.noteId && !direct.has(id)));
     for (const target of nearby) {
       candidates++; if (exactExisting(source, target, links.get(source.noteId))) continue; const overlap = overlapByPair.get(pairKey(source.noteId, target.noteId)); if (overlap && ["exact-duplicate", "near-duplicate", "duplicate-capture", "possibly-absorbed"].includes(overlap.kind)) continue;
-      const sharedClaims = source.claims.filter((claim) => target.claims.includes(claim)); const sharedTerms = words(source.title + " " + source.headings.join(" ")).filter((word) => words(target.title + " " + target.headings.join(" ")).includes(word));
+      const sharedClaims = source.claims.filter((claim) => target.claims.includes(claim)); const sharedTerms = meaningfulWords(source.title + " " + source.headings.join(" ")).filter((word) => distinctive(word) && meaningfulWords(target.title + " " + target.headings.join(" ")).includes(word));
       const commonRefs = [...(referrers.get(source.noteId) ?? [])].filter((id) => referrers.get(target.noteId)?.has(id)).length; const sameProject = Boolean(source.projectPath && source.projectPath === target.projectPath); const graphBridge = twoHop.has(target.noteId); const semanticNeighbor = semanticIds.includes(target.noteId);
       let type: LinkSuggestionType | null = null, explanation = "", signals: string[] = [];
       if (graphBridge && (sharedClaims.length || sharedTerms.length >= 1)) { type = "graph_bridge"; explanation = "These notes are connected through an authored neighbor and share specific knowledge."; signals = ["Two-hop authored graph path"]; }

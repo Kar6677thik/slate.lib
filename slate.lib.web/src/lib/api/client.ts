@@ -255,6 +255,11 @@ export class SlateApi {
       await this.request<Note>(`v1/notes/${id}`, {}, signal),
     );
   }
+  async noteByPath(path: string, signal?: AbortSignal) {
+    return noteSchema.parse(
+      await this.request<Note>(`v1/notes/by-path?path=${encodeURIComponent(path)}`, {}, signal),
+    );
+  }
   async save(note: Note, markdown: string) {
     const saved = noteSchema.parse(
       await this.request<Note>(`v1/notes/${note.id}`, {

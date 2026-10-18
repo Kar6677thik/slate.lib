@@ -38,6 +38,7 @@ import { format } from "date-fns";
 import { BulkActions } from "./bulk-actions";
 import { useCommandRuntime } from "@/features/commands/runtime";
 import { usePreferences } from "@/lib/storage/preferences";
+import { requestEditing } from "@/features/notes/edit-intent";
 
 type Selection = {
   paths: ReadonlySet<string>;
@@ -241,6 +242,7 @@ export function Explorer() {
     onSuccess: (note) => {
       void cache.invalidateQueries({ queryKey: ["folder"] });
       void cache.invalidateQueries({ queryKey: ["smart-view"] });
+      requestEditing(note.id);
       w.open(note.id);
     },
   });
@@ -451,7 +453,9 @@ export function Explorer() {
             Note name
             <input
               required
-              pattern="[^/\\]+"
+              // Browsers compile `pattern` in unicode-sets mode, where "/" must be escaped inside a class.
+              pattern={"[^\\/\\\\]+"}
+              title="A note name can't contain / or \"
               value={question.name}
               onChange={(event) =>
                 setQuestion((value) => ({ ...value, name: event.target.value }))

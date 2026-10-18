@@ -27,7 +27,7 @@ export async function smartLinkSnapshot(libraryId: string, canonical: SmartLinkC
   const knowledge = buildKnowledgeSnapshot(notes, scope); const overlaps = analyzeOverlaps(notes, scope).findings;
   const snapshot = analyzeSmartLinks(notes, scope, { links, issues: knowledge.issues, overlaps, semantic });
   try { await store.replaceLinkSuggestions(libraryId, notes.map((note) => note.id), snapshot.suggestions); }
-  catch { snapshot.degraded = "Link discovery is available for this session, but the derived database is unavailable."; }
+  catch { if (process.env.SLATE_INTELLIGENCE_DATABASE_URL) snapshot.degraded = "Link discovery is available for this session, but the derived database is unavailable."; }
   return snapshot;
 }
 

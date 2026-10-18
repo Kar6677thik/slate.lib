@@ -39,6 +39,17 @@ describe("smart link mention extraction and resolution", () => {
   });
 });
 
+describe("mention placement", () => {
+  it("never suggests a link inside frontmatter or a heading", () => {
+    const target = note(40, "Flux", "# Flux\n\nThe gateway project.");
+    const source = note(41, "Case study", "---\nid: case\ntitle: Flux notes\n---\n# Case Study — Flux: a gateway\n\n## Flux architecture\n\nThis study walks through Flux in detail.");
+    const mentions = snapshot([target, source]).suggestions.filter((item) => item.sourceNoteId === source.id && item.suggestionType === "mention");
+    expect(mentions).toHaveLength(1);
+    expect(source.markdown.slice(0, mentions[0].sourceRange!.from)).toContain("walks through ");
+    expect(mentions[0].sourceExcerpt).not.toContain("---");
+  });
+});
+
 describe("relationship and safety signals", () => {
   it("finds a bounded graph triangle only with content evidence", () => {
     const a = note(20, "Consumer pipeline", "# Consumer pipeline\n\n## Rebalancing\nConsumer group membership changes partition ownership.\n\n## Monitoring\nTrack lag and throughput during deployments."); const b = note(21, "Kafka overview", "# Kafka overview\n\nLinks the system."); const c = note(22, "Rebalance recovery", "# Rebalance recovery\n\n## Rebalancing\nConsumer group membership changes partition ownership safely.\n\n## Recovery\nRestart unhealthy consumers and verify assignments.");

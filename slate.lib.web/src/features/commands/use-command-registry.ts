@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
+import { requestEditing } from "@/features/notes/edit-intent";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { format } from "date-fns";
@@ -172,6 +173,7 @@ export function useCommandRegistry() {
         execute: async () => {
           const note = await api.daily(format(new Date(), "yyyy-MM-dd"));
           invalidateLibrary();
+          requestEditing(note.id);
           workspace.open(note.id);
         },
       },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { plainExcerpt } from "@/lib/markdown/plain";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow, isAfter, subDays } from "date-fns";
 import { AlertTriangle, BrainCircuit, Clock3, FileQuestion, GitBranch, History, MessageCircleQuestion, RefreshCw, RotateCcw, Search } from "lucide-react";
@@ -29,7 +30,7 @@ function SourceButton({ item, onOpen }: { item: ProjectEvidence; onOpen: (id: st
   return <button className="project-evidence" type="button" onClick={() => onOpen(item.noteId, item.heading)}>
     <span><strong>{item.title}</strong>{item.inferred && <em>Possible</em>}</span>
     <small>{item.path}{item.heading ? ` · ${item.heading}` : ""}</small>
-    <p>{item.excerpt}</p>
+    <p>{plainExcerpt(item.excerpt)}</p>
   </button>;
 }
 
@@ -65,7 +66,7 @@ function GeneratedSection({ result, title, onOpen }: { result?: ProjectSynthesis
     <details className="project-generated-sources">
       <summary>Sources <span>{result.sources.length}</span></summary>
       <div>{result.sources.map((source) => <button key={source.citationId} type="button" onClick={() => onOpen(source.noteId, source.heading)}>
-        <strong>{source.citationId} · {source.title}</strong><small>{source.path}{source.heading ? ` · ${source.heading}` : ""}</small><span>{source.excerpt}</span>
+        <strong>{source.citationId} · {source.title}</strong><small>{source.path}{source.heading ? ` · ${source.heading}` : ""}</small><span>{plainExcerpt(source.excerpt)}</span>
       </button>)}</div>
     </details>
   </section>;
@@ -179,7 +180,7 @@ export function ProjectBrain({ path, initialSection }: { path: string; initialSe
       <details className="project-section" id="project-links" open><summary><h2>Relationship Opportunities</h2></summary><div className="project-section-body"><ProjectLinkSummary path={path} /></div></details>
       {data.sections.questions.length > 0 && <details className="project-section" id="project-questions" open><summary><h2>Open Questions</h2><span>{data.sections.questions.length}</span></summary><div className="project-section-body">
         <div className="project-inline-actions"><Button variant="outline" size="sm" onClick={() => ask("What remains unresolved in this project?")}><FileQuestion size={14} />Ask about unresolved questions</Button></div>
-        {data.sections.questions.map((item) => { const linked = data.graph.edges.filter((edge) => edge.source === item.noteId || edge.target === item.noteId).length; return <article className="project-question" key={`${item.noteId}:${item.heading ?? ""}`}><div className="project-question-content"><SourceButton item={item} onOpen={openSource} /><p>{item.status ?? "open"}{item.timestamp ? ` · changed ${formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}` : ""}{linked ? ` · ${linked} linked project note${linked === 1 ? "" : "s"}` : ""}</p></div><div className="project-question-actions"><Button variant="ghost" size="sm" onClick={() => openSource(item.noteId, item.heading)}>Open</Button><Button variant="ghost" size="sm" onClick={() => answerQuestion(item)}>Answer</Button><Button variant="ghost" size="sm" onClick={() => ask(`Help me answer this project question: ${item.excerpt}`)}>Ask</Button></div></article>; })}
+        {data.sections.questions.map((item) => { const linked = data.graph.edges.filter((edge) => edge.source === item.noteId || edge.target === item.noteId).length; return <article className="project-question" key={`${item.noteId}:${item.heading ?? ""}`}><div className="project-question-content"><SourceButton item={item} onOpen={openSource} /><p>{item.status ?? "open"}{item.timestamp ? ` · changed ${formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}` : ""}{linked ? ` · ${linked} linked project note${linked === 1 ? "" : "s"}` : ""}</p></div><div className="project-question-actions"><Button variant="ghost" size="sm" onClick={() => openSource(item.noteId, item.heading)}>Open</Button><Button variant="ghost" size="sm" onClick={() => answerQuestion(item)}>Answer</Button><Button variant="ghost" size="sm" onClick={() => ask(`Help me answer this project question: ${plainExcerpt(item.excerpt)}`)}>Ask</Button></div></article>; })}
       </div></details>}
       <EvidenceSection id="project-architecture" title="Architecture / Structure" items={data.sections.architecture} onOpen={openSource} />
       <EvidenceSection id="project-ideas" title="Ideas" items={data.sections.ideas} onOpen={openSource} />

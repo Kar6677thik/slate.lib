@@ -69,7 +69,8 @@ export async function inboxTriageSnapshot(libraryId: string, canonical: Knowledg
       cacheHits,
       boundsReached: notes.length >= INBOX_TRIAGE_LIMITS.candidateNotes || captures.length >= INBOX_TRIAGE_LIMITS.capturesPerPass,
     },
-    degraded: postgresAvailable ? semanticAvailable ? "Deterministic Inbox triage is active with bounded semantic retrieval. Remote generation is not used when Inbox opens." : "Deterministic Inbox triage is active. Remote generation is not used when Inbox opens; semantic-only matches are unavailable." : "Deterministic Inbox triage is active for this session. PostgreSQL persistence and semantic-only matches are unavailable.",
+    // Only a configured store that fails is worth a notice; running without one is a normal setup.
+    degraded: !postgresAvailable && process.env.SLATE_INTELLIGENCE_DATABASE_URL ? "Suggestions are based on keywords only right now: the intelligence database is unreachable." : undefined,
   };
 }
 

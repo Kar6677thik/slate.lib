@@ -16,7 +16,9 @@ export function SyncControl() {
     queryKey: ["sync-status"],
     queryFn: ({ signal }) => api.status(signal),
     refetchInterval: 30000,
-    retry: false,
+    // A single dropped poll (a pod restart, a proxy hiccup) shouldn't announce the library as offline.
+    retry: 2,
+    retryDelay: 3000,
   });
   const label = busy
     ? "Syncing"

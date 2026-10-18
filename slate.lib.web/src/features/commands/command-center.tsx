@@ -196,28 +196,30 @@ export function CommandCenter() {
         ),
       );
       if (prefs.aiEnabled && term && conceptIndex.data) {
-        const normalized = term.toLowerCase();
+        // Concepts arrive after notes and must not displace the note the user is about to open: only strong word
+        // matches qualify, at most three appear, and only an exact concept name outranks the note results.
         output.push(
-          ...conceptIndex.data.concepts.flatMap((concept, index) => {
-            const score = fuzzyScore(term, [
-              concept.canonicalName,
-              ...concept.aliases,
-              ...concept.tags,
-            ]);
-            if (!score && !concept.normalizedName.includes(normalized))
-              return [];
-            return [
-              {
-                key: `concept:${concept.id}`,
-                title: `Concept · ${concept.canonicalName}`,
-                description: `${concept.kind} · ${concept.sourceCount} sources`,
-                icon: Atom,
-                group: "Concepts" as const,
-                score: 190 + score - index / 100,
-                execute: () => workspace.openConcept(concept.canonicalName),
-              },
-            ];
-          }),
+          ...conceptIndex.data.concepts
+            .flatMap((concept, index) => {
+              const score = fuzzyScore(term, [
+                concept.canonicalName,
+                ...concept.aliases,
+              ]);
+              if (score < 82) return [];
+              return [
+                {
+                  key: `concept:${concept.id}`,
+                  title: `Concept · ${concept.canonicalName}`,
+                  description: `${concept.kind} · ${concept.sourceCount} sources`,
+                  icon: Atom,
+                  group: "Concepts" as const,
+                  score: (score >= 120 ? 300 : 150 + score / 10) - index / 100,
+                  execute: () => workspace.openConcept(concept.canonicalName),
+                },
+              ];
+            })
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 3),
         );
       }
     }
