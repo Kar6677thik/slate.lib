@@ -154,7 +154,7 @@ export async function synthesizeProject(libraryId: string, snapshot: ProjectBrai
   const cached = generatedCache.get(key);
   if (cached && !force) return { ...cached, cached: true };
   const input = buildProjectPrompt(snapshot.path, kind, sources);
-  const output = await provider.generate({ ...input, maxOutputTokens: kind === "resume" ? 1_600 : 900 }, signal);
+  const output = await provider.generate({ ...input, maxOutputTokens: kind === "resume" ? 2_800 : 2_000 }, signal);
   const valid = validateProjectSynthesis(output.text, sources);
   const value: ProjectSynthesis = { kind, markdown: valid.text, sources, citations: valid.citations, generatedAt: new Date().toISOString(), cached: false, cacheKey: key };
   generatedCache.set(key, value);
