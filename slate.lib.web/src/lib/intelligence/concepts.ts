@@ -90,11 +90,39 @@ function masked(markdown: string) {
     .replace(/https?:\/\/\S+/g, " ").replace(/\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/ig, " ")
     .replace(/^\s*(?:at\s+\S+|(?:\w*(?:Exception|Error)|Error):).+$/gm, " ");
 }
-function acceptable(value: string) {
-  const normalized = normalizeConcept(value); if (normalized.length < 2 || normalized.length > 70 || generic.has(normalized)) return false;
-  if (/^(?:\d[\d:./-]*|[0-9a-f]{12,}|\w+\.(?:md|log|json|yaml|yml|txt))$/i.test(value.trim())) return false;
-  return /[a-z]/i.test(value);
+// Headings that structure a document rather than name a subject (ADR sections, tutorial scaffolding, and so on).
+const structural = new Set([
+  "about", "alternatives", "alternatives considered", "answer", "answers", "appendix", "background", "caveats", "checklist", "common beginner mistakes",
+  "common mistakes", "concepts introduced", "conclusion", "consequences", "context", "decision", "decisions", "details", "example", "examples",
+  "exact commands", "exercise", "exercise and answers", "exercises", "faq", "further reading", "glossary", "goal", "goals", "how it works",
+  "how to verify it yourself", "hypothesis", "implementation", "introduction", "key takeaways", "links", "machine", "next steps", "notes", "options",
+  "outcome", "overview", "port", "prerequisites", "problem", "questions", "reading order", "recap", "references", "related", "requirements",
+  "results", "revisit when", "see also", "self-test", "setup", "solution", "sources", "status", "steps", "summary", "takeaways", "todo",
+  "trade-offs", "tradeoffs", "usage", "what could go wrong", "what the numbers say", "what we did", "why this order",
+]);
+const stopwords = new Set(["a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how", "if", "in", "into", "is", "it", "its", "net", "not", "of", "on", "or", "own", "so", "that", "the", "this", "to", "what", "when", "where", "which", "who", "why", "with"]);
+// Connector words never begin or end a concept name ("Of At Least", "Postgresql Can Also").
+const edgeWords = new Set([...stopwords, "also", "after", "against", "because", "before", "but", "can", "could", "do", "does", "even", "instead", "never", "over", "still", "than", "then", "there", "their", "though", "under", "versus", "vs", "while", "without", "would"]);
+/** True when the whole name is a recognised technology, not merely a phrase that mentions one. */
+function technologyName(value: string) {
+  const normalized = normalizeConcept(value);
+  return Boolean(known[normalized]) || kindRules.some(([pattern]) => { const match = value.trim().match(pattern); return !!match && normalizeConcept(match[0]) === normalized; });
 }
+function acceptable(value: string) {
+  const raw = value.trim(), normalized = normalizeConcept(value); if (normalized.length < 2 || normalized.length > 50 || generic.has(normalized) || structural.has(normalized)) return false;
+  if (technologyName(raw)) return true;
+  if (/^(?:\d[\d:./-]*|[0-9a-f]{12,}|\w+\.(?:md|log|json|yaml|yml|txt))$/i.test(raw)) return false;
+  // Numbered chapters, sentences, questions, quoted or templated text, paths and URL-encoded fragments are not concepts.
+  if (/^(?:\d+[\s.)—–-]|[-_<>"'“”‘’(/.,])/.test(raw) || /[<>"“”?!;:,()[\]{}|=%]|--|\.\.|\/|\.\s|\b20[a-z]/i.test(raw)) return false;
+  if (/^(?:what|why|how|when|where|who|which|is|are|does|do|can|should|will)\b/i.test(raw)) return false;
+  const words = normalized.split(" ");
+  if (words.length > 5 || words.every((word) => stopwords.has(word)) || edgeWords.has(words[0]) || edgeWords.has(words.at(-1)!)) return false;
+  // A short single word must be an acronym (API, SQL) or a recognised technology to stand alone.
+  if (words.length === 1 && normalized.length <= 3 && !known[normalized] && !/^[A-Z0-9#+]{2,5}$/.test(raw)) return false;
+  return /[a-z]/i.test(raw);
+}
+// Single-note concepts need a deliberate signal; one heading or one parsed claim alone is too weak to name a concept.
+const deliberateReasons = new Set(["Dedicated note title", "Explicit note alias", "Metadata tag", "Repeated technical reference"]);
 function classify(name: string, noteTypes: string[]): ConceptKind {
   for (const [pattern, kind] of kindRules) if (pattern.test(name)) return kind;
   if (noteTypes.includes("project")) return "Project";
@@ -105,11 +133,12 @@ type Candidate = { raw: string; reason: string; score: number; excerpt: string }
 function candidates(note: Note) {
   const meta = metadata(note.markdown), body = masked(note.markdown), result: Candidate[] = [], claims = extractKnowledgeClaims(note);
   const add = (raw: string, reason: string, score: number, excerpt = "") => { if (acceptable(raw)) result.push({ raw: raw.trim(), reason, score, excerpt: excerpt.trim().slice(0, 280) }); };
-  add(note.title, "Dedicated note title", 100, note.title);
+  // A note title names a concept only when it reads like one ("Redis", "Rate limiting"), not a chapter or article title.
+  if (normalizeConcept(note.title).split(" ").length <= 3) add(note.title, "Dedicated note title", 100, note.title);
   meta.aliases.forEach((alias) => add(alias, "Explicit note alias", 86, note.title));
   meta.tags.forEach((tag) => add(tag.replace(/^#/, ""), "Metadata tag", 56, note.title));
   for (const match of body.matchAll(/^#{1,3}\s+(.+?)\s*#*$/gm)) add(match[1], "Named heading", 52, match[1]);
-  for (const claim of claims) if (claim.normalizedSubject.split(" ").length <= 6) add(claim.normalizedSubject, `Knowledge claim · ${claim.claimType}`, claim.confidence === "possible" ? 54 : 68, claim.text);
+  for (const claim of claims) if (claim.normalizedSubject.split(" ").length <= 3) add(claim.normalizedSubject, `Knowledge claim · ${claim.claimType}`, claim.confidence === "possible" ? 54 : 68, claim.text);
   const technical = /(?:\b(?:PostgreSQL|Postgres|Kubernetes|k8s|Redis|MQTT|OPC[ -]UA|Kafka(?: Connect)?|Tailscale|Cloudflare|Docker|pgvector|Lucene(?:\.NET)?|ASP\.NET Core|\.NET(?: Core)?|Next\.js|TypeScript|JavaScript|Python|React Query|CodeMirror)\b)/gi;
   for (const match of body.matchAll(technical)) add(match[0], "Repeated technical reference", 45, body.slice(Math.max(0, match.index! - 70), match.index! + match[0].length + 90));
   return { meta, result, claims };
@@ -144,7 +173,7 @@ export function buildConceptSnapshot(notes: Note[], evidence: ConceptEvidence = 
       buckets.set(identity, bucket);
     }
   }
-  const concepts: KnowledgeConcept[] = [...buckets].filter(([, bucket]) => bucket.members.size >= 2 || [...bucket.members.values()].some((member) => member.score >= 45)).slice(0, CONCEPT_LIMITS.maxConcepts).map(([identity, bucket]): KnowledgeConcept => {
+  const concepts: KnowledgeConcept[] = [...buckets].filter(([, bucket]) => bucket.members.size >= 2 || [...bucket.members.values()].some((member) => member.reasons.some((reason) => deliberateReasons.has(reason))) || technologyName(bucket.name)).slice(0, CONCEPT_LIMITS.maxConcepts).map(([identity, bucket]): KnowledgeConcept => {
     const members = [...bucket.members.values()].sort((a, b) => b.score - a.score || a.path.localeCompare(b.path)); const projects = [...new Set(members.flatMap((member) => member.projectPath ? [member.projectPath] : []))]; const dates = members.flatMap((member) => member.timestamp ? [member.timestamp] : []).sort();
     const aliases = [...bucket.aliases].filter((alias) => normalizeConcept(alias) !== identity).slice(0, CONCEPT_LIMITS.maxAliasesPerConcept); if (bucket.aliases.size > aliases.length + 1) bounded = true;
     const memberIds = new Set(members.map((member) => member.noteId));

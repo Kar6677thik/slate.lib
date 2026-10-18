@@ -117,3 +117,12 @@ describe("optional knowledge classification", () => {
     expect(failed.issues).toHaveLength(0);
   });
 });
+
+describe("false conflict guards", () => {
+  it("does not report different questions or vague subjects as value conflicts", () => {
+    const a = note("901", "REST foundations", "# REST foundations\n\nWhat is the distinction between REST and JSON?\n\nThese are alternative illustrations, not a migration sequence.");
+    const b = note("902", "Token scopes", "# Token scopes\n\nWhat is the difference between aud and scope?\n\nThese steps are independent today.");
+    const issues = buildKnowledgeSnapshot([a, b], { kind: "library" }).issues;
+    expect(issues.filter((issue) => issue.kind === "value")).toEqual([]);
+  });
+});

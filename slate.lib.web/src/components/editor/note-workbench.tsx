@@ -22,6 +22,9 @@ import {
   List,
   ListOrdered,
   ListTodo,
+  ListChecks,
+  GraduationCap,
+  CircleSlash,
   Link,
   Braces,
   MessageCircleQuestion,
@@ -40,6 +43,7 @@ import { useWorkspace } from "@/features/notes/workspace-context";
 import { usePreferences } from "@/lib/storage/preferences";
 import { recordRecent } from "@/lib/storage/recent";
 import { drafts, type Draft } from "@/lib/storage/drafts";
+import { frontmatterField, setFrontmatterField } from "@/lib/markdown/frontmatter";
 import {
   IconButton,
   ErrorMessage,
@@ -58,6 +62,8 @@ import { WikiExportDialog } from "@/components/links/wiki-export-dialog";
 import { useCommandRuntime } from "@/features/commands/runtime";
 import { openAskSlate } from "@/components/ask/ask-slate";
 import { LinkOpportunityList } from "@/components/links/link-opportunities";
+import { takeEditingRequest } from "@/features/notes/edit-intent";
+import { toggleTaskAt } from "@/lib/markdown/tasks";
 import {
   applyLinkSuggestionDraft,
   type LinkSuggestion,
@@ -104,7 +110,9 @@ export function NoteWorkbench({ note }: { note: Note }) {
   const { update } = w;
   const [base, setBase] = useState(note),
     [source, setSource] = useState(note.markdown),
-    [mode, setMode] = useState<"write" | "preview" | "split">(prefs.mode),
+    [mode, setMode] = useState<"write" | "preview" | "split">(() =>
+      takeEditingRequest(note.id) ? "write" : prefs.mode,
+    ),
     [saving, setSaving] = useState(false),
     [error, setError] = useState<unknown>(null),
     [recovery, setRecovery] = useState<Draft | null>(null),
@@ -223,6 +231,7 @@ export function NoteWorkbench({ note }: { note: Note }) {
       cache.setQueryData(["note", note.id], saved);
       void cache.invalidateQueries({ queryKey: ["folder"] });
       void cache.invalidateQueries({ queryKey: ["search"] });
+      void cache.invalidateQueries({ queryKey: ["smart-view"] });
       void cache.invalidateQueries({ queryKey: ["links", note.id] });
       setConflict(false);
     } catch (e) {
@@ -234,6 +243,12 @@ export function NoteWorkbench({ note }: { note: Note }) {
     }
   }
   saveAction.current = save;
+  const [pendingQuickSave, setPendingQuickSave] = useState(false);
+  useEffect(() => {
+    if (!pendingQuickSave) return;
+    setPendingQuickSave(false);
+    void saveAction.current();
+  }, [pendingQuickSave, source]);
   useEffect(() => {
     const actions: Record<string, () => void | Promise<void>> = {
       "document.save": () => saveAction.current(),
@@ -339,6 +354,36 @@ export function NoteWorkbench({ note }: { note: Note }) {
     const { formatSelection } = await import("./codemirror");
     if (editor.current) formatSelection(editor.current, kind);
   }
+  // Smart views read the frontmatter status; these actions set it without opening the editor.
+  const status = frontmatterField(source, "status")?.toLowerCase() ?? null;
+  const setStatus = (value: string | null) => {
+    const next = setFrontmatterField(source, "status", value);
+    if (next === source) return;
+    const clean = !dirty;
+    change(next);
+    // A note with no other edits saves the status straight away; otherwise it joins the pending edits.
+    if (clean) setPendingQuickSave(true);
+  };
+  const statusActions: ItemMenuAction[] = [
+    ...(status !== "learning"
+      ? [{ label: "Mark as currently learning", icon: GraduationCap, disabled: saving || !checked || !!recovery, onSelect: () => setStatus("learning") }]
+      : []),
+    ...(status !== "needs-review"
+      ? [{ label: "Mark as needs review", icon: ListChecks, disabled: saving || !checked || !!recovery, onSelect: () => setStatus("needs-review") }]
+      : []),
+    ...(status && ["learning", "currently-learning", "in-progress", "needs-review", "review"].includes(status)
+      ? [{ label: "Clear status", icon: CircleSlash, disabled: saving || !checked || !!recovery, onSelect: () => setStatus(null) }]
+      : []),
+  ];
+  // Ticking a task while reading edits that one marker; like status changes it saves at once when nothing else is pending.
+  const toggleTask = (offset: number) => {
+    if (preview !== source || saving || !checked || recovery) return;
+    const next = toggleTaskAt(source, offset);
+    if (next === null) return;
+    const clean = !dirty;
+    change(next);
+    if (clean) setPendingQuickSave(true);
+  };
   const words = source.trim().split(/\s+/).filter(Boolean).length;
   const folders = note.path.split("/").slice(0, -1);
   const noteActions: ItemMenuAction[] = [
@@ -361,6 +406,7 @@ export function NoteWorkbench({ note }: { note: Note }) {
           },
         ]
       : []),
+    ...statusActions,
     {
       label: "Export wiki links",
       icon: FileOutput,
@@ -544,7 +590,13 @@ export function NoteWorkbench({ note }: { note: Note }) {
             <header className="reader-title">
               <h1>{note.title}</h1>
             </header>
-            <Markdown source={preview} links={links.data} title={note.title} />
+            <Markdown
+              source={preview}
+              links={links.data}
+              title={note.title}
+              path={note.path}
+              onToggleTask={toggleTask}
+            />
           </div>
         )}
       </div>

@@ -49,7 +49,9 @@ async function assets(canonical: HealthCanonical, signal: AbortSignal) {
 export async function libraryHealth(libraryId: string, canonical: HealthCanonical, intelligence: IntelligenceStatus, filters: HealthFilters, reviews: HealthReviewInput, signal: AbortSignal, refresh = false) {
   const started = Date.now(); let sources = !refresh ? cache.get(libraryId)?.sources : undefined;
   if (!sources || (cache.get(libraryId)?.expires ?? 0) <= Date.now()) {
-    const settled = await Promise.allSettled([store.readHealthDerived(libraryId), structuralSources(canonical, signal), linkIssues(canonical, signal), assets(canonical, signal)]);
+    // Without a configured derived store there is nothing to read; that is a choice, not a failed source.
+    const derivedConfigured = Boolean(process.env.SLATE_INTELLIGENCE_DATABASE_URL);
+    const settled = await Promise.allSettled([derivedConfigured ? store.readHealthDerived(libraryId) : Promise.resolve({} as HealthSources), structuralSources(canonical, signal), linkIssues(canonical, signal), assets(canonical, signal)]);
     const failedSources: string[] = []; const derived: HealthSources = settled[0].status === "fulfilled" ? settled[0].value : (failedSources.push("derived intelligence"), {}); const notes = settled[1].status === "fulfilled" ? settled[1].value : (failedSources.push("note structure"), []); const links = settled[2].status === "fulfilled" ? settled[2].value : (failedSources.push("link diagnostics"), []); const assetResult = settled[3].status === "fulfilled" ? settled[3].value : (failedSources.push("asset metadata"), { values: [], complete: false });
     sources = { ...derived, libraryId, notes, linkIssues: links, assets: assetResult.values, assetInventoryComplete: assetResult.complete, intelligence, failedSources: [...new Set([...failedSources, ...(derived.failedSources ?? [])])], generatedAt: new Date().toISOString() };
     cache.set(libraryId, { sources, expires: Date.now() + HEALTH_LIMITS.cacheMs });

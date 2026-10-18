@@ -24,7 +24,7 @@ export async function conceptSnapshot(libraryId: string, canonical: ConceptCanon
   const snapshot = buildConceptSnapshot(notes, { links, issues: knowledge.issues, reviews });
   session.set(libraryId, snapshot);
   try { await store.replaceConceptIndex(libraryId, snapshot.concepts); }
-  catch { snapshot.degraded = "Concept pages are available for this session, but the derived database is unavailable."; }
+  catch { if (process.env.SLATE_INTELLIGENCE_DATABASE_URL) snapshot.degraded = "Concept pages are available for this session, but the derived database is unavailable."; }
   return { snapshot, notes, links };
 }
 

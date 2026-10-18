@@ -15,6 +15,8 @@ export const SMART_VIEWS = [
     title: "Unanswered questions",
     description: "Questions that are still open or have no status.",
     icon: CircleHelp,
+    emptyHint:
+      "Create one with New question in the file tree, or add type: question to a note's frontmatter.",
   },
   {
     id: "modified",
@@ -45,18 +47,24 @@ export const SMART_VIEWS = [
     title: "Currently learning",
     description: "Material marked as learning or in progress.",
     icon: GraduationCap,
+    emptyHint:
+      "Choose Mark as currently learning from a note's ⋯ menu. It adds status: learning to the note's frontmatter.",
   },
   {
     id: "review",
     title: "Needs review",
     description: "Notes explicitly marked for review.",
     icon: ListChecks,
+    emptyHint:
+      "Choose Mark as needs review from a note's ⋯ menu. It adds status: needs-review to the note's frontmatter.",
   },
 ] as const satisfies readonly {
   id: string;
   title: string;
   description: string;
   icon: LucideIcon;
+  /** How a note gets into this view, shown when it is empty. */
+  emptyHint?: string;
 }[];
 
 export type SmartViewId = (typeof SMART_VIEWS)[number]["id"];

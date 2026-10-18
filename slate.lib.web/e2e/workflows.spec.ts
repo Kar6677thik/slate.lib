@@ -293,3 +293,27 @@ test("optional real development server: authenticated status and root listing", 
   expect(root.ok()).toBe(true);
   expect((await root.json()).entries).toBeInstanceOf(Array);
 });
+
+test("ticking a task while reading saves just that task, and status actions feed smart views", async ({ page }) => {
+  const state = await mockSlate(page);
+  await connect(page);
+  await openNote(page);
+  await page.getByRole("checkbox", { name: "Mark task as done" }).click();
+  await expect.poll(() => state.notes.get(first)?.markdown).toContain("- [x] Review [[Reading list]]");
+  expect(state.notes.get(first)?.markdown).toContain("- [x] Document the storage model");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+  await page.locator(".note-toolbar").getByRole("button", { name: /^Actions for / }).click();
+  await page.getByRole("menuitem", { name: "Mark as currently learning", exact: true }).click();
+  await expect.poll(() => state.notes.get(first)?.markdown).toMatch(/^---\nid: [^\n]+\nstatus: learning\n---/);
+});
+
+test("a newly created note opens in the editor", async ({ page }) => {
+  await mockSlate(page);
+  await connect(page);
+  await page.getByRole("button", { name: "Create note" }).click();
+  await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Fresh idea");
+  await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("button", { name: "Write", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("textbox", { name: "Markdown editor" })).toBeVisible();
+});

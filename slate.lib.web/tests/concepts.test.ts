@@ -15,6 +15,32 @@ describe("concept extraction", () => {
   it("extracts headings", () => { const source = note("Architecture", "# Architecture\n\n## Kubernetes\n\nDeployment details."); expect(buildConceptSnapshot([source]).concepts.some((item) => item.canonicalName === "Kubernetes")).toBe(true); });
   it("extracts tags", () => { const source = note("Platform", "---\ntags: [Kubernetes, infrastructure]\n---\n# Platform"); expect(buildConceptSnapshot([source]).concepts.some((item) => item.canonicalName === "Kubernetes")).toBe(true); });
   it("extracts claim subjects", () => { const source = note("Decision", "# Decision\n\n## Decisions\n\nWe use PostgreSQL for derived intelligence."); expect(buildConceptSnapshot([source]).concepts.some((item) => item.canonicalName === "PostgreSQL")).toBe(true); });
+  it("ignores structural headings, chapter titles, and sentence fragments", () => {
+    const sources = [1, 2].map((n) => note(`0${n} — Rate limiting from zero, including worked calculations`, `# 0${n} — Rate limiting
+
+## What
+
+## Context
+
+## Decision
+
+## Consequences
+
+## <Concept Name>
+
+## 503 Rate Limiter Unavailable: Retry-after
+
+## Of at least
+
+## Token bucket
+
+Redis stores the bucket.`));
+    const names = buildConceptSnapshot(sources).concepts.map((item) => item.canonicalName);
+    expect(names).toEqual(expect.arrayContaining(["Redis", "Token Bucket"]));
+    for (const junk of ["What", "Context", "Decision", "Consequences", "<Concept Name>", "Of At Least"]) expect(names).not.toContain(junk);
+    expect(names.some((name) => /^0\d|Retry-after/.test(name))).toBe(false);
+  });
+  it("needs more than one heading mention to name a concept", () => { expect(buildConceptSnapshot([note("Journal", "# Journal\n\n## Garden layout")]).concepts.map((item) => item.canonicalName)).not.toContain("Garden Layout"); });
   it("extracts repeated technical phrases", () => { const source = note("Messaging", "MQTT carries events. MQTT is used by the simulator."); expect(buildConceptSnapshot([source]).concepts.some((item) => item.canonicalName === "MQTT")).toBe(true); });
   it("suppresses generic phrases", () => { const source = note("Specific", "## system\n\nThe application uses data from the server."); const names = buildConceptSnapshot([source]).concepts.map((item) => item.normalizedName); expect(names).not.toContain("system"); expect(names).not.toContain("server"); });
   it("suppresses code, logs, URLs, and UUIDs", () => { const source = note("Clean", "```\nKafka Connect\n```\nError: PostgreSQL failed\nhttps://example.com/Kubernetes\n00000000-0000-4000-8000-000000000123"); const names = buildConceptSnapshot([source]).concepts.map((item) => item.normalizedName); expect(names).not.toContain("kafka connect"); expect(names).not.toContain("postgresql"); expect(names).not.toContain("kubernetes"); });

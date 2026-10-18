@@ -79,6 +79,10 @@ export function useAuth() {
   if (!value) throw new Error("AuthProvider missing");
   return value;
 }
+/** The connected API when there is one; for components that also render outside a connected workspace. */
+export function useOptionalApi() {
+  return useContext(Context)?.api ?? null;
+}
 export function useApi() {
   const { api } = useAuth();
   if (!api) throw new Error("Connect first");

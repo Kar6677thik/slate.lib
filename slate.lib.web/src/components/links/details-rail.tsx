@@ -208,7 +208,7 @@ function RelatedPanel({ id }: { id: string }) {
             {note.title}
             <ArrowUpRight size={13} />
             <small>{note.path}</small>
-            <span>{note.reasons.join(" · ")}</span>
+            <span>{note.reasons.map((reason) => reason.replace(/\s*\(\+\d+(?:\.\d+)?\)/g, "")).join(" · ")}</span>
             {prefs.aiEnabled && byTarget.has(note.id) && (
               <span className="link-opportunity-badge">
                 Link opportunity · {byTarget.get(note.id)!.explanation}

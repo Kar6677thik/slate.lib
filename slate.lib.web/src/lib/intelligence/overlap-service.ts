@@ -24,7 +24,7 @@ export async function overlapSnapshot(libraryId: string, canonical: KnowledgeCan
   try {
     await store.replaceOverlapNotes(libraryId, notes.map((note) => note.id), signatures);
     await store.replaceOverlapFindings(libraryId, snapshot.findings);
-  } catch { snapshot.degraded = "Overlap analysis is available for this session, but the derived database is unavailable."; }
+  } catch { if (process.env.SLATE_INTELLIGENCE_DATABASE_URL) snapshot.degraded = "Overlap analysis is available for this session, but the derived database is unavailable."; }
   return snapshot;
 }
 

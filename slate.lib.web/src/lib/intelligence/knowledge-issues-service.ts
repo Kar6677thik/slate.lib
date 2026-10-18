@@ -52,7 +52,7 @@ export async function knowledgeSnapshot(libraryId: string, canonical: KnowledgeC
     await store.replaceKnowledgeClaims(libraryId, notes.map((note) => note.id), claims);
     await store.replaceKnowledgeIssues(libraryId, snapshot.issues);
   } catch {
-    snapshot.degraded = "Knowledge analysis is available for this session, but the derived database is unavailable.";
+    if (process.env.SLATE_INTELLIGENCE_DATABASE_URL) snapshot.degraded = "Knowledge analysis is available for this session, but the derived database is unavailable.";
   }
   return snapshot;
 }

@@ -433,3 +433,11 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Analysis workspaces ---------- */
+/* Header, summary and filter rows keep their height; only the results list scrolls. Shrinking them clipped the
+   Library Health summary cards in short windows. */
+.health-workspace > :not(.health-body),
+.gap-workspace > :not(.gap-body) {
+  flex-shrink: 0;
+}

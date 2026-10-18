@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { plainExcerpt } from "@/lib/markdown/plain";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, ExternalLink, FileText, MessageCircleQuestion, RotateCcw, Square, Trash2 } from "lucide-react";
 import { useApi } from "@/lib/auth/context";
@@ -189,7 +190,7 @@ export function AskSlate() {
               {message.stopped && <p className="ask-note">Generation stopped. The partial answer was kept.</p>}
               {message.error && <div className="error-message" role="alert">{message.error}<Button variant="outline" size="sm" onClick={() => ask(lastQuestion.current)}>Retry</Button></div>}
               {!!message.sources?.length && <div className="ask-sources"><h3>Sources</h3>{message.sources.map((source) => <article id={`ask-source-${source.citationId}`} key={source.citationId} className={message.citations?.includes(source.citationId) ? "cited" : ""}>
-                <button className="ask-source-main" type="button" onClick={() => openSource(source, true)}><span>{source.citationId}</span><div><strong>{source.title}</strong><small>{source.path}{source.heading ? ` · ${source.heading}` : ""}</small><p>{source.excerpt}</p></div></button>
+                <button className="ask-source-main" type="button" onClick={() => openSource(source, true)}><span>{source.citationId}</span><div><strong>{source.title}</strong><small>{source.path}{source.heading ? ` · ${source.heading}` : ""}</small><p>{plainExcerpt(source.excerpt)}</p></div></button>
                 <div><Button variant="ghost" size="sm" onClick={() => openSource(source, true)}><FileText size={14} />Open note</Button><Button variant="ghost" size="sm" onClick={() => openSource(source, false)}><ExternalLink size={14} />Open in tab</Button><Button variant="ghost" size="sm" onClick={() => void navigator.clipboard.writeText(`[[${source.title}${source.heading ? `#${source.heading}` : ""}]]`)}><Copy size={14} />Copy link</Button></div>
               </article>)}</div>}
             </>}
