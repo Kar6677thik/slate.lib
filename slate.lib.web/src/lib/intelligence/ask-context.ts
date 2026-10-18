@@ -27,6 +27,24 @@ export function classifyQuestion(question: string) {
   };
 }
 
+// Words that shape a question but never identify a note. Slate's keyword search requires every term to match,
+// so leaving these in ("how does Flux handle…") made almost every natural question return nothing.
+const questionWords = new Set(["a", "about", "all", "also", "an", "and", "any", "are", "as", "at", "be", "been", "but", "by", "can", "could", "describe", "detail", "did", "do", "does", "doing", "explain", "for", "from", "give", "handle", "handles", "have", "has", "how", "i", "if", "in", "into", "is", "it", "its", "me", "my", "notes", "of", "on", "or", "our", "please", "should", "show", "slate", "so", "tell", "than", "that", "the", "their", "them", "then", "there", "these", "this", "those", "to", "use", "used", "uses", "using", "was", "we", "were", "what", "when", "where", "which", "who", "why", "will", "with", "work", "works", "would", "you", "your"]);
+
+/**
+ * Keyword searches for a natural-language question: all meaningful words first, then looser fallbacks (pairs and
+ * single words) so a question still finds notes when no single note contains every word.
+ */
+export function keywordQueries(question: string, limit = 5) {
+  const words = [...new Set((question.toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}.+#_-]*/gu) ?? []).filter((word) => word.length > 1 && !questionWords.has(word)))].slice(0, 8);
+  if (!words.length) return [];
+  const queries = [words.join(" ")];
+  const ranked = [...words].sort((a, b) => b.length - a.length);
+  for (let i = 0; i < ranked.length && queries.length < limit; i++) for (let j = i + 1; j < ranked.length && queries.length < limit; j++) queries.push(`${ranked[i]} ${ranked[j]}`);
+  for (const word of ranked) if (queries.length < limit + 2 && word.length >= 4) queries.push(word);
+  return [...new Set(queries)];
+}
+
 function terms(value: string) {
   return new Set((value.toLowerCase().match(/[\p{L}\p{N}_-]{3,}/gu) ?? []).filter((term) => !["what", "when", "where", "which", "about", "using", "from", "this", "that", "with", "have", "does"].includes(term)));
 }
@@ -169,12 +187,14 @@ export function fitGroundedPrompt(
 export function validateCitations(text: string, sources: AskSource[]) {
   const valid = new Set(sources.map((source) => source.citationId));
   const cited = new Set<string>();
-  const cleaned = text.replace(/\[S(\d+)\]/g, (match, number: string) => {
-    const id = `S${Number(number)}`;
-    if (!valid.has(id)) return "";
-    cited.add(id);
-    return `[${id}]`;
-  }).slice(0, 48_000);
+  // Models often group citations ("[S1, S2]" or "[S1; S3]"); each is checked and rewritten as "[S1][S2]".
+  const cleaned = text.replace(/\[\s*(S\d+(?:\s*[,;]\s*S\d+)*)\s*\]/g, (match, list: string) =>
+    list.split(/\s*[,;]\s*/).map((item) => {
+      const id = `S${Number(item.slice(1))}`;
+      if (!valid.has(id)) return "";
+      cited.add(id);
+      return `[${id}]`;
+    }).join("")).slice(0, 48_000);
   return { text: cleaned, citations: [...cited] };
 }
 

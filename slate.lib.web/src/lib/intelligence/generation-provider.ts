@@ -1,5 +1,10 @@
 import type { GenerationInput, GenerationProvider, GenerationUsage } from "./ask-types";
 
+/** A provider HTTP failure; the status says whether it was the key, the model, or a rate limit. */
+export class GenerationProviderError extends Error {
+  constructor(readonly status: number) { super(`Generation provider returned ${status}`); }
+}
+
 export class DisabledGenerationProvider implements GenerationProvider {
   readonly name = "disabled";
   readonly model = "none";
@@ -51,6 +56,8 @@ export class OpenAICompatibleGenerationProvider implements GenerationProvider {
       max_tokens: input.maxOutputTokens,
       messages: [{ role: "system", content: input.system }, { role: "user", content: input.prompt }],
       temperature: 0.1,
+      // Gemini's hidden reasoning tokens are charged against max_tokens, which cut grounded answers short.
+      ...(this.endpoint.hostname === "generativelanguage.googleapis.com" ? { reasoning_effort: "low" } : {}),
     });
   }
   private async request(input: GenerationInput, stream: boolean, signal?: AbortSignal) {
@@ -64,7 +71,7 @@ export class OpenAICompatibleGenerationProvider implements GenerationProvider {
   }
   async generate(input: GenerationInput, signal?: AbortSignal) {
     const response = await this.request(input, false, signal);
-    if (!response.ok) throw new Error(`Generation provider returned ${response.status}`);
+    if (!response.ok) throw new GenerationProviderError(response.status);
     if (Number(response.headers.get("content-length") ?? 0) > 2 * 1024 * 1024) throw new Error("Generation response is too large");
     if (!response.headers.get("content-type")?.toLowerCase().includes("application/json")) throw new Error("Generation provider returned an invalid content type");
     const reader = response.body?.getReader();
@@ -83,22 +90,28 @@ export class OpenAICompatibleGenerationProvider implements GenerationProvider {
     const bytes = new Uint8Array(received);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    let json: { choices?: { message?: { content?: unknown } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+    let json: { choices?: { message?: { content?: unknown }; finish_reason?: string | null }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
     try { json = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
     catch { throw new Error("Generation provider returned invalid JSON"); }
-    const text = json.choices?.[0]?.message?.content;
+    const content = json.choices?.[0]?.message?.content;
+    // Some compatible APIs return the message as a list of text parts rather than one string.
+    const text = Array.isArray(content)
+      ? content.map((part: unknown) => typeof part === "string" ? part : typeof (part as { text?: unknown })?.text === "string" ? (part as { text: string }).text : "").join("")
+      : content;
     if (typeof text !== "string" || text.length > 48_000) throw new Error("Generation provider returned an invalid response");
-    return { text, usage: { inputTokens: json.usage?.prompt_tokens, outputTokens: json.usage?.completion_tokens } };
+    const truncated = json.choices?.[0]?.finish_reason === "length";
+    return { text: truncated ? `${text}\n\n*This summary reached its length limit and stopped here.*` : text, usage: { inputTokens: json.usage?.prompt_tokens, outputTokens: json.usage?.completion_tokens } };
   }
   async *streamGenerate(input: GenerationInput, signal?: AbortSignal) {
     const response = await this.request(input, true, signal);
-    if (!response.ok || !response.body) throw new Error(`Generation provider returned ${response.status}`);
+    if (!response.ok || !response.body) throw new GenerationProviderError(response.status);
     if (!response.headers.get("content-type")?.toLowerCase().includes("text/event-stream")) throw new Error("Generation provider returned an invalid stream content type");
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
     let received = 0;
     let usage: GenerationUsage | undefined;
+    let truncated = false;
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -112,14 +125,15 @@ export class OpenAICompatibleGenerationProvider implements GenerationProvider {
           if (!line.startsWith("data:")) continue;
           const data = line.slice(5).trim();
           if (!data || data === "[DONE]") continue;
-          const json = JSON.parse(data) as { choices?: { delta?: { content?: unknown } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+          const json = JSON.parse(data) as { choices?: { delta?: { content?: unknown }; finish_reason?: string | null }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
           const text = json.choices?.[0]?.delta?.content;
           if (text !== undefined && typeof text !== "string") throw new Error("Invalid generation stream");
           if (typeof text === "string" && text) yield { text };
+          if (json.choices?.[0]?.finish_reason === "length") truncated = true;
           if (json.usage) usage = { inputTokens: json.usage.prompt_tokens, outputTokens: json.usage.completion_tokens };
         }
       }
-      if (usage) yield { usage };
+      if (usage || truncated) yield { usage, truncated };
     } finally {
       reader.releaseLock();
     }

@@ -5,8 +5,9 @@ import type { AssetPage, Entry, FolderPage, HistoricalNote, HistoryEntry, LinkIs
 import { claimIndexEvents, enableReconciliation, enqueueIndexEvent, failIndexEvent, finishIndexEvent, hybridSearch, indexNote, indexedNoteIds, intelligenceStatus, pruneIndexedNotes, reconciliationEnabled, removeIndexedNote, semanticAskCandidates } from "@/lib/intelligence/service";
 import type { IndexEvent, SearchMode } from "@/lib/intelligence/types";
 import { fetchSlate, resolveSlateUpstream } from "@/lib/server/slate-upstream";
-import { ASK_LIMITS, classifyQuestion, fitGroundedPrompt, hasSufficientEvidence, noteSourceCandidates, selectAskSources, validateCitations, type SourceCandidate } from "@/lib/intelligence/ask-context";
+import { ASK_LIMITS, classifyQuestion, fitGroundedPrompt, keywordQueries, hasSufficientEvidence, noteSourceCandidates, selectAskSources, validateCitations, type SourceCandidate } from "@/lib/intelligence/ask-context";
 import { acquireGeneration, generationProvider, generationStatus, recordAsk } from "@/lib/intelligence/ask-service";
+import { GenerationProviderError } from "@/lib/intelligence/generation-provider";
 import type { AskRequest, AskStreamEvent } from "@/lib/intelligence/ask-types";
 import { buildProjectBrain, clearProjectBrainCache, synthesizeProject, type ProjectCanonical } from "@/lib/intelligence/project-brain-service";
 import { buildEvolution, clearEvolutionCache, synthesizeEvolution, type EvolutionCanonical } from "@/lib/intelligence/evolution-service";
@@ -284,18 +285,22 @@ async function askCandidates(connection: ReturnType<typeof resolveSlateUpstream>
   }
   if (scope.kind === "library" || folder) {
     const classified = classifyQuestion(request.question);
-    for (const query of comparisonQueries(request.question)) {
-      const filters = `${folder ? ` path:${JSON.stringify(folder)}` : ""}${classified.unanswered ? " type:question status:open" : ""}`;
+    const filters = `${folder ? ` path:${JSON.stringify(folder)}` : ""}${classified.unanswered ? " type:question status:open" : ""}`;
+    // Keyword search matches every term, so the question is reduced to its meaningful words with looser fallbacks.
+    const queries = [...new Set(comparisonQueries(request.question).flatMap((query, index) => keywordQueries(query, index ? 1 : 5)))].slice(0, 8);
+    const pages = await Promise.all(queries.map(async (query) => {
       const response = await fetchSlate(connection, `v1/search?q=${encodeURIComponent(query + filters)}&page=0&pageSize=20`, signal);
-      if (response.ok) {
-        const page = await response.json() as SearchPage;
-        for (const hit of page.results.slice(0, 10)) {
-          if (!notes.has(hit.id) && notes.size < 12) {
-            try { notes.set(hit.id, await canonicalNote(connection, hit.id, signal)); } catch { /* One stale lexical hit must not fail the answer. */ }
-          }
-        }
-      }
-    }
+      return response.ok ? (await response.json() as SearchPage).results.slice(0, 10) : [];
+    }));
+    // Notes found by more (and stricter) queries come first.
+    const hits = new Map<string, { score: number; first: number }>();
+    pages.forEach((results, queryIndex) => results.forEach((hit, rank) => {
+      const current = hits.get(hit.id) ?? { score: 0, first: queryIndex * 100 + rank };
+      hits.set(hit.id, { score: current.score + (queryIndex === 0 ? 3 : 1), first: current.first });
+    }));
+    const ranked = [...hits].sort((a, b) => b[1].score - a[1].score || a[1].first - b[1].first).slice(0, 12);
+    const fetched = await Promise.all(ranked.map(([id]) => canonicalNote(connection, id, signal).catch(() => null /* One stale hit must not fail the answer. */)));
+    for (const note of fetched) if (note && !notes.has(note.id)) notes.set(note.id, note);
     candidates.push(...await semanticAskCandidates(libraryId, request.question, folder));
   }
   for (const note of notes.values()) candidates.push(...noteSourceCandidates(note, request.question, scope.kind === "note" || scope.kind === "selected" ? 0.7 : 0.4));
@@ -316,6 +321,18 @@ async function askCandidates(connection: ReturnType<typeof resolveSlateUpstream>
   return selectAskSources(request.question, candidates);
 }
 
+/** Says what went wrong in terms the user can act on, without passing on the provider's own error text. */
+function askFailureMessage(caught: unknown) {
+  const status = caught instanceof GenerationProviderError ? caught.status : 0;
+  if (status === 429) return "The AI provider's rate limit was reached (free tiers allow only a few requests a minute). Wait a minute and retry.";
+  if (status === 401 || status === 403) return "The AI provider rejected the API key. Check SLATE_GENERATION_API_KEY on the server.";
+  if (status === 404) return "The AI provider doesn't recognise the configured model. Check SLATE_GENERATION_MODEL on the server.";
+  if (status === 400) return "The AI provider rejected this request. Try a shorter question or a narrower scope.";
+  if (status >= 500) return "The AI provider is having trouble right now. Retry in a moment.";
+  if (caught instanceof DOMException && caught.name === "TimeoutError") return "The AI provider took too long to answer. Retry, or ask a narrower question.";
+  return "Ask Slate could not finish this answer. You can retry without losing the sources already found.";
+}
+
 function streamEvent(controller: ReadableStreamDefaultController<Uint8Array>, event: AskStreamEvent) {
   controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
 }
@@ -325,8 +342,8 @@ async function askResponse(connection: ReturnType<typeof resolveSlateUpstream>, 
   if (!provider.available) return error(503, "Ask Slate isn't configured on this server.");
   const release = acquireGeneration(libraryId);
   if (!release) return error(429, "Ask Slate is already handling the maximum number of requests. Try again shortly.");
-  const configuredOutputTokens = Number(process.env.SLATE_GENERATION_MAX_OUTPUT_TOKENS ?? 1_200);
-  const maxOutputTokens = Number.isInteger(configuredOutputTokens) && configuredOutputTokens >= 128 && configuredOutputTokens <= 4_096 ? configuredOutputTokens : 1_200;
+  const configuredOutputTokens = Number(process.env.SLATE_GENERATION_MAX_OUTPUT_TOKENS ?? 2_048);
+  const maxOutputTokens = Number.isInteger(configuredOutputTokens) && configuredOutputTokens >= 128 && configuredOutputTokens <= 8_192 ? configuredOutputTokens : 2_048;
   const signal = AbortSignal.any([clientSignal, AbortSignal.timeout(65_000)]);
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -355,13 +372,21 @@ async function askResponse(connection: ReturnType<typeof resolveSlateUpstream>, 
             partial = true;
           }
           if (part.usage) usage = part.usage;
+          if (part.truncated) {
+            const note = "\n\n*The answer reached its length limit and stopped here. Ask a narrower question to get the rest.*";
+            answer += note;
+            streamEvent(controller, { type: "delta", text: note });
+          }
         }
         const validated = validateCitations(answer, sources);
         if (validated.text !== answer) streamEvent(controller, { type: "replace", text: validated.text });
         streamEvent(controller, { type: "done", citations: validated.citations, usage });
         recordAsk(libraryId, sources.length, usage);
-      } catch {
-        if (!signal.aborted) streamEvent(controller, { type: "error", message: "Ask Slate could not finish this answer. You can retry without losing the sources already found.", partial });
+      } catch (caught) {
+        if (!signal.aborted) {
+          console.error("[intelligence] Ask Slate failed", caught);
+          streamEvent(controller, { type: "error", message: askFailureMessage(caught), partial });
+        }
       } finally {
         release();
         controller.close();

@@ -58,5 +58,5 @@ export interface GenerationProvider {
   readonly available: boolean;
   readonly maxInputTokens: number;
   generate(input: GenerationInput, signal?: AbortSignal): Promise<{ text: string; usage?: GenerationUsage }>;
-  streamGenerate(input: GenerationInput, signal?: AbortSignal): AsyncIterable<{ text?: string; usage?: GenerationUsage }>;
+  streamGenerate(input: GenerationInput, signal?: AbortSignal): AsyncIterable<{ text?: string; usage?: GenerationUsage; truncated?: boolean }>;
 }

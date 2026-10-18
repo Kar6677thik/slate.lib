@@ -207,7 +207,7 @@ export async function synthesizeEvolution(libraryId: string, snapshot: Evolution
     if (cached) return { ...cached, cached: true };
   }
   const input = buildEvolutionPrompt(snapshot);
-  const response = await provider.generate({ ...input, maxOutputTokens: 1_400 }, signal);
+  const response = await provider.generate({ ...input, maxOutputTokens: 2_400 }, signal);
   const checked = validateSynthesis(response.text, snapshot.sources);
   const result: CacheValue = { markdown: checked.text, citations: checked.citations, sources: snapshot.sources, generatedAt: new Date().toISOString(), cached: false, cacheKey, libraryId, noteIds: snapshot.current.map((item) => item.noteId), paths: snapshot.current.map((item) => item.path) };
   generatedCache.set(cacheKey, result);
