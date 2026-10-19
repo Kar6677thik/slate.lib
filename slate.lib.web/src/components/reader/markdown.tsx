@@ -13,6 +13,7 @@ import { AssetView } from "@/components/assets/asset";
 import { slateMarkdown, headingSlug } from "@/lib/markdown/slate-markdown";
 import { useOptionalApi } from "@/lib/auth/context";
 import { resolveNoteHref } from "@/lib/markdown/links";
+import { normalizeMathDelimiters } from "@/lib/markdown/math";
 import { useWorkspace } from "@/features/notes/workspace-context";
 import type { Links } from "@/lib/api/contracts";
 import { IconButton } from "@/components/common/primitives";
@@ -71,10 +72,13 @@ function CodeBlock({ children }: { children: ReactNode }) {
   );
 }
 export default function Markdown(props: MarkdownProps) {
-  return /\$[^\n$]+\$|\$\$/.test(props.source) ? (
-    <MathReader {...props} />
+  const source = normalizeMathDelimiters(props.source);
+  // Rewriting delimiters shifts source offsets, so task toggling only stays enabled when nothing was rewritten.
+  const rendered = source === props.source ? props : { ...props, source, onToggleTask: undefined };
+  return /\$[^\n$]+\$|\$\$/.test(source) ? (
+    <MathReader {...rendered} />
   ) : (
-    <MarkdownBody {...props} />
+    <MarkdownBody {...rendered} />
   );
 }
 export function MarkdownBody({
