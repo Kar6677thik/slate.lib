@@ -1,5 +1,7 @@
 # Connect Slate MCP to ChatGPT
 
+> **Retired (3 November 2026).** This describes the former Auth0-based ChatGPT setup. Sign-in now uses Orbit Identity; see [MCP_DEPLOYMENT.md](MCP_DEPLOYMENT.md). ChatGPT can link without a pre-registered client, because Orbit Identity supports its metadata document and signed client assertions.
+
 This guide was verified against OpenAI's current custom MCP documentation on 2026-10-08. Recheck workspace permissions and current product support before a production rollout.
 
 OpenAI's [custom MCP server guide](https://developers.openai.com/api/docs/guides/custom-mcp-server) says ChatGPT can connect to remote MCP servers with read and write tools using streaming HTTP or SSE. Slate uses streaming HTTP at:

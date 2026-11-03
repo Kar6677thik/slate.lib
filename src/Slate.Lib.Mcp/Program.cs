@@ -69,7 +69,7 @@ else
             {
                 if (!SubjectAccessPolicy.IsAllowed(context.Principal, oauthSettings.AllowedSubjectIds))
                 {
-                    context.Fail("The Auth0 user is not approved for this Slate library.");
+                    context.Fail("The user is not approved for this Slate library.");
                     return Task.CompletedTask;
                 }
                 if (oauthSettings.AllowedCallerIds.Length == 0) return Task.CompletedTask;
@@ -152,7 +152,7 @@ builder.Services.AddMcpServer()
             if (result.Tools.Count == 0)
             {
                 var claimTypes = string.Join(", ", context.User.Claims.Select(claim => claim.Type).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
-                logger.LogWarning("Authenticated MCP discovery returned no authorized tools. Check requested Slate scopes and Auth0 user grants. Claim types present: {ClaimTypes}", claimTypes);
+                logger.LogWarning("Authenticated MCP discovery returned no authorized tools. Check the Slate scopes granted at Orbit Identity consent. Claim types present: {ClaimTypes}", claimTypes);
             }
             else logger.LogInformation("Authenticated MCP discovery returned {ToolCount} authorized tools.", result.Tools.Count);
         }
