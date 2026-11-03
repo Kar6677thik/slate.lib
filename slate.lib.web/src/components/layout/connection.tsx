@@ -85,9 +85,14 @@ export function ConnectionForm({ onDone }: { onDone?: () => void }) {
         Use a private, trusted device.
       </p>
       {error != null && <ErrorMessage error={error} />}
-      <Button disabled={busy}>
-        {busy ? "Testing connection…" : "Test connection & open library"}
-        <ArrowRight size={17} />
+      {/* In settings the library is already open; the form only changes the connection. */}
+      <Button disabled={busy} variant={onDone ? "outline" : "default"}>
+        {busy
+          ? "Testing connection…"
+          : onDone
+            ? "Test and reconnect"
+            : "Test connection & open library"}
+        {!onDone && <ArrowRight size={17} />}
       </Button>
     </form>
   );
@@ -100,13 +105,13 @@ export function ConnectionScreen() {
         <strong>
           slate<span>.lib</span>
         </strong>
-        <span className="eyebrow">PRIVATE KNOWLEDGE LIBRARY</span>
+        <span className="eyebrow">Private knowledge library</span>
       </div>
       <section className="connection-card">
         <div className="connection-icon">
           <img src="/icons/slate-192.png" width="36" height="36" alt="" />
         </div>
-        <p className="eyebrow">CONNECT TO SLATE</p>
+        
         <h1>Your library, in the browser.</h1>
         <p className="connection-intro">
           Enter your server address and device token to open your library.

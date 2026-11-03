@@ -13,7 +13,7 @@ export function PreferencesForm() {
   }, []);
   return (
     <>
-      <h3 className="section-label">EDITOR & READING</h3>
+      <h3 className="section-label">Editor and reading</h3>
       <label>
         Editor font size
         <select
@@ -65,7 +65,7 @@ export function PreferencesForm() {
         />
         Wrap long lines
       </label>
-      <h3 className="section-label">BROWSER STORAGE</h3>
+      <h3 className="section-label">Browser storage</h3>
       <p className="fine-print">
         {count ?? "Unknown number of"} saved browser drafts. Browser storage can
         be cleared by your browser and is not a backup. Server requests are

@@ -199,7 +199,6 @@ export function SearchPage() {
   return (
     <>
       <div className="view-header">
-        <p className="eyebrow">ALL NOTES</p>
         <h1>Search</h1>
         {prefs.aiEnabled && (
           <div

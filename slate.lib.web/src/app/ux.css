@@ -441,3 +441,305 @@
 .gap-workspace > :not(.gap-body) {
   flex-shrink: 0;
 }
+
+/* =====================================================================
+ * One system for every workspace screen.
+ * Each screen grew its own header, label, figure and control styles; these rules give them one title size,
+ * sentence-case labels, flat figure strips, one control height and no resting shadows.
+ * ===================================================================== */
+
+/* ---------- Page titles ---------- */
+:is(.view-header, .health-header, .gap-header, .knowledge-hero, .concept-hero, .concept-page-hero,
+    .inbox-triage-header, .evolution-hero, .project-hero, .home-header, .recovery-header) h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+:is(.view-header, .health-header, .gap-header, .knowledge-hero, .concept-hero, .concept-page-hero,
+    .inbox-triage-header, .evolution-hero, .project-hero) h1 + p {
+  max-width: 68ch;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.inbox-triage-header h1 small {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 500;
+}
+/* A tool icon beside the title is ornament; the title already names the screen. */
+.evolution-title > svg,
+.project-identity > svg {
+  display: none;
+}
+
+/* ---------- Labels: sentence case, small, quiet ---------- */
+:is(.eyebrow, .section-label, .menu-label, .home-section-heading h2, .knowledge-kind, .knowledge-comparison-header span,
+    .knowledge-source header span, .knowledge-controls > label:not(.knowledge-check), .overlap-note header,
+    .explorer-disclosure summary, .ask-controls label, .ask-turn > header > span, .ask-sources h3,
+    .health-list section > h2, .health-detail dt, .inbox-triage-detail section h3, .link-preview span,
+    .evolution-title span, .evolution-synthesis header span, .evolution-current header > span, .evolution-facts strong,
+    .evolution-diff section > span, .evolution-current > button > span, .project-identity span,
+    .project-generated header span, .project-resume > header span, .project-stats dt, .project-generated-sources > summary,
+    .project-evidence em, .command-group, .project-graph-controls label, .project-timeline-date) {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 550;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.section-label {
+  margin-top: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+/* ---------- Header actions: one compact control height ---------- */
+:is(.health-header-actions, .gap-header-actions, .knowledge-hero, .home-actions, .project-actions,
+    .inbox-triage-header, .concept-actions) .button:not(.button-icon) {
+  min-height: 34px;
+  height: 34px;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: 13px;
+}
+
+/* ---------- Figure strips: one flat divided container, label above value ---------- */
+:is(.health-summary, .gap-summary, .knowledge-counts, .link-diagnostics, .project-stats) {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: none;
+  overflow: hidden;
+}
+:is(.health-summary, .gap-summary) > button,
+.knowledge-counts > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  min-height: 64px;
+  padding: 12px 16px;
+  background: var(--bg);
+}
+:is(.health-summary, .gap-summary) > button:hover {
+  background: var(--hover);
+}
+:is(.health-summary, .gap-summary, .knowledge-counts) :is(span, small) {
+  order: -1;
+  color: var(--muted);
+  font-size: 13px;
+}
+:is(.health-summary, .gap-summary, .knowledge-counts) strong {
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.link-diagnostics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+}
+.link-diagnostics > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.link-diagnostics > span + span {
+  border-left: 1px solid var(--border);
+}
+.link-diagnostics strong {
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.project-stats {
+  background: var(--bg);
+}
+.project-stats dd {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Category chips: quiet filters, not outlined boxes ---------- */
+:is(.health-category-summary, .gap-kind-summary) > button {
+  min-height: 28px;
+  padding: 0 10px;
+  border-color: transparent;
+  border-radius: 999px;
+  background: var(--hover);
+  font-size: 12px;
+}
+:is(.health-category-summary, .gap-kind-summary) > button:hover,
+:is(.health-category-summary, .gap-kind-summary) > button[aria-pressed="true"] {
+  background: var(--active, var(--border));
+  color: var(--text);
+}
+
+/* ---------- Filter rows: one 34px control height ---------- */
+:is(.health-filters, .gap-filters, .knowledge-controls, .concept-controls) :is(select, input:not([type="checkbox"])) {
+  height: 34px;
+  min-height: 34px;
+  font-size: 13px;
+}
+:is(.health-filters, .gap-filters, .knowledge-controls, .concept-controls) label:has(> input:not([type="checkbox"])) {
+  min-height: 34px;
+}
+
+/* ---------- No shadows on things at rest ---------- */
+.link-opportunity,
+.capture-button,
+.project-resume,
+.activity-button.active,
+.tree-row.selected,
+.health-item.selected,
+.gap-row.selected,
+.health-detail,
+.gap-detail,
+.knowledge-comparison,
+.overlap-comparison {
+  box-shadow: none;
+}
+.link-opportunity {
+  background: var(--bg);
+}
+.evolution-hero {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ---------- Lists that would otherwise stretch across the canvas ---------- */
+.concept-workspace > :not(header) {
+  max-width: 1040px;
+}
+
+/* ---------- Library home: views as compact rows ---------- */
+.home-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 16px;
+}
+.home-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 2px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home-row:hover {
+  background: var(--hover);
+}
+.home-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.home-row > svg {
+  grid-row: span 2;
+  align-self: start;
+  margin-top: 2px;
+  color: var(--muted);
+}
+.home-row strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.home-row span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.home-section-heading h2 {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+/* ---------- Inbox capture rendered as Markdown ---------- */
+.inbox-capture-content .markdown {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  font-size: 15px;
+}
+
+@media (max-width: 767px) {
+  :is(.view-header, .health-header, .gap-header, .knowledge-hero, .concept-hero, .concept-page-hero,
+      .inbox-triage-header, .evolution-hero, .project-hero, .home-header) h1 {
+    font-size: 22px;
+  }
+  .home-list {
+    grid-template-columns: 1fr;
+  }
+  .link-diagnostics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .link-diagnostics > span + span {
+    border-left: 0;
+  }
+  .link-diagnostics > span:nth-child(even) {
+    border-left: 1px solid var(--border);
+  }
+  .link-diagnostics > span:nth-child(n + 3) {
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* Round two: strips span the content width, labels read the same everywhere, the capture reads as a note. */
+.health-summary,
+.gap-summary {
+  max-width: none;
+}
+.link-diagnostics > span {
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+}
+:is(.knowledge-counts span, .link-diagnostics > span)::first-letter {
+  text-transform: uppercase;
+}
+.inbox-capture-content {
+  white-space: normal;
+}
+.inbox-triage-detail header h2 {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.command-mode {
+  letter-spacing: 0;
+  text-transform: none;
+}
+@media (max-width: 767px) {
+  :is(.health-category-summary, .gap-kind-summary) {
+    flex-wrap: wrap;
+  }
+}
+.link-diagnostics > span {
+  background: var(--bg);
+}
+/* A capture is read in a narrow pane; wrapping code keeps it readable and avoids a scroll region keyboards can't reach. */
+.inbox-capture-content pre {
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

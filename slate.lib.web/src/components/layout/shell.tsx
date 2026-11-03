@@ -435,9 +435,9 @@ export function Shell({
         description="Connection, appearance, and editor preferences."
       >
         <div className="form-stack">
-          <h3 className="section-label">CONNECTION</h3>
+          <h3 className="section-label">Connection</h3>
           <ConnectionForm onDone={() => w.setSettingsOpen(false)} />
-          <h3 className="section-label">APPEARANCE</h3>
+          <h3 className="section-label">Appearance</h3>
           <label>
             Theme
             <select
