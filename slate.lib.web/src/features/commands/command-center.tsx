@@ -227,17 +227,26 @@ export function CommandCenter() {
     const deduped = new Map<string, CommandResult>();
     for (const result of output) {
       const noteId = result.key.split(":").at(-1)!;
-      const key = result.commandId ? result.key : `${result.title}:${noteId}`;
+      // The same destination is often registered in two groups ("Library Health" under Navigation and
+      // Intelligence); one entry per title is enough.
+      const key = result.commandId
+        ? `command:${result.title.toLowerCase()}`
+        : `${result.title}:${noteId}`;
       const existing = deduped.get(key);
       if (!existing || existing.score < result.score) deduped.set(key, result);
     }
-    return [...deduped.values()]
+    const values = [...deduped.values()];
+    // While searching, groups stay together and are ordered by their best match, so each heading appears once.
+    const groupBest = new Map<string, number>();
+    for (const result of values)
+      groupBest.set(result.group, Math.max(groupBest.get(result.group) ?? -Infinity, result.score));
+    return values
       .sort((a, b) => {
-        if (!term) {
-          const group =
-            groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group);
-          if (group) return group;
-        }
+        const group = term
+          ? groupBest.get(b.group)! - groupBest.get(a.group)! ||
+            groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group)
+          : groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group);
+        if (group) return group;
         return b.score - a.score || a.title.localeCompare(b.title);
       })
       .slice(0, term ? 80 : 36);
