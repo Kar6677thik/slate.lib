@@ -8,11 +8,11 @@ public static class SubjectAccessPolicy
     public static void ValidateProductionConfiguration(OAuthOptions options)
     {
         if (options.AllowedSubjectIds.Length == 0 || options.AllowedSubjectIds.Any(string.IsNullOrWhiteSpace))
-            throw new InvalidOperationException("OAuth:AllowedSubjectIds must contain at least one approved Auth0 user subject outside Development.");
+            throw new InvalidOperationException("OAuth:AllowedSubjectIds must contain at least one approved user subject outside Development.");
         if (!string.Equals(options.Audience, options.Resource, StringComparison.Ordinal))
-            throw new InvalidOperationException("OAuth:Audience must exactly match OAuth:Resource for the Auth0 API identifier.");
+            throw new InvalidOperationException("OAuth:Audience must exactly match OAuth:Resource.");
         if (options.AuthorizationServers.Length != 1 || !string.Equals(options.AuthorizationServers[0], options.Authority, StringComparison.Ordinal))
-            throw new InvalidOperationException("OAuth:AuthorizationServers must contain the exact Auth0 issuer configured in OAuth:Authority.");
+            throw new InvalidOperationException("OAuth:AuthorizationServers must contain the exact issuer configured in OAuth:Authority.");
     }
 
     public static bool IsAllowed(ClaimsPrincipal? principal, IReadOnlyCollection<string> allowedSubjectIds)
