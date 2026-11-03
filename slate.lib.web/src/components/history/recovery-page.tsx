@@ -29,7 +29,6 @@ export function RecoveryPage() {
   return (
     <>
       <div className="view-header">
-        <p className="eyebrow">GIT RECOVERY</p>
         <div className="section-heading">
           <h1>Deleted notes</h1>
           <ArchiveRestore size={20} className="muted" />

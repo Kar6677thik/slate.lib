@@ -5,6 +5,8 @@ import type { LibraryHealthItem } from "../src/lib/intelligence/health";
 import type { KnowledgeGap } from "../src/lib/intelligence/knowledge-gaps";
 export const first = "00000000-0000-4000-8000-000000000001",
   second = "00000000-0000-4000-8000-000000000002";
+// A history entry inside every default "recent" window, however long after writing this the suite runs.
+const recentCommit = new Date(Date.now() - 6 * 86_400_000).toISOString();
 export const libraryId = "10000000-0000-4000-8000-000000000001";
 export const scope = "https://fixture.slate.test:" + libraryId;
 export async function mockSlate(page: Page, options: { generationEnabled?: boolean; healthPartialFailure?: boolean; semanticEnabled?: boolean; postgresAvailable?: boolean } = {}) {
@@ -195,13 +197,13 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
         const resume = input.kind === "resume";
         return respond({ kind: input.kind, markdown: resume ? "## Project\nSlate is a private Markdown workspace. [S1]\n\n## Where Things Stand\nThe storage architecture is documented. [S1]\n\n## Recent Work\nThe architecture note was updated. [S1]\n\n## Key Decisions\nMarkdown remains the source of truth. [S1]\n\n## Open Questions\nSync retry remains open. [S1]\n\n## Known Problems\nRenderer permissions need review. [S1]\n\n## What to Read First\nLibrary architecture. [S1]\n\n## Possible Next Context\nReview sync behavior. [S1]" : "Slate is a private Markdown knowledge workspace built around stable note identities. [S1]", sources: [source], citations: ["S1"], generatedAt: "2026-10-03T10:00:00Z", cached: false, cacheKey: "fixture" });
       }
-      const evidence = (sourceClass: string, title = "Library architecture") => ({ noteId: first, title, path: "Projects/Library architecture.md", revision: '"r1"', heading: "Principles", excerpt: "Markdown is the source of truth. Stable identities connect notes.", sourceClass, type: sourceClass, status: sourceClass === "question" ? "open" : "active", timestamp: "2026-10-03T10:00:00Z" });
-      return respond({ schemaVersion: 1, path: input.path, name: input.path.split("/").at(-1), noteCount: 1, folderCount: 1, bounded: false, status: "Active", lastMeaningfulChange: "2026-10-03T10:00:00Z", openQuestionCount: 1, sections: { overview: [evidence("overview")], current: [evidence("recent")], decisions: [evidence("decision", "Use Markdown storage")], questions: [evidence("question", "How should sync retry?")], architecture: [evidence("architecture")], ideas: [evidence("idea", "Offline cache")], experiments: [evidence("experiment", "Index experiment")], failures: [evidence("failure", "WebView failure")], risks: [evidence("risk", "Renderer permissions")], important: [evidence("important")] }, timeline: [{ id: "event-1", noteId: first, title: "Library architecture", path: "Projects/Library architecture.md", timestamp: "2026-10-03T10:00:00Z", label: "Document library structure", commit: "a".repeat(40) }], graph: { nodes: [{ id: first, title: "Library architecture", path: "Projects/Library architecture.md", kind: "architecture" }], edges: [], limited: false }, relatedOutside: [{ id: second, title: "Reading list", path: "Research/Reading list.md", score: .8, reasons: ["Related storage research"] }], sources: [source], sourceFingerprint: "fixture-fingerprint", generatedAt: "2026-10-03T10:00:00Z", provider: { available: options.generationEnabled !== false, name: options.generationEnabled === false ? "disabled" : "deterministic-test", model: options.generationEnabled === false ? "disabled" : "grounded-v1" } });
+      const evidence = (sourceClass: string, title = "Library architecture") => ({ noteId: first, title, path: "Projects/Library architecture.md", revision: '"r1"', heading: "Principles", excerpt: "Markdown is the source of truth. Stable identities connect notes.", sourceClass, type: sourceClass, status: sourceClass === "question" ? "open" : "active", timestamp: recentCommit });
+      return respond({ schemaVersion: 1, path: input.path, name: input.path.split("/").at(-1), noteCount: 1, folderCount: 1, bounded: false, status: "Active", lastMeaningfulChange: recentCommit, openQuestionCount: 1, sections: { overview: [evidence("overview")], current: [evidence("recent")], decisions: [evidence("decision", "Use Markdown storage")], questions: [evidence("question", "How should sync retry?")], architecture: [evidence("architecture")], ideas: [evidence("idea", "Offline cache")], experiments: [evidence("experiment", "Index experiment")], failures: [evidence("failure", "WebView failure")], risks: [evidence("risk", "Renderer permissions")], important: [evidence("important")] }, timeline: [{ id: "event-1", noteId: first, title: "Library architecture", path: "Projects/Library architecture.md", timestamp: recentCommit, label: "Document library structure", commit: "a".repeat(40) }], graph: { nodes: [{ id: first, title: "Library architecture", path: "Projects/Library architecture.md", kind: "architecture" }], edges: [], limited: false }, relatedOutside: [{ id: second, title: "Reading list", path: "Research/Reading list.md", score: .8, reasons: ["Related storage research"] }], sources: [source], sourceFingerprint: "fixture-fingerprint", generatedAt: recentCommit, provider: { available: options.generationEnabled !== false, name: options.generationEnabled === false ? "disabled" : "deterministic-test", model: options.generationEnabled === false ? "disabled" : "grounded-v1" } });
     }
     if (endpoint === "evolution") {
       const input = req.postDataJSON() as { action: string; scope: { kind: string; topic?: string; path?: string; noteId?: string; noteIds?: string[] }; refresh?: boolean };
       evolutionRequests.push(input);
-      const before = { citationId: "S1", noteId: first, title: "Library architecture", path: "Projects/Library architecture.md", revision: "a".repeat(40), commit: "a".repeat(40), timestamp: "2026-09-28T10:00:00Z", heading: "Storage decisions", excerpt: "The first design used a local polling loop.", state: "historical" };
+      const before = { citationId: "S1", noteId: first, title: "Library architecture", path: "Projects/Library architecture.md", revision: "a".repeat(40), commit: "a".repeat(40), timestamp: recentCommit, heading: "Storage decisions", excerpt: "The first design used a local polling loop.", state: "historical" };
       const after = { citationId: "S2", noteId: first, title: "Library architecture", path: "Projects/Library architecture.md", revision: '"r1"', commit: null, timestamp: "2026-10-03T10:00:00Z", heading: "Storage decisions", excerpt: "The implementation changed to a durable event queue.", state: "current" };
       const events = [
         { id: "event-1", type: "ArchitectureChanged", confidence: "implementation", label: "Changed implementation", title: "Implementation changed", summary: "Library architecture: Storage decisions changed.", timestamp: "2026-10-03T10:00:00Z", dateSource: "git", noteId: first, noteTitle: "Library architecture", path: "Projects/Library architecture.md", before, after, rationale: "The queue preserves drafts during retries.", changedHeadings: ["Storage decisions"] },
@@ -620,7 +622,7 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
         return respond([
           {
             commit: "a".repeat(40),
-            timestamp: "2026-09-28T10:00:00Z",
+            timestamp: recentCommit,
             message: "Document library structure",
             author: "Slate",
           },
@@ -629,7 +631,7 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
         return respond({
           ...n,
           commit: "a".repeat(40),
-          timestamp: "2026-09-28T10:00:00Z",
+          timestamp: recentCommit,
           message: "Document library structure",
           markdown: "# Earlier version\n\nOriginal design notes.",
         });

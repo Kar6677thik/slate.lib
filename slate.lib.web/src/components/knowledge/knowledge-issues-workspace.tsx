@@ -92,7 +92,7 @@ export function KnowledgeIssuesWorkspace({ scope }: { scope: KnowledgeSnapshot["
   };
   return <div className="knowledge-workspace scroll-area">
     <header className="knowledge-hero">
-      <div><span className="eyebrow">Internal consistency</span><h1>Knowledge Issues</h1><p>Review places where your current Slate sources differ, appear superseded, or may already answer an open question.</p></div>
+      <div><h1>Knowledge Issues</h1><p>Review places where your current Slate sources differ, appear superseded, or may already answer an open question.</p></div>
       <Button variant="outline" onClick={() => query.refetch()}><Clock3 size={16} />Check again</Button>
     </header>
     <div className="knowledge-counts" aria-label="Knowledge issue summary">

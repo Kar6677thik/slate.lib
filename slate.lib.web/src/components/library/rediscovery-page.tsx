@@ -34,7 +34,6 @@ export function RediscoveryPage() {
   return (
     <>
       <div className="view-header">
-        <p className="eyebrow">REDISCOVERY</p>
         <div className="section-heading">
           <h1>Rediscover</h1>
           <Compass size={20} className="muted" />

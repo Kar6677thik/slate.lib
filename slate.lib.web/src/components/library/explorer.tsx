@@ -265,7 +265,7 @@ export function Explorer() {
   return (
     <section className="explorer">
       <div className="sidebar-heading explorer-toolbar">
-        <span className="eyebrow">FILES</span>
+        <span className="eyebrow">Files</span>
         <div className="inline-actions">
           <IconButton
             label="Daily note"

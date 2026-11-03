@@ -42,7 +42,6 @@ export function DestinationPage() {
     return (
       <>
         <div className="view-header">
-          <p className="eyebrow">PERSONAL VIEW</p>
           <h1>Favorites</h1>
           <p>Notes you have starred in this browser.</p>
         </div>
@@ -77,7 +76,6 @@ export function DestinationPage() {
     return (
       <>
         <div className="view-header">
-          <p className="eyebrow">BROWSING HISTORY</p>
           <h1>Recent</h1>
           <p>Your last 50 opened notes, on this browser.</p>
         </div>
@@ -116,7 +114,6 @@ export function DestinationPage() {
   return (
     <>
       <div className="view-header">
-        <p className="eyebrow">CAPTURE &amp; ORGANIZE</p>
         <div className="section-heading">
           <h1>Inbox</h1>
           <Button
@@ -160,7 +157,6 @@ function SmartViewPage({
   return (
     <>
       <div className="view-header smart-view-header">
-        <p className="eyebrow">SMART VIEW</p>
         <div className="section-heading">
           <h1>{view.title}</h1>
           <Icon size={20} className="muted" />
@@ -175,8 +171,8 @@ function SmartViewPage({
         ) : (
           <>
             <div className="results-meta">
-              {query.data.total.toLocaleString()} notes
-              <span>Server-defined view</span>
+              {query.data.total.toLocaleString()}{" "}
+              {query.data.total === 1 ? "note" : "notes"}
             </div>
             {query.data.results.map((result) => (
               <button
@@ -278,7 +274,6 @@ function LibraryHome() {
       <div className="home-inner">
         <header className="home-header">
           <div>
-            <p className="eyebrow">WORKSPACE</p>
             <h1>Library</h1>
             <p className="muted">
               {status.data
@@ -355,25 +350,32 @@ function LibraryHome() {
             <FolderChildren path="" />
           </div>
         </section>
-        <section className="home-section" aria-labelledby="home-views">
-          <div className="home-section-heading">
-            <h2 id="home-views">Views</h2>
-          </div>
-          <div className="home-grid home-views">
-            {LIBRARY_VIEWS.map(({ id, title, description, icon: Icon }) => (
-              <button
-                className="home-card home-view"
-                key={id}
-                aria-label={title}
-                onClick={() => w.navigate(id)}
-              >
-                <Icon size={17} />
-                <strong>{title}</strong>
-                <span>{description}</span>
-              </button>
-            ))}
-          </div>
-        </section>
+        {(
+          [
+            ["home-views", "Views", LIBRARY_VIEWS.slice(0, SMART_VIEWS.length)],
+            ["home-maintenance", "Maintenance", LIBRARY_VIEWS.slice(SMART_VIEWS.length)],
+          ] as const
+        ).map(([key, heading, views]) => (
+          <section className="home-section" aria-labelledby={key} key={key}>
+            <div className="home-section-heading">
+              <h2 id={key}>{heading}</h2>
+            </div>
+            <div className="home-list">
+              {views.map(({ id, title, description, icon: Icon }) => (
+                <button
+                  className="home-row"
+                  key={id}
+                  aria-label={title}
+                  onClick={() => w.navigate(id)}
+                >
+                  <Icon size={16} />
+                  <strong>{title}</strong>
+                  <span>{description}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ))}
         {recent.length === 0 && favorites.length === 0 && (
           <p className="home-hint muted">
             Open a note from the file tree to start. Recently opened notes and

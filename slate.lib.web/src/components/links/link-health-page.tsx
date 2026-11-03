@@ -25,7 +25,6 @@ export function LinkHealthPage() {
   return (
     <>
       <div className="view-header">
-        <p className="eyebrow">LIBRARY HEALTH</p>
         <div className="section-heading">
           <h1>Link health</h1>
           <Unlink size={20} className="muted" />
