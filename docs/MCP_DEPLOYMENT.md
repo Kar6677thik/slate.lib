@@ -19,6 +19,7 @@ kubectl kustomize deploy/mcp/k3s
 | `Mcp__CanonicalBaseUrl` | Fixed internal canonical API origin |
 | `Mcp__CanonicalPublicUrl` | Approved public Slate identity forwarded to the web intelligence route |
 | `Mcp__IntelligenceBaseUrl` | Optional fixed internal web service origin |
+| `Mcp__WebAppUrl` | Optional HTTPS origin of the Slate web app. When set, every note in a tool result carries `url` (`{origin}/?note={id}`) and the server instructions tell clients to copy it rather than build one. When unset, no `url` is returned. Startup fails if it is not a plain HTTPS origin |
 | `Mcp__AllowedCanonicalHosts__*` | Explicit host allowlist for the canonical origin |
 | `Mcp__AllowedIntelligenceHosts__*` | Explicit host allowlist for the intelligence origin |
 | `Mcp__ExpectedLibraryId` | Required production cross-library guard |

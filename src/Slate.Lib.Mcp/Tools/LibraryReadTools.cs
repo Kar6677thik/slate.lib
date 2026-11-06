@@ -105,7 +105,8 @@ public sealed class LibraryReadTools(CanonicalSlateClient canonical, Intelligenc
                 catch (JsonException) { /* Canonical lexical fallback below. */ }
             }
             var lexical = await canonical.Search(query, page, pageSize, token);
-            var lexicalResults = JsonSerializer.SerializeToElement(lexical.Results);
+            // Web (camelCase) names, so keyword results have the same field names as meaning-search results.
+            var lexicalResults = JsonSerializer.SerializeToElement(lexical.Results, JsonSerializerOptions.Web);
             var warning = mode == "lexical" ? null : "Meaning search is unavailable. Canonical keyword results are shown.";
             var lexicalReferences = lexical.Results.Select(hit => new McpReference(hit.Id, hit.Path, hit.Title, hit.Revision)).ToArray();
             return McpResult<SearchNotesResult>.Ok(libraryId, "search_notes", new(query, mode, "lexical", page, pageSize, lexical.Total, lexicalResults, warning),

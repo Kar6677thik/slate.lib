@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using ModelContextProtocol.AspNetCore;
+using ModelContextProtocol.Server;
 using Slate.Lib.Mcp.Clients;
 using Slate.Lib.Mcp.Configuration;
 using Slate.Lib.Mcp.Security;
@@ -18,7 +19,8 @@ using Slate.Lib.Mcp.Tools;
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole(options => options.SingleLine = true);
-builder.Services.AddOptions<SlateMcpOptions>().BindConfiguration(SlateMcpOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
+builder.Services.AddOptions<SlateMcpOptions>().BindConfiguration(SlateMcpOptions.SectionName).ValidateDataAnnotations()
+    .Validate(options => NoteUrls.IsValidOrigin(options.WebAppUrl), NoteUrls.InvalidOriginMessage).ValidateOnStart();
 builder.Services.AddOptions<OAuthOptions>().BindConfiguration(OAuthOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddOptions<RateLimitOptions>().BindConfiguration(RateLimitOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
 
@@ -127,6 +129,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<LibraryContext>();
 builder.Services.AddSingleton<ToolExecutor>();
 builder.Services.AddSingleton<LearningService>();
+builder.Services.AddSingleton<NoteUrls>();
 
 builder.Services.AddHttpClient<CanonicalSlateClient>(client =>
 {
@@ -141,6 +144,7 @@ builder.Services.AddHttpClient<IntelligenceClient>(client =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd("Slate.Lib.Mcp/1.0");
 }).ConfigurePrimaryHttpMessageHandler(() => SecureHandler());
 
+builder.Services.AddOptions<McpServerOptions>().Configure<NoteUrls>((options, urls) => options.ServerInstructions = NoteUrls.ServerInstructions(urls.Enabled));
 builder.Services.AddMcpServer()
     .WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
     .WithRequestFilters(filters => filters.AddListToolsFilter(next => async (context, cancellationToken) =>
@@ -156,6 +160,11 @@ builder.Services.AddMcpServer()
             }
             else logger.LogInformation("Authenticated MCP discovery returned {ToolCount} authorized tools.", result.Tools.Count);
         }
+        return result;
+    }).AddCallToolFilter(next => async (context, cancellationToken) =>
+    {
+        var result = await next(context, cancellationToken);
+        context.Services!.GetRequiredService<NoteUrls>().AddTo(result);
         return result;
     }))
     .AddAuthorizationFilters()
