@@ -10,6 +10,11 @@ public sealed class SlateMcpOptions
     [Required, Url] public string CanonicalBaseUrl { get; set; } = "http://localhost:5080";
     [Required, Url] public string CanonicalPublicUrl { get; set; } = "http://localhost:5080";
     [Url] public string? IntelligenceBaseUrl { get; set; }
+    /// <summary>
+    /// The Slate web app's HTTPS origin. When set, every note in a tool result carries a <c>url</c> that opens it
+    /// there (<c>{origin}/?note={id}</c>). When unset, no URL is returned; the server never guesses one.
+    /// </summary>
+    public string? WebAppUrl { get; set; }
     public string[] AllowedOrigins { get; set; } = ["https://chatgpt.com", "https://chat.openai.com"];
     public Guid? ExpectedLibraryId { get; set; }
     public string[] AllowedCanonicalHosts { get; set; } = ["localhost"];

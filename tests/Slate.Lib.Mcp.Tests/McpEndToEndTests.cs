@@ -45,6 +45,8 @@ public sealed class McpEndToEndTests
 
         var initial = await Call(client, "read_note", new { noteId = library.SeedNoteId });
         Assert.Contains("WAL", initial.GetProperty("data").GetProperty("markdown").GetString(), StringComparison.Ordinal);
+        Assert.False(initial.GetProperty("data").TryGetProperty("url", out _), "No url is returned unless Mcp:WebAppUrl is configured.");
+        Assert.DoesNotContain("\"url\"", initial.GetRawText(), StringComparison.Ordinal);
 
         var created = await Call(client, "create_note", new { folderPath = "", name = "MCP Smoke.md", title = "MCP Smoke", initialMarkdown = "# MCP Smoke\n\nOriginal.\n" });
         var createdData = created.GetProperty("data");
@@ -94,7 +96,89 @@ public sealed class McpEndToEndTests
         Assert.Equal("git_not_initialized", sync.GetProperty("error").GetProperty("code").GetString());
     }
 
-    private static async Task<JsonElement> Call(HttpClient client, string toolName, object arguments)
+    [Fact]
+    public async Task NoteResultsCarryTheConfiguredWebAppUrl()
+    {
+        using var library = new DisposableLibrary();
+        var canonicalToken = new ApiDeviceTokens(library.DeviceFile).Create("mcp-urls");
+        using var api = new DisposableApiFactory(library);
+        _ = api.CreateClient();
+        using var canonicalHandler = api.Server.CreateHandler();
+        using var mcp = new DisposableMcpFactory(canonicalHandler, canonicalToken, library.LibraryId, "https://lib.example.test");
+        using var client = mcp.CreateClient();
+        string UrlFor(Guid id) => $"https://lib.example.test/?note={id}";
+
+        var read = await CallResult(client, "read_note", new { noteId = library.SeedNoteId });
+        var structured = read.GetProperty("structuredContent");
+        Assert.Equal(UrlFor(library.SeedNoteId), structured.GetProperty("data").GetProperty("url").GetString());
+        Assert.Equal(UrlFor(library.SeedNoteId), structured.GetProperty("references")[0].GetProperty("url").GetString());
+        var text = read.GetProperty("content").EnumerateArray().Single(block => block.GetProperty("type").GetString() == "text").GetProperty("text").GetString()!;
+        Assert.Contains(UrlFor(library.SeedNoteId), text, StringComparison.Ordinal);
+
+        var search = await Call(client, "search_notes", new { query = "PostgreSQL", mode = "lexical", page = 0, pageSize = 20 });
+        foreach (var hit in search.GetProperty("data").GetProperty("results").EnumerateArray())
+            Assert.Equal(UrlFor(hit.GetProperty("id").GetGuid()), hit.GetProperty("url").GetString());
+        Assert.NotEmpty(search.GetProperty("data").GetProperty("results").EnumerateArray());
+
+        var browse = await Call(client, "browse_library", new { path = "Database", page = 0 });
+        var entries = browse.GetProperty("data").GetProperty("entries").EnumerateArray().ToArray();
+        var noteEntry = entries.First(entry => !entry.GetProperty("isDirectory").GetBoolean());
+        Assert.Equal(UrlFor(noteEntry.GetProperty("id").GetGuid()), noteEntry.GetProperty("url").GetString());
+
+        var created = await Call(client, "create_note", new { folderPath = "", name = "Canvas Link.md", title = "Canvas Link", initialMarkdown = "# Canvas Link\n\nSee [the canvas](https://canvas.example.test/c/42).\n" });
+        var createdId = created.GetProperty("data").GetProperty("id").GetGuid();
+        Assert.Equal(UrlFor(createdId), created.GetProperty("data").GetProperty("url").GetString());
+
+        // An https link to another app is ordinary Markdown: it is not a note link, so it gets no Slate url.
+        var links = await Call(client, "get_note_links", new { noteId = createdId });
+        Assert.Equal(UrlFor(createdId), links.GetProperty("data").GetProperty("url").GetString());
+        Assert.Empty(links.GetProperty("data").GetProperty("outgoing").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task OutputSchemasAllowTheAddedUrlField()
+    {
+        using var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        using var mcp = new DisposableMcpFactory(handler, "unused", Guid.NewGuid(), "https://lib.example.test");
+        using var client = mcp.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp")
+        {
+            Content = JsonContent.Create(new
+            {
+                jsonrpc = "2.0",
+                id = "list",
+                method = "tools/list",
+                @params = new { _meta = new Dictionary<string, object?> { ["io.modelcontextprotocol/protocolVersion"] = "2026-07-28", ["io.modelcontextprotocol/clientCapabilities"] = new Dictionary<string, object?>() } }
+            })
+        };
+        request.Headers.Authorization = new("Bearer", "test-mcp-token");
+        request.Headers.TryAddWithoutValidation("MCP-Protocol-Version", "2026-07-28");
+        request.Headers.TryAddWithoutValidation("Mcp-Method", "tools/list");
+        request.Headers.Accept.ParseAdd("application/json");
+        request.Headers.Accept.ParseAdd("text/event-stream");
+        using var response = await client.SendAsync(request);
+        var payload = await response.Content.ReadAsStringAsync();
+        Assert.True(response.IsSuccessStatusCode, payload);
+        Assert.Contains("read_note", payload, StringComparison.Ordinal);
+        // A closed schema would make every result that gained a url invalid for clients that validate output.
+        Assert.DoesNotContain("\"additionalProperties\":false", payload.Replace(" ", "", StringComparison.Ordinal), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("http://lib.example.test")]
+    [InlineData("https://lib.example.test/notes")]
+    public void StartupRejectsAWebAppUrlThatIsNotAnHttpsOrigin(string webAppUrl)
+    {
+        using var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        using var mcp = new DisposableMcpFactory(handler, "unused", Guid.NewGuid(), webAppUrl);
+        var error = Assert.ThrowsAny<Exception>(() => mcp.CreateClient());
+        Assert.Contains("Mcp:WebAppUrl", error.ToString(), StringComparison.Ordinal);
+    }
+
+    private static async Task<JsonElement> Call(HttpClient client, string toolName, object arguments) =>
+        (await CallResult(client, toolName, arguments)).GetProperty("structuredContent").Clone();
+
+    private static async Task<JsonElement> CallResult(HttpClient client, string toolName, object arguments)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp")
         {
@@ -127,10 +211,10 @@ public sealed class McpEndToEndTests
         Assert.True(response.IsSuccessStatusCode, $"{response.StatusCode}: {payload}");
         var data = payload.Split('\n', StringSplitOptions.RemoveEmptyEntries).Single(line => line.StartsWith("data: ", StringComparison.Ordinal))[6..];
         using var document = JsonDocument.Parse(data);
-        return document.RootElement.GetProperty("result").GetProperty("structuredContent").Clone();
+        return document.RootElement.GetProperty("result").Clone();
     }
 
-    private sealed class DisposableMcpFactory(HttpMessageHandler canonicalHandler, string canonicalToken, Guid libraryId) : WebApplicationFactory<Program>
+    private sealed class DisposableMcpFactory(HttpMessageHandler canonicalHandler, string canonicalToken, Guid libraryId, string? webAppUrl = null) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -150,7 +234,8 @@ public sealed class McpEndToEndTests
                 ["OAuth:Resource"] = "http://localhost/mcp",
                 ["Development:BearerToken"] = "test-mcp-token",
                 ["Secrets:CanonicalDeviceToken"] = canonicalToken,
-                ["Secrets:ProposalSigningKey"] = "test-proposal-signing-key-with-enough-entropy"
+                ["Secrets:ProposalSigningKey"] = "test-proposal-signing-key-with-enough-entropy",
+                ["Mcp:WebAppUrl"] = webAppUrl
             }));
             builder.ConfigureTestServices(services =>
             {
