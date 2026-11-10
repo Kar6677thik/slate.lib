@@ -65,6 +65,18 @@ These tools require `slate.write`; `create_folder` is listed in organization bec
 
 Successful mutations send a bounded best-effort event to existing intelligence. Event failure never rolls back a committed canonical write and never triggers a full paid rebuild.
 
+## Reader comments
+
+The owner leaves questions on passages or whole notes while reading; agents answer them. See `COMMENTS.md` for the storage and anchoring design. Reading requires `slate.read`; replying requires `slate.write` and `Mcp:EnableWrites=true`. Agent comments are always stored with author kind `agent`; the owner decides when a thread is resolved.
+
+| Tool | Purpose and safety | Inputs and limits | Data returned | Example arguments |
+|---|---|---|---|---|
+| `list_comment_questions` | Find threads waiting for an answer across the library. Read-only. | `status` `open` (default), `resolved` or `all`; `awaitingReply` (default true); page ≥ 0, 50 per page. | Items with note identity, title, path, url, and the thread: quote (`anchor.exact`/`prefix`/`suffix`), `anchorState`, source `line` and `context`, comments. | `{}` |
+| `get_note_comments` | Every thread on one note, passage and page-level. Read-only. | `noteId`. | Note identity, revision and threads. | `{"noteId":"00000000-0000-0000-0000-000000000001"}` |
+| `reply_to_comment` | Answer in the thread. Never resolves. | `noteId`, `threadId`, `markdown` ≤ 10,000 chars, `agentName` ≤ 60 (e.g. `Claude`), optional `linkedNoteId` of an existing answer note. | Updated thread. | `{"noteId":"…","threadId":"…","markdown":"Write-ahead log.","agentName":"Claude"}` |
+| `answer_comment_with_note` | Create a new page that answers the question, then reply with a summary and the page attached. Never overwrites; a name conflict fails before replying. | `noteId`, `threadId`, `title`, full `markdown`, short `replyMarkdown`, optional `name`, optional `folderPath` (default: the commented note's folder), `agentName`. | Created note (with url) and the updated thread. If the reply fails after the note is created, a warning names the note so the agent calls `reply_to_comment` instead of creating it again. | `{"noteId":"…","threadId":"…","title":"WAL and crash recovery","markdown":"…","replyMarkdown":"I wrote a page for this.","agentName":"ChatGPT"}` |
+| `set_comment_thread_status` | Resolve or reopen, only when the owner asks. | `noteId`, `threadId`, `status` `resolved` or `open`. | Updated thread. | `{"noteId":"…","threadId":"…","status":"resolved"}` |
+
 ## Organization and reviewed operations
 
 All tools in this table require `slate.organize`. They also require writes to be enabled. Broad or destructive operations use canonical preview/apply state plus a separate signed, expiring MCP review token.

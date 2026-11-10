@@ -1,0 +1,507 @@
+/* Reader comments: passage highlights, margin bubbles, the passage drawer, and the page discussion. */
+
+.commentable {
+  position: relative;
+}
+
+::highlight(slate-comment) {
+  background-color: color-mix(in srgb, var(--accent) 16%, transparent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 65%, transparent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+::highlight(slate-comment-active) {
+  background-color: color-mix(in srgb, var(--accent) 34%, transparent);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.comment-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.comment-layer > * {
+  pointer-events: auto;
+}
+
+.comment-bubble {
+  position: absolute;
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 22px;
+  margin-top: 4px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-radius: 11px 11px 11px 3px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transform: translateX(-50%);
+  transition: transform 120ms ease, background 120ms ease;
+}
+.comment-bubble:hover {
+  transform: translate(-50%, -1px);
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg));
+}
+.comment-bubble:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.bubble-answered {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: #2f9e6a;
+}
+
+.selection-comment-button {
+  position: fixed;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  transform: translateX(-50%);
+  border: 0;
+  border-radius: 17px;
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.selection-comment-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.note-comment-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.note-comment-control:hover,
+.note-comment-control[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--hover);
+}
+.note-comment-control:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.comment-waiting-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Passage drawer: a non-modal side panel on desktop, a bottom sheet on phones. */
+.comment-drawer {
+  position: fixed;
+  z-index: 55;
+  top: 96px;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  width: min(400px, calc(100vw - 32px));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.comment-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 10px 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.comment-drawer-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+.comment-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 14px 20px;
+}
+.comment-drawer-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.drawer-thread {
+  padding: 10px 0 4px;
+  border-bottom: 1px solid var(--border);
+}
+.drawer-thread:last-child {
+  border-bottom: 0;
+}
+.drawer-thread-jump {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.drawer-thread-jump:not(:disabled):hover {
+  color: var(--accent);
+}
+.drawer-thread-jump:disabled {
+  cursor: default;
+}
+.comment-compose-passage {
+  display: grid;
+  gap: 10px;
+}
+
+.comment-quote {
+  margin: 6px 0 8px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.comment-quote.detached {
+  border-left-color: var(--muted);
+  background: var(--surface);
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent);
+}
+.comment-quote small {
+  display: block;
+  margin-top: 4px;
+  text-decoration: none;
+  font-style: italic;
+}
+
+/* Threads */
+.comment-thread {
+  display: grid;
+  gap: 4px;
+}
+.comment-thread.resolved .comment-item {
+  opacity: 0.72;
+}
+.thread-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+.state-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.state-chip.waiting {
+  color: var(--accent);
+}
+.state-chip.answered {
+  color: #2f9e6a;
+}
+.thread-status-button,
+.comment-actions button,
+.show-replies,
+.discussion-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.thread-status-button:hover,
+.comment-actions button:hover,
+.discussion-link:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.show-replies {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.comment-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  padding: 6px 0;
+}
+.comment-avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+.comment-avatar.agent {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  color: var(--accent);
+}
+.comment-main {
+  min-width: 0;
+}
+.comment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12.5px;
+}
+.comment-meta strong {
+  font-weight: 650;
+}
+.comment-meta time {
+  color: var(--muted);
+  font-size: 12px;
+}
+.comment-badge {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.comment-body .markdown {
+  max-width: none;
+  margin: 2px 0 0;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.comment-body .markdown > :first-child {
+  margin-top: 0;
+}
+.comment-body .markdown > :last-child {
+  margin-bottom: 0;
+}
+.comment-linked-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.comment-linked-note:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-soft);
+}
+.comment-linked-note svg {
+  flex: none;
+  color: var(--accent);
+}
+.comment-linked-note span {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.comment-linked-note small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.comment-linked-note strong {
+  overflow: hidden;
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comment-actions {
+  display: flex;
+  gap: 2px;
+  margin: 2px 0 0 -6px;
+}
+.comment-replies {
+  margin-left: 42px;
+}
+.comment-replies .comment-item {
+  padding: 4px 0;
+}
+
+.comment-composer {
+  display: grid;
+  gap: 8px;
+}
+.comment-composer textarea {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.comment-composer textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.comment-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.comment-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+/* Page discussion */
+.note-discussion {
+  max-width: var(--reader-width);
+  margin: -50px auto 0;
+  padding: 24px 44px 90px;
+  border-top: 1px solid var(--border);
+}
+.discussion-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.discussion-header h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+}
+.discussion-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.discussion-tools select {
+  min-height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+.discussion-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.discussion-threads {
+  display: grid;
+  gap: 18px;
+  margin-top: 20px;
+}
+.discussion-empty {
+  margin: 16px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 767px) {
+  .comment-drawer {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    max-height: 72vh;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .comment-bubble {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    font-size: 10px;
+  }
+  .note-discussion {
+    padding: 20px 23px 90px;
+    margin-top: -40px;
+  }
+  .comment-replies {
+    margin-left: 28px;
+  }
+}

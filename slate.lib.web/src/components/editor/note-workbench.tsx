@@ -34,6 +34,7 @@ import {
   Layers3,
   Link2,
   Sparkles,
+  MessageSquare,
 } from "lucide-react";
 import type { EditorView } from "@codemirror/view";
 import type { Note } from "@/lib/api/contracts";
@@ -64,6 +65,9 @@ import { openAskSlate } from "@/components/ask/ask-slate";
 import { LinkOpportunityList } from "@/components/links/link-opportunities";
 import { takeEditingRequest } from "@/features/notes/edit-intent";
 import { toggleTaskAt } from "@/lib/markdown/tasks";
+import { useNoteComments } from "@/components/comments/use-note-comments";
+import { ReaderComments, type DrawerState } from "@/components/comments/reader-comments";
+import { Discussion } from "@/components/comments/discussion";
 import {
   applyLinkSuggestionDraft,
   type LinkSuggestion,
@@ -122,6 +126,13 @@ export function NoteWorkbench({ note }: { note: Note }) {
   const [wikiExportOpen, setWikiExportOpen] = useState(false);
   const [linkPanelOpen, setLinkPanelOpen] = useState(false);
   const [answer, setAnswer] = useState("");
+  const comments = useNoteComments(note.id);
+  const [commentDrawer, setCommentDrawer] = useState<DrawerState>(null);
+  const readerRoot = useRef<HTMLDivElement>(null);
+  const passageThreads =
+    comments.query.data?.threads.filter((thread) => thread.anchor.kind === "text" && thread.status === "open") ?? [];
+  const waitingCount =
+    comments.query.data?.threads.filter((thread) => thread.awaitingReply).length ?? 0;
   const editor = useRef<EditorView | null>(null);
   const [editorLoaded, setEditorLoaded] = useState(false);
   const savingLock = useRef(false);
@@ -503,6 +514,20 @@ export function NoteWorkbench({ note }: { note: Note }) {
               )}
             </div>
           )}
+          {mode !== "write" && (
+            <button
+              type="button"
+              className="note-comment-control"
+              title="Passage comments"
+              aria-label={`${passageThreads.length} open passage comment${passageThreads.length === 1 ? "" : "s"}${waitingCount ? `, ${waitingCount} waiting for an answer` : ""}`}
+              aria-pressed={!!commentDrawer}
+              onClick={() => setCommentDrawer(commentDrawer ? null : { focus: null, compose: null })}
+            >
+              <MessageSquare size={15} />
+              {passageThreads.length > 0 && <span>{passageThreads.length}</span>}
+              {waitingCount > 0 && <span className="comment-waiting-dot" aria-hidden />}
+            </button>
+          )}
           <span className="save-status" aria-live="polite">
             <span className="word-count">
               {words.toLocaleString()} word{words === 1 ? "" : "s"} ·{" "}
@@ -590,12 +615,26 @@ export function NoteWorkbench({ note }: { note: Note }) {
             <header className="reader-title">
               <h1>{note.title}</h1>
             </header>
-            <Markdown
-              source={preview}
-              links={links.data}
-              title={note.title}
-              path={note.path}
-              onToggleTask={toggleTask}
+            <div className="commentable" ref={readerRoot}>
+              <Markdown
+                source={preview}
+                links={links.data}
+                title={note.title}
+                path={note.path}
+                onToggleTask={toggleTask}
+              />
+              <ReaderComments
+                root={readerRoot}
+                actions={comments}
+                drawer={commentDrawer}
+                setDrawer={setCommentDrawer}
+                renderKey={preview}
+              />
+            </div>
+            <Discussion
+              actions={comments}
+              passageCount={passageThreads.length}
+              onShowPassages={() => setCommentDrawer({ focus: null, compose: null })}
             />
           </div>
         )}

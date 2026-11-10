@@ -10,6 +10,8 @@ const allowedPaths = [
   /^v1\/notes\/[a-f0-9-]{36}$/,
   /^v1\/notes\/[a-f0-9-]{36}\/(?:links|related|graph|restore|answer|append-preview|append-capture|wiki-export)$/,
   /^v1\/notes\/[a-f0-9-]{36}\/history(?:\/[a-f0-9]+)?$/,
+  /^v1\/notes\/[a-f0-9-]{36}\/comments(?:\/[a-f0-9-]{36}\/(?:replies|status|comments\/[a-f0-9-]{36}\/delete))?$/,
+  /^v1\/comments$/,
   /^v1\/notes\/[a-f0-9-]{36}\/link-repair\/(?:preview|apply)$/,
   /^v1\/(?:folders|captures)$/,
   /^v1\/search(?:\/rebuild)?$/,

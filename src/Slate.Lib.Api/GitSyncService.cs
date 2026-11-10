@@ -280,6 +280,7 @@ public sealed partial class GitSyncService
         var managed = new List<string> { ".slate/library.json" };
         managed.AddRange(LibraryStore.Discover(paths));
         managed.AddRange(DiscoverMarkers(paths.Root));
+        managed.AddRange(NoteCommentStore.Discover(paths.Root));
         foreach (var group in managed.Distinct(StringComparer.OrdinalIgnoreCase).Chunk(200))
         {
             var arguments = new List<string> { "add", "--" }; arguments.AddRange(group);
@@ -289,7 +290,7 @@ public sealed partial class GitSyncService
 
     private bool IsManagedPath(string relative)
     {
-        if (relative == ".slate/library.json") return true;
+        if (relative == ".slate/library.json" || NoteCommentStore.IsCommentPath(relative)) return true;
         if (Path.GetFileName(relative) == ".gitkeep")
         {
             var parent = relative.Contains('/') ? relative[..relative.LastIndexOf('/')] : "";
@@ -339,7 +340,7 @@ public sealed partial class GitSyncService
             if (metadata.Length < 3 || metadata[0] != "100644" || metadata[1] != "blob")
                 throw new InvalidDataException("Git imports may contain only ordinary non-executable files.");
             if (!names.Add(relative)) throw new InvalidDataException("Git import contains case-colliding paths.");
-            var allowedMetadata = relative is ".slate/library.json" or ".gitignore" or ".gitattributes" || Path.GetFileName(relative) == ".gitkeep";
+            var allowedMetadata = relative is ".slate/library.json" or ".gitignore" or ".gitattributes" || Path.GetFileName(relative) == ".gitkeep" || NoteCommentStore.IsCommentPath(relative);
             if (!relative.EndsWith(".md", StringComparison.OrdinalIgnoreCase) && !allowedMetadata)
                 throw new InvalidDataException("Git import contains an unsupported file.");
             if (!relative.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
@@ -351,6 +352,14 @@ public sealed partial class GitSyncService
                     if (identity is null || currentIdentity is null || identity.SchemaVersion != 1 || identity.LibraryId != currentIdentity.LibraryId)
                         throw new InvalidDataException("Git import belongs to a different or invalid Slate Library.");
                     sawIdentity = true;
+                }
+                if (NoteCommentStore.IsCommentPath(relative))
+                {
+                    var commentSize = long.Parse((await RunRequiredAsync(["cat-file", "-s", metadata[2]], cancellationToken)).StdOut.Trim());
+                    if (commentSize > CommentLimits.MaxFileBytes) throw new InvalidDataException("Git import contains an oversized comment file.");
+                    var comments = (await RunRequiredAsync(["show", $"{commit}:{relative}"], cancellationToken)).StdOut;
+                    NoteCommentStore.Parse(comments, Guid.Parse(relative[(NoteCommentStore.RelativeDirectory.Length + 1)..^5]));
+                    continue;
                 }
                 if (relative == ".gitattributes")
                 {

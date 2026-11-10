@@ -33,6 +33,10 @@ import {
   type EvolutionSnapshot,
   type EvolutionSynthesis,
   type KnowledgeSnapshot,
+  type NoteComments,
+  type CommentThread,
+  type CommentAnchor,
+  type CommentInboxPage,
 } from "./contracts";
 export function normalizeServer(value: string) {
   const url = new URL(value.trim());
@@ -533,6 +537,24 @@ export class SlateApi {
   }
   metadata(id: string) {
     return this.request<Asset>(`v1/assets/${id}/metadata`);
+  }
+  comments(noteId: string, signal?: AbortSignal) {
+    return this.request<NoteComments>(`v1/notes/${noteId}/comments`, {}, signal);
+  }
+  commentInbox(status: "open" | "resolved" | "all" = "open", awaitingReply = false, page = 0, signal?: AbortSignal) {
+    return this.request<CommentInboxPage>(`v1/comments?status=${status}&awaitingReply=${awaitingReply}&page=${page}`, {}, signal);
+  }
+  createComment(noteId: string, anchor: CommentAnchor, body: string) {
+    return this.post<CommentThread>(`v1/notes/${noteId}/comments`, { anchor, body, author: { kind: "user", name: "You" } });
+  }
+  replyToComment(noteId: string, threadId: string, body: string) {
+    return this.post<CommentThread>(`v1/notes/${noteId}/comments/${threadId}/replies`, { body, author: { kind: "user", name: "You" } });
+  }
+  setCommentStatus(noteId: string, threadId: string, status: "open" | "resolved") {
+    return this.post<CommentThread>(`v1/notes/${noteId}/comments/${threadId}/status`, { status });
+  }
+  deleteComment(noteId: string, threadId: string, commentId: string) {
+    return this.post<void>(`v1/notes/${noteId}/comments/${threadId}/comments/${commentId}/delete`);
   }
   async upload(file: File, id = crypto.randomUUID()) {
     const hash = Array.from(

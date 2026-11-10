@@ -184,6 +184,11 @@ it("allows the bounded parity API surface and rejects path-shaped lookalikes", (
     "v1/workflows/daily",
     `v1/assets/${id}/references`,
     "v1/sync/merge-preview",
+    "v1/comments",
+    `v1/notes/${id}/comments`,
+    `v1/notes/${id}/comments/${id}/replies`,
+    `v1/notes/${id}/comments/${id}/status`,
+    `v1/notes/${id}/comments/${id}/comments/${id}/delete`,
   ])
     expect(isAllowedPath(path), path).toBe(true);
 
@@ -194,6 +199,9 @@ it("allows the bounded parity API surface and rejects path-shaped lookalikes", (
     `v1/assets/${id}/../../devices`,
     `v1/library/bulk/${id}/extra`,
     "v1/rediscovery/random?admin=true",
+    `v1/notes/${id}/comments/${id}`,
+    `v1/notes/${id}/comments/${id}/comments/${id}`,
+    "v1/comments/extra",
   ])
     expect(isAllowedPath(path), path).toBe(false);
 });
