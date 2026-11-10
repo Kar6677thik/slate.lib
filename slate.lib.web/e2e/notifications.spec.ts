@@ -54,7 +54,7 @@ test("notifications page lists replies and bundled new pages and leads to them",
   await expect(page.getByRole("heading", { name: "Notifications", exact: true })).toBeVisible();
   const feed = page.locator(".notifications-list");
   await expect(feed.getByText("Android")).toBeVisible();
-  await expect(feed.getByText("captured 120 pages in Inbox")).toBeVisible();
+  await expect(feed.getByText(/captured 120 pages in/)).toBeVisible();
   await expect(feed.getByRole("button", { name: /Capture/ })).toHaveCount(5);
   await feed.getByRole("button", { name: "Show all 50" }).click();
   await expect(feed.getByRole("button", { name: /Capture/ })).toHaveCount(50);
@@ -95,4 +95,51 @@ test("notifications page fits a phone and links answer pages", async ({ page }) 
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
   await page.getByRole("button", { name: /Wrote a page for this/ }).click();
   await expect(page.getByRole("heading", { name: "Reading list" }).first()).toBeVisible();
+});
+
+test("long page titles and deep folders never overflow the page", async ({ page }) => {
+  const state = await mockSlate(page);
+  const deep = "Learning/Question Deep Dives/AI Foundations";
+  const long = (topic: string) => `${topic} — A Deep Dive Into Every Technique, the Theory Behind It, Real Applications and Interview Questions`;
+  state.notifications.push(
+    {
+      fromThisDevice: false,
+      notification: {
+        id: crypto.randomUUID(), kind: "notes", createdAt: now(), updatedAt: now(), readAt: null,
+        actor: { kind: "device", name: "Slate-MCP" },
+        notes: { source: "created", count: 3, notes: ["Prompting", "Softmax", "Frontier models"].map((topic) => ({ noteId: crypto.randomUUID(), title: long(topic), path: `${deep}/${topic}.md` })) },
+      },
+    },
+    {
+      fromThisDevice: false,
+      notification: {
+        id: crypto.randomUUID(), kind: "notes", createdAt: now(), updatedAt: now(), readAt: null,
+        actor: { kind: "device", name: "Slate-MCP" },
+        notes: {
+          source: "created", count: 2,
+          notes: [
+            { noteId: crypto.randomUUID(), title: long("Forward deployed engineering"), path: "Learning/Question Deep Dives/Careers/fde.md" },
+            { noteId: crypto.randomUUID(), title: long("Git and GitHub"), path: "Learning/Question Deep Dives/Developer Tools/git.md" },
+          ],
+        },
+      },
+    },
+  );
+  for (const width of [1280, 390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    if (width === 1280) {
+      await connect(page);
+      await page.getByRole("button", { name: /^Notifications/ }).first().click();
+    }
+    const feed = page.locator(".notifications-list");
+    // One shared folder is named once in the heading; mixed folders get a short label per row.
+    await expect(feed.locator(".notification-folder")).toHaveText("AI Foundations");
+    await expect(feed.locator(".notification-notes small")).toHaveText(["Careers", "Developer Tools"]);
+    const overflow = await page.evaluate(() => {
+      const view = document.querySelector(".notifications-view")!;
+      return { page: document.documentElement.scrollWidth - window.innerWidth, view: view.scrollWidth - view.clientWidth };
+    });
+    expect(overflow, `width ${width}`).toEqual({ page: 0, view: 0 });
+    await page.screenshot({ path: `output/playwright/notifications-${width}.png` });
+  }
 });

@@ -87,27 +87,39 @@ function CommentEntry({ item, onOpen }: { item: NotificationItem; onOpen: () => 
   );
 }
 
+const folderOf = (path: string) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
+/** The last folder name, which is enough to place a page at a glance; the full path is in the tooltip. */
+const folderName = (folder: string) => folder.split("/").at(-1) || "Library";
+
 function NotesEntry({ item, onOpen }: { item: NotificationItem; onOpen: (noteId: string) => void }) {
   const n = item.notification;
   const notes = n.notes!;
   const [expanded, setExpanded] = useState(notes.notes.length <= 5);
   const shown = expanded ? notes.notes : notes.notes.slice(0, 5);
   const verb = sourceVerb[notes.source] ?? notes.source;
-  const inInbox = notes.notes.every((note) => /^inbox\//i.test(note.path));
+  // When every page landed in one folder, say so once instead of repeating it on every row.
+  const folders = new Set(notes.notes.map((note) => folderOf(note.path)));
+  const shared = folders.size === 1 ? [...folders][0] : null;
   return (
     <div className="notification-main static">
       <span className="notification-text">
         <strong>{n.actor.name}</strong> {verb}{" "}
         {notes.count === 1 ? "a page" : `${notes.count.toLocaleString()} pages`}
-        {inInbox ? " in Inbox" : ""}
+        {shared !== null && (
+          <>
+            {" in "}
+            <span className="notification-folder" title={shared || "Library"}>{folderName(shared)}</span>
+          </>
+        )}
       </span>
       <ul className="notification-notes">
         {shown.map((note) => (
           <li key={note.noteId}>
-            <button type="button" onClick={() => onOpen(note.noteId)} title={note.path}>
+            <button type="button" onClick={() => onOpen(note.noteId)} title={`${note.title}
+${note.path}`}>
               <FileText size={14} />
               <span>{note.title}</span>
-              <small>{note.path.includes("/") ? note.path.slice(0, note.path.lastIndexOf("/")) : "Library"}</small>
+              {shared === null && <small>{folderName(folderOf(note.path))}</small>}
             </button>
           </li>
         ))}
