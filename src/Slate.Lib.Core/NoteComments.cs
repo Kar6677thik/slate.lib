@@ -32,7 +32,9 @@ public sealed record CommentThread(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? ResolvedAt,
-    IReadOnlyList<NoteComment> Comments)
+    IReadOnlyList<NoteComment> Comments,
+    bool Hidden = false,
+    DateTimeOffset? HiddenAt = null)
 {
     public const string Open = "open";
     public const string Resolved = "resolved";
@@ -45,7 +47,8 @@ public sealed record NoteCommentFile(int SchemaVersion, Guid NoteId, IReadOnlyLi
 /// A thread as clients see it: the stored thread plus where its passage currently sits in the note's Markdown.
 /// <c>AnchorState</c> is <c>page</c>, <c>anchored</c> (the passage was found), or <c>detached</c> (the passage was
 /// edited away; the original quote is still shown). <c>Line</c> is one-based and <c>Context</c> is that source line.
-/// <c>AwaitingReply</c> is true for an open thread whose latest comment is the owner's.
+/// <c>AwaitingReply</c> is true for an open, visible thread whose latest comment is the owner's. Resolving never
+/// hides a thread; only the owner's explicit <c>Hidden</c> flag does.
 /// </summary>
 public sealed record CommentThreadView(
     Guid Id,
@@ -58,7 +61,8 @@ public sealed record CommentThreadView(
     string AnchorState,
     int? Line,
     string? Context,
-    bool AwaitingReply);
+    bool AwaitingReply,
+    bool Hidden = false);
 
 public sealed record NoteCommentsView(Guid NoteId, string Title, string Path, string Revision, IReadOnlyList<CommentThreadView> Threads);
 
@@ -68,6 +72,7 @@ public sealed record CommentInboxPage(IReadOnlyList<CommentInboxItem> Items, int
 public sealed record CreateCommentThreadRequest(CommentAnchor Anchor, string Body, CommentAuthor? Author = null);
 public sealed record ReplyToCommentRequest(string Body, CommentAuthor? Author = null, Guid? LinkedNoteId = null);
 public sealed record CommentThreadStatusRequest(string Status);
+public sealed record CommentThreadVisibilityRequest(bool Hidden);
 
 public static class CommentLimits
 {

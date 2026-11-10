@@ -18,15 +18,17 @@ export function Discussion({
   onShowPassages: () => void;
 }) {
   const [order, setOrder] = useState<"newest" | "oldest">("newest");
-  const [showResolved, setShowResolved] = useState(true);
+  const [showHidden, setShowHidden] = useState(false);
+  const hiddenCount = actions.query.data?.threads.filter((thread) => thread.anchorState === "page" && thread.hidden).length ?? 0;
   const threads = useMemo(() => {
     const page = (actions.query.data?.threads ?? []).filter((thread) => thread.anchorState === "page");
-    const visible = showResolved ? page : page.filter((thread) => thread.status === "open");
+    // Resolved threads stay; only threads the owner hid are left out unless asked for.
+    const visible = showHidden ? page : page.filter((thread) => !thread.hidden);
     return [...visible].sort((a, b) =>
       order === "newest" ? b.createdAt.localeCompare(a.createdAt) : a.createdAt.localeCompare(b.createdAt),
     );
-  }, [actions.query.data, order, showResolved]);
-  const total = actions.query.data?.threads.filter((thread) => thread.anchorState === "page").length ?? 0;
+  }, [actions.query.data, order, showHidden]);
+  const total = (actions.query.data?.threads.filter((thread) => thread.anchorState === "page").length ?? 0) - hiddenCount;
   return (
     <section className="note-discussion" aria-labelledby="note-discussion-title">
       <header className="discussion-header">
@@ -45,10 +47,10 @@ export function Discussion({
               <option value="oldest">Oldest first</option>
             </select>
           )}
-          {total > 0 && (
+          {hiddenCount > 0 && (
             <label className="discussion-toggle">
-              <input type="checkbox" checked={showResolved} onChange={(event) => setShowResolved(event.target.checked)} />
-              Show resolved
+              <input type="checkbox" checked={showHidden} onChange={(event) => setShowHidden(event.target.checked)} />
+              Show hidden ({hiddenCount})
             </label>
           )}
         </div>
@@ -68,7 +70,7 @@ export function Discussion({
         </p>
       ) : threads.length === 0 ? (
         <p className="muted discussion-empty">
-          {total ? "No open threads." : "No comments yet. Questions you leave here can be answered by your AI assistant through Slate's MCP server."}
+          {hiddenCount ? "Every comment here is hidden." : "No comments yet. Questions you leave here can be answered by your AI assistant through Slate's MCP server."}
         </p>
       ) : (
         <div className="discussion-threads">

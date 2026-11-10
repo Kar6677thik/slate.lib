@@ -2,7 +2,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { formatDistanceToNowStrict } from "date-fns";
-import { Bot, CheckCircle2, CircleDot, FileText, MessageSquareReply, RotateCcw, Trash2 } from "lucide-react";
+import { Bot, CheckCircle2, CircleDot, Eye, EyeOff, FileText, MessageSquareReply, RotateCcw, Trash2 } from "lucide-react";
 import type { CommentThread, NoteComment } from "@/lib/api/contracts";
 import { useWorkspace } from "@/features/notes/workspace-context";
 import { Button } from "@/components/ui/button";
@@ -191,8 +191,13 @@ export function ThreadView({
   const [expanded, setExpanded] = useState(replies.length <= 2);
   const shown = expanded ? replies : replies.slice(-1);
   const resolved = thread.status === "resolved";
+  const hidden = !!thread.hidden;
   return (
-    <section className={`comment-thread ${resolved ? "resolved" : ""}`} aria-label="Comment thread">
+    <section
+      id={`thread-${thread.id}`}
+      className={`comment-thread ${resolved ? "resolved" : ""} ${hidden ? "hidden-thread" : ""}`}
+      aria-label="Comment thread"
+    >
       {showQuote && thread.anchor.kind === "text" && (
         <blockquote className={`comment-quote ${thread.anchorState === "detached" ? "detached" : ""}`}>
           {thread.anchor.exact}
@@ -200,21 +205,34 @@ export function ThreadView({
         </blockquote>
       )}
       <div className="thread-state">
-        {resolved ? (
+        {hidden ? (
+          <span className="state-chip hidden"><EyeOff size={13} /> Hidden</span>
+        ) : resolved ? (
           <span className="state-chip resolved"><CheckCircle2 size={13} /> Resolved</span>
         ) : thread.awaitingReply ? (
           <span className="state-chip waiting"><CircleDot size={13} /> Waiting for an answer</span>
         ) : (
           <span className="state-chip answered"><Bot size={13} /> Answered</span>
         )}
-        <button
-          type="button"
-          className="thread-status-button"
-          disabled={actions.status.isPending}
-          onClick={() => actions.status.mutate({ threadId: thread.id, status: resolved ? "open" : "resolved" })}
-        >
-          {resolved ? <><RotateCcw size={13} /> Reopen</> : <><CheckCircle2 size={13} /> Resolve</>}
-        </button>
+        <span className="thread-state-actions">
+          <button
+            type="button"
+            className="thread-status-button"
+            disabled={actions.status.isPending}
+            onClick={() => actions.status.mutate({ threadId: thread.id, status: resolved ? "open" : "resolved" })}
+          >
+            {resolved ? <><RotateCcw size={13} /> Reopen</> : <><CheckCircle2 size={13} /> Resolve</>}
+          </button>
+          <button
+            type="button"
+            className="thread-status-button"
+            title={hidden ? "Show this thread again" : "Hide this thread. It stays saved and can be shown again."}
+            disabled={actions.visibility.isPending}
+            onClick={() => actions.visibility.mutate({ threadId: thread.id, hidden: !hidden })}
+          >
+            {hidden ? <><Eye size={13} /> Unhide</> : <><EyeOff size={13} /> Hide</>}
+          </button>
+        </span>
       </div>
       <CommentItem
         comment={thread.comments[0]}

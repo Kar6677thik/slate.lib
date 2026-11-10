@@ -44,12 +44,16 @@ export function useNoteComments(noteId: string) {
       api.setCommentStatus(noteId, threadId, status),
     onSuccess: (thread) => { put(thread); settle(); },
   });
+  const visibility = useMutation({
+    mutationFn: ({ threadId, hidden }: { threadId: string; hidden: boolean }) => api.setCommentHidden(noteId, threadId, hidden),
+    onSuccess: (thread) => { put(thread); settle(); },
+  });
   const remove = useMutation({
     mutationFn: ({ threadId, commentId }: { threadId: string; commentId: string }) =>
       api.deleteComment(noteId, threadId, commentId),
     onSuccess: () => { void cache.invalidateQueries({ queryKey: commentsKey(noteId) }); settle(); },
   });
-  return { query, create, reply, status, remove };
+  return { query, create, reply, status, visibility, remove };
 }
 
 export type NoteCommentActions = ReturnType<typeof useNoteComments>;

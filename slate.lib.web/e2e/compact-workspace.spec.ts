@@ -137,7 +137,7 @@ for (const width of [320, 390, 768, 1024, 1440, 1920])
         page
           .getByRole("navigation", { name: "Main navigation" })
           .getByRole("button"),
-      ).toHaveCount(5);
+      ).toHaveCount(6); // Library, Inbox, Recent, Activity, AI and Quick Thought
       await page.getByRole("button", { name: "Workspace menu" }).click();
       await page
         .getByRole("menuitem", { name: "Document details", exact: true })

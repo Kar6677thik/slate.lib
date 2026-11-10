@@ -102,6 +102,7 @@ builder.Services.AddSingleton(provider => new AssetDerivatives(provider.GetRequi
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(gitOptions));
 builder.Services.AddSingleton<GitSyncService>();
 builder.Services.AddSingleton<LibraryStore>();
+builder.Services.AddSingleton(_ => new NotificationStore(Path.Combine(stateRoot, "notifications.json")));
 builder.Services.AddSingleton(provider => new NoteCommentStore(provider.GetRequiredService<LibraryPaths>(), provider.GetRequiredService<LibraryStore>(), provider.GetRequiredService<GitSyncService>()));
 builder.Services.AddSingleton(tokens);
 builder.Services.AddSingleton(new OperationalHealth(paths.Root, assetRoot, authenticationFile, backupStatusFile));
@@ -143,11 +144,13 @@ app.Use(async (context, next) =>
             await Results.Problem("Use HTTPS outside localhost.", statusCode: 403).ExecuteAsync(context); return;
         }
         var authorization = context.Request.Headers.Authorization.ToString();
-        if (!authorization.StartsWith("Bearer ", StringComparison.Ordinal) || !tokens.Accepts(authorization[7..]))
+        var device = authorization.StartsWith("Bearer ", StringComparison.Ordinal) ? tokens.Identify(authorization[7..]) : null;
+        if (device is null)
         {
             context.Response.Headers.WWWAuthenticate = "Bearer";
             await Results.Problem("A valid device token is required.", statusCode: 401).ExecuteAsync(context); return;
         }
+        context.Items[DeviceItem] = device;
         await next(context);
     }
     catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or LibraryConflictException or LibraryPreconditionException)
@@ -223,14 +226,16 @@ app.MapGet("/v1/assets/{id:guid}", (AssetStore assets, Guid id) =>
     return Results.File(item.Path, item.Metadata.ContentType,
         item.Metadata.InlineImage ? null : item.Metadata.OriginalFilename, enableRangeProcessing: true);
 });
-app.MapPost("/v1/notes", (LibraryStore library, CreateNoteRequest request) =>
+app.MapPost("/v1/notes", (HttpContext context, LibraryStore library, NotificationStore notifications, CreateNoteRequest request) =>
 {
     var note = library.CreateNote(request);
+    Notify(app, () => notifications.NotesAdded(Actor(context), "created", [note]));
     return Results.Created($"/v1/notes/{note.Id:D}", note);
 });
-app.MapPost("/v1/captures", (LibraryStore library, CaptureNoteRequest request) =>
+app.MapPost("/v1/captures", (HttpContext context, LibraryStore library, NotificationStore notifications, CaptureNoteRequest request) =>
 {
     var note = library.Capture(request);
+    Notify(app, () => notifications.NotesAdded(Actor(context), "captured", [note]));
     return Results.Created($"/v1/notes/{note.Id:D}", note);
 });
 IResult UpdateNoteResult(HttpContext context, LibraryStore library, Guid id, UpdateNoteRequest request)
@@ -244,9 +249,25 @@ app.MapPost("/v1/folders", (LibraryStore library, CreateFolderRequest request) =
 app.MapGet("/v1/library/item", (LibraryStore library, string path) => library.Details(path));
 app.MapPost("/v1/library/rename", (LibraryStore library, RenameItemRequest request) => library.Rename(request));
 app.MapPost("/v1/library/move", (LibraryStore library, TransferItemRequest request) => library.Move(request));
-app.MapPost("/v1/library/copy", (LibraryStore library, TransferItemRequest request) => library.Copy(request));
+app.MapPost("/v1/library/copy", (HttpContext context, LibraryStore library, NotificationStore notifications, TransferItemRequest request) =>
+{
+    var result = library.Copy(request);
+    Notify(app, () => notifications.NotesAdded(Actor(context), "copied", library.NotesAt(result.Path)));
+    return result;
+});
 app.MapPost("/v1/library/bulk/preview", (LibraryStore library, BulkOperationRequest request) => library.PreviewBulk(request));
-app.MapPost("/v1/library/bulk/apply", (LibraryStore library, BulkApplyRequest request) => library.ApplyBulk(request));
+app.MapPost("/v1/library/bulk/apply", (HttpContext context, LibraryStore library, NotificationStore notifications, BulkApplyRequest request) =>
+{
+    var result = library.ApplyBulk(request);
+    Notify(app, () =>
+    {
+        var kind = library.BulkOperationKind(request.OperationId);
+        if (result.State != "completed" || kind is not ("copy" or "duplicate")) return;
+        var created = result.Items.Where(item => item.DestinationPath is not null).SelectMany(item => library.NotesAt(item.DestinationPath!));
+        notifications.NotesAdded(Actor(context), kind == "copy" ? "copied" : "duplicated", created, "bulk:" + request.OperationId.ToString("D"));
+    });
+    return result;
+});
 app.MapPost("/v1/offline/replay", (LibraryStore library, ReplayNoteRequest request) => library.Replay(request));
 app.MapPost("/v1/sync/merge-preview", async (LibraryStore library, GitSyncService git, CancellationToken token) => await git.PreviewSafeMergeAsync(library, token));
 app.MapPost("/v1/sync/merge/{id:guid}", async (LibraryStore library, GitSyncService git, Guid id, CancellationToken token) => await git.ApplySafeMergeAsync(library, id, token));
@@ -254,7 +275,12 @@ app.MapGet("/v1/history/deleted", async (LibraryStore library, GitSyncService gi
 app.MapGet("/v1/notes/{id:guid}/graph", (LinkIndex links, Guid id, int? depth, int? limit, string? folder, string? type) => links.Graph(id, depth ?? 1, limit ?? 40, folder, type));
 app.MapGet("/v1/notes/{id:guid}/related", (LinkIndex links, Guid id) => links.Related(id));
 app.MapGet("/v1/rediscovery/{view}", (LinkIndex links, string view, DateOnly today, int? page) => links.Rediscover(view, today, page ?? 0));
-app.MapPost("/v1/notes/{id:guid}/restore", async (LibraryStore library, GitSyncService git, Guid id, RestoreNoteRequest request, CancellationToken token) => await git.RestoreAsync(library, id, request, token));
+app.MapPost("/v1/notes/{id:guid}/restore", async (HttpContext context, LibraryStore library, GitSyncService git, NotificationStore notifications, Guid id, RestoreNoteRequest request, CancellationToken token) =>
+{
+    var restored = await git.RestoreAsync(library, id, request, token);
+    if (restored.Id != id) Notify(app, () => notifications.NotesAdded(Actor(context), "restored", [restored]));
+    return restored;
+});
 app.MapGet("/v1/library/bulk/{id:guid}", (LibraryStore library, Guid id) => library.BulkStatus(id));
 app.MapPost("/v1/workflows/daily", (LibraryStore library, DailyNoteRequest request) => library.Daily(request));
 app.MapPost("/v1/notes/{id:guid}/answer", (LibraryStore library, Guid id, AnswerQuestionRequest request) => library.AnswerQuestion(id, request));
@@ -262,9 +288,24 @@ app.MapGet("/v1/notes/{id:guid}/append-preview", (LibraryStore library, Guid id,
 app.MapPost("/v1/notes/{id:guid}/append-capture", (LibraryStore library, Guid id, AppendCaptureRequest request) => library.AppendCapture(id, request));
 app.MapGet("/v1/comments", (NoteCommentStore comments, string? status, bool? awaitingReply, int? page) => comments.Inbox(status, awaitingReply ?? false, page ?? 0));
 app.MapGet("/v1/notes/{id:guid}/comments", (NoteCommentStore comments, Guid id) => comments.Read(id));
-app.MapPost("/v1/notes/{id:guid}/comments", (NoteCommentStore comments, Guid id, CreateCommentThreadRequest request) =>
-    Results.Created($"/v1/notes/{id:D}/comments", comments.Create(id, request)));
-app.MapPost("/v1/notes/{id:guid}/comments/{threadId:guid}/replies", (NoteCommentStore comments, Guid id, Guid threadId, ReplyToCommentRequest request) => comments.Reply(id, threadId, request));
+app.MapPost("/v1/notes/{id:guid}/comments", (HttpContext context, NoteCommentStore comments, NotificationStore notifications, Guid id, CreateCommentThreadRequest request) =>
+{
+    var thread = comments.Create(id, request);
+    Notify(app, () => notifications.CommentAdded(Actor(context), comments.Read(id), thread, thread.Comments[^1]));
+    return Results.Created($"/v1/notes/{id:D}/comments", thread);
+});
+app.MapPost("/v1/notes/{id:guid}/comments/{threadId:guid}/replies", (HttpContext context, NoteCommentStore comments, NotificationStore notifications, Guid id, Guid threadId, ReplyToCommentRequest request) =>
+{
+    var thread = comments.Reply(id, threadId, request);
+    Notify(app, () => notifications.CommentAdded(Actor(context), comments.Read(id), thread, thread.Comments[^1]));
+    return thread;
+});
+app.MapPost("/v1/notes/{id:guid}/comments/{threadId:guid}/visibility", (NoteCommentStore comments, Guid id, Guid threadId, CommentThreadVisibilityRequest request) => comments.SetHidden(id, threadId, request));
+app.MapGet("/v1/notifications", (HttpContext context, NotificationStore notifications, bool? includeOwn, string? kind, int? page) =>
+    notifications.List(Device(context)?.Id, includeOwn ?? false, kind, page ?? 0));
+app.MapGet("/v1/notifications/summary", (HttpContext context, NotificationStore notifications) => notifications.Summary(Device(context)?.Id));
+app.MapPost("/v1/notifications/read", (HttpContext context, NotificationStore notifications, MarkNotificationsReadRequest request) =>
+    notifications.MarkRead(Device(context)?.Id, request));
 app.MapPost("/v1/notes/{id:guid}/comments/{threadId:guid}/status", (NoteCommentStore comments, Guid id, Guid threadId, CommentThreadStatusRequest request) => comments.SetStatus(id, threadId, request));
 app.MapPost("/v1/notes/{id:guid}/comments/{threadId:guid}/comments/{commentId:guid}/delete", (NoteCommentStore comments, Guid id, Guid threadId, Guid commentId) =>
 {
@@ -290,4 +331,28 @@ app.MapGet("/v1/notes/{id:guid}/history/{commit}", async (Guid id, string commit
     Results.Ok(await git.HistoricalNoteAsync(id, commit, cancellationToken)));
 app.Run();
 
-public partial class Program;
+static DeviceSummary? Device(HttpContext context) => context.Items[DeviceItem] as DeviceSummary;
+
+/// <summary>
+/// The requesting device, named by an optional <c>X-Slate-Actor</c> header (for example an MCP agent's name) or by the
+/// device label.
+/// </summary>
+static NotificationActor Actor(HttpContext context)
+{
+    var device = Device(context);
+    var named = context.Request.Headers["X-Slate-Actor"].ToString().Trim();
+    if (named.Length is > 0 and <= 60 && !named.Any(char.IsControl)) return new(NotificationActor.Agent, named, device?.Id);
+    return new(NotificationActor.Device, device?.Label ?? "Another device", device?.Id);
+}
+
+/// <summary>Notifications are a convenience and never change whether a canonical write succeeded.</summary>
+static void Notify(WebApplication app, Action action)
+{
+    try { action(); }
+    catch (Exception exception) { app.Logger.LogWarning(exception, "Recording a notification failed"); }
+}
+
+public partial class Program
+{
+    private const string DeviceItem = "slate.device";
+}

@@ -22,6 +22,7 @@ import {
   FolderPlus,
   History,
   Inbox,
+  Bell,
   Info,
   Link,
   ListFilter,
@@ -683,6 +684,7 @@ export function useCommandRegistry() {
         "notes",
       ]),
       navigate("navigate.inbox", "Inbox", "inbox", Inbox, ["capture"]),
+      navigate("navigate.notifications", "Notifications", "notifications", Bell, ["activity", "replies", "comments", "new pages"]),
       {
         id: "inbox.triage",
         title: "Triage Inbox",

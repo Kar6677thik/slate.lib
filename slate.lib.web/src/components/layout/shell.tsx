@@ -26,7 +26,9 @@ import {
   Atom,
   HeartPulse,
   CircleHelp,
+  Bell,
 } from "lucide-react";
+import { useUnreadNotifications } from "@/components/notifications/notifications-page";
 import {
   Group,
   Panel,
@@ -54,6 +56,7 @@ export type Destination =
   | "search"
   | "inbox"
   | "recent"
+  | "notifications"
   | "favorites"
   | "recovery"
   | "rediscover"
@@ -81,6 +84,7 @@ const coreDestinations = [
   ["library", FolderOpen, "Library"],
   ["inbox", Inbox, "Inbox"],
   ["recent", Clock3, "Recent"],
+  ["notifications", Bell, "Notifications"],
 ] as const;
 const aiDestinations = [
   ["project-brain", BrainCircuit, "Project Brain"],
@@ -130,6 +134,13 @@ export function Shell({
     [mobileLeft, setMobileLeft] = useState(false),
     [mobileRight, setMobileRight] = useState(false);
   const w = useWorkspace();
+  const unread = useUnreadNotifications();
+  const badge = (key: string) =>
+    key === "notifications" && unread > 0 ? (
+      <span className="nav-badge" aria-hidden>{unread > 99 ? "99+" : unread}</span>
+    ) : null;
+  const navLabel = (key: string, label: string) =>
+    key === "notifications" && unread > 0 ? `${label}, ${unread} unread` : label;
   const { prefs, set } = usePreferences();
   const { theme, setTheme } = useTheme();
   const auth = useAuth();
@@ -322,11 +333,12 @@ export function Shell({
               {coreDestinations.map(([key, Icon, label]) => (
                 <IconButton
                   key={key}
-                  label={label}
+                  label={navLabel(key, label)}
                   className={`activity-button ${nav === key && !w.active ? "active" : ""}`}
                   onClick={() => onNav(key)}
                 >
                   <Icon size={18} />
+                  {badge(key)}
                 </IconButton>
               ))}
               {aiMenu}
@@ -402,10 +414,12 @@ export function Shell({
             <button
               key={key}
               className={`nav-item ${nav === key && !w.active ? "active" : ""}`}
+              aria-label={navLabel(key, label)}
               onClick={() => onNav(key)}
             >
               <Icon size={19} />
-              <span>{label}</span>
+              {badge(key)}
+              <span>{key === "notifications" ? "Activity" : label}</span>
             </button>
           ))}
           {prefs.aiEnabled && <div className="mobile-ai-entry">{aiMenu}</div>}

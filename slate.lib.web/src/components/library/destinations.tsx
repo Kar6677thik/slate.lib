@@ -27,6 +27,7 @@ import type { Destination } from "@/components/layout/shell";
 import { RecoveryPage } from "@/components/history/recovery-page";
 import { RediscoveryPage } from "./rediscovery-page";
 import { LinkHealthPage } from "@/components/links/link-health-page";
+import { NotificationsPage } from "@/components/notifications/notifications-page";
 import { useWorkspacePreferences } from "@/lib/storage/workspace-preferences";
 import { InboxTriage } from "@/components/inbox/inbox-triage";
 import { usePreferences } from "@/lib/storage/preferences";
@@ -35,6 +36,7 @@ export function DestinationPage() {
   const w = useWorkspace();
   const local = useWorkspacePreferences(w.scope);
   const [recent] = useState(() => readRecent(w.scope));
+  if (w.nav === "notifications") return <NotificationsPage />;
   if (w.nav === "recovery") return <RecoveryPage />;
   if (w.nav === "rediscover") return <RediscoveryPage />;
   if (w.nav === "link-health") return <LinkHealthPage />;

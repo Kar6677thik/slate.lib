@@ -68,6 +68,7 @@ import { toggleTaskAt } from "@/lib/markdown/tasks";
 import { useNoteComments } from "@/components/comments/use-note-comments";
 import { ReaderComments, type DrawerState } from "@/components/comments/reader-comments";
 import { Discussion } from "@/components/comments/discussion";
+import { onThreadFocus, takeThreadFocus } from "@/features/notes/thread-focus";
 import {
   applyLinkSuggestionDraft,
   type LinkSuggestion,
@@ -130,9 +131,33 @@ export function NoteWorkbench({ note }: { note: Note }) {
   const [commentDrawer, setCommentDrawer] = useState<DrawerState>(null);
   const readerRoot = useRef<HTMLDivElement>(null);
   const passageThreads =
-    comments.query.data?.threads.filter((thread) => thread.anchor.kind === "text" && thread.status === "open") ?? [];
+    comments.query.data?.threads.filter((thread) => thread.anchor.kind === "text" && !thread.hidden) ?? [];
   const waitingCount =
     comments.query.data?.threads.filter((thread) => thread.awaitingReply).length ?? 0;
+  // A notification can ask for one thread: show it in Read mode, in the drawer or in the discussion.
+  const [threadRequest, setThreadRequest] = useState<string | null>(() => takeThreadFocus(note.id));
+  useEffect(
+    () => onThreadFocus((noteId) => { if (noteId === note.id) setThreadRequest(takeThreadFocus(note.id)); }),
+    [note.id],
+  );
+  const commentThreads = comments.query.data?.threads;
+  useEffect(() => {
+    if (!threadRequest || !commentThreads) return;
+    const thread = commentThreads.find((item) => item.id === threadRequest);
+    setThreadRequest(null);
+    if (!thread) return;
+    setMode((current) => (current === "write" ? "preview" : current));
+    if (thread.anchor.kind === "text") {
+      setCommentDrawer({ focus: [thread.id], compose: null });
+      return;
+    }
+    window.setTimeout(() => {
+      const element = document.getElementById(`thread-${thread.id}`);
+      element?.scrollIntoView({ block: "center", behavior: "smooth" });
+      element?.classList.add("focus-flash");
+      window.setTimeout(() => element?.classList.remove("focus-flash"), 1800);
+    }, 250);
+  }, [threadRequest, commentThreads]);
   const editor = useRef<EditorView | null>(null);
   const [editorLoaded, setEditorLoaded] = useState(false);
   const savingLock = useRef(false);
@@ -519,7 +544,7 @@ export function NoteWorkbench({ note }: { note: Note }) {
               type="button"
               className="note-comment-control"
               title="Passage comments"
-              aria-label={`${passageThreads.length} open passage comment${passageThreads.length === 1 ? "" : "s"}${waitingCount ? `, ${waitingCount} waiting for an answer` : ""}`}
+              aria-label={`${passageThreads.length} passage comment${passageThreads.length === 1 ? "" : "s"}${waitingCount ? `, ${waitingCount} waiting for an answer` : ""}`}
               aria-pressed={!!commentDrawer}
               onClick={() => setCommentDrawer(commentDrawer ? null : { focus: null, compose: null })}
             >

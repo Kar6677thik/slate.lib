@@ -30,7 +30,7 @@ public sealed class CanonicalSlateClient(HttpClient http, IOptions<SlateMcpOptio
     public async Task<BulkOperationResult> BulkStatus(Guid operationId, CancellationToken token) => await Get<BulkOperationResult>($"v1/library/bulk/{operationId:D}", token);
     public async Task<GitSyncState> Sync(CancellationToken token) => await Send<GitSyncState>(HttpMethod.Post, "v1/sync", null, null, token);
 
-    public async Task<LibraryNote> Create(CreateNoteRequest request, CancellationToken token) => await Send<LibraryNote>(HttpMethod.Post, "v1/notes", request, null, token);
+    public async Task<LibraryNote> Create(CreateNoteRequest request, CancellationToken token, string? actor = null) => await Send<LibraryNote>(HttpMethod.Post, "v1/notes", request, null, token, actor);
     public async Task<LibraryNote> Update(Guid id, string markdown, string revision, CancellationToken token) => await Send<LibraryNote>(HttpMethod.Put, $"v1/notes/{id:D}", new UpdateNoteRequest(markdown, revision), revision, token);
     public async Task<LibraryNote> Capture(CaptureNoteRequest request, CancellationToken token) => await Send<LibraryNote>(HttpMethod.Post, "v1/captures", request, null, token);
     public async Task<LibraryMutation> Folder(CreateFolderRequest request, CancellationToken token) => await Send<LibraryMutation>(HttpMethod.Post, "v1/folders", request, null, token);
@@ -57,13 +57,15 @@ public sealed class CanonicalSlateClient(HttpClient http, IOptions<SlateMcpOptio
 
     private async Task<T> Get<T>(string path, CancellationToken cancellationToken) => await Send<T>(HttpMethod.Get, path, null, null, cancellationToken);
 
-    private async Task<T> Send<T>(HttpMethod method, string path, object? body, string? ifMatch, CancellationToken cancellationToken)
+    /// <param name="actor">Optional agent name recorded on the owner's notification for this change.</param>
+    private async Task<T> Send<T>(HttpMethod method, string path, object? body, string? ifMatch, CancellationToken cancellationToken, string? actor = null)
     {
         if (string.IsNullOrWhiteSpace(token)) throw new SlateUpstreamException(503, "canonical_auth_missing", "The MCP server has no canonical Slate device token.");
         using var request = new HttpRequestMessage(method, path);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
         if (ifMatch is not null) request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+        if (!string.IsNullOrWhiteSpace(actor)) request.Headers.TryAddWithoutValidation("X-Slate-Actor", actor);
         if (body is not null) request.Content = JsonContent.Create(body, options: Json);
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         var bytes = await BoundedHttpContent.ReadAsync(response.Content, settings.MaximumResponseBytes, cancellationToken);

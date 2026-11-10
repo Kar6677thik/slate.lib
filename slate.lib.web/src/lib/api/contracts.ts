@@ -308,7 +308,34 @@ export interface CommentThread {
   line?: number | null;
   context?: string | null;
   awaitingReply: boolean;
+  /** Hidden by the owner. Resolving never hides a thread. */
+  hidden?: boolean;
 }
 export interface NoteComments { noteId: string; title: string; path: string; revision: string; threads: CommentThread[] }
 export interface CommentInboxItem { noteId: string; noteTitle: string; notePath: string; thread: CommentThread }
 export interface CommentInboxPage { items: CommentInboxItem[]; total: number; nextPage: number | null }
+export interface NotificationActor { kind: "user" | "agent" | "device"; name: string; deviceId?: string | null }
+export interface NotificationNoteRef { noteId: string; title: string; path: string }
+export interface SlateNotification {
+  id: string;
+  kind: "comment" | "notes";
+  createdAt: string;
+  updatedAt: string;
+  readAt?: string | null;
+  actor: NotificationActor;
+  comment?: {
+    noteId: string;
+    noteTitle: string;
+    notePath: string;
+    threadId: string;
+    commentId: string;
+    anchorKind: "page" | "text";
+    quote?: string | null;
+    excerpt: string;
+    isReply: boolean;
+    linkedNote?: CommentLinkedNote | null;
+  } | null;
+  notes?: { source: string; count: number; notes: NotificationNoteRef[] } | null;
+}
+export interface NotificationItem { notification: SlateNotification; fromThisDevice: boolean; unread: boolean }
+export interface NotificationPage { items: NotificationItem[]; unread: number; total: number; nextPage: number | null }

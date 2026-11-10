@@ -37,6 +37,7 @@ import {
   type CommentThread,
   type CommentAnchor,
   type CommentInboxPage,
+  type NotificationPage,
 } from "./contracts";
 export function normalizeServer(value: string) {
   const url = new URL(value.trim());
@@ -552,6 +553,18 @@ export class SlateApi {
   }
   setCommentStatus(noteId: string, threadId: string, status: "open" | "resolved") {
     return this.post<CommentThread>(`v1/notes/${noteId}/comments/${threadId}/status`, { status });
+  }
+  setCommentHidden(noteId: string, threadId: string, hidden: boolean) {
+    return this.post<CommentThread>(`v1/notes/${noteId}/comments/${threadId}/visibility`, { hidden });
+  }
+  notifications(page = 0, kind: "" | "comment" | "notes" = "", includeOwn = false, signal?: AbortSignal) {
+    return this.request<NotificationPage>(`v1/notifications?page=${page}&kind=${kind}&includeOwn=${includeOwn}`, {}, signal);
+  }
+  notificationSummary(signal?: AbortSignal) {
+    return this.request<{ unread: number }>("v1/notifications/summary", {}, signal);
+  }
+  markNotificationsRead(request: { ids?: string[]; all?: boolean }) {
+    return this.post<{ unread: number }>("v1/notifications/read", request);
   }
   deleteComment(noteId: string, threadId: string, commentId: string) {
     return this.post<void>(`v1/notes/${noteId}/comments/${threadId}/comments/${commentId}/delete`);

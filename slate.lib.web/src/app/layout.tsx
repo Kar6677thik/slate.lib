@@ -3,6 +3,7 @@ import { Providers } from "@/components/layout/providers";
 import "./globals.css";
 import "./ux.css";
 import "./comments.css";
+import "./notifications.css";
 export const metadata: Metadata = {
   title: "Slate — Your knowledge library",
   description: "A private space for everything you know.",
