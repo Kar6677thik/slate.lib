@@ -46,6 +46,13 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
   const askRequests: { question: string; policy: "strict" | "general"; scope: { kind: string; noteId?: string; noteIds?: string[]; path?: string; selectedText?: string } }[] = [];
   const projectRequests: { action: string; path: string; kind?: string; refresh?: boolean }[] = [];
   const evolutionRequests: Array<{ action: string; scope: { kind: string; topic?: string; path?: string; noteId?: string; noteIds?: string[] }; refresh?: boolean }> = [];
+  // Comment threads per note, mirroring the canonical /v1/notes/{id}/comments contract.
+  const comments = new Map<string, Array<Record<string, unknown> & { id: string; status: string; comments: Array<Record<string, unknown>> }>>();
+  const threadView = (thread: { status: string; comments: Array<Record<string, unknown>>; anchor?: unknown }) => ({
+    ...thread,
+    anchorState: (thread.anchor as { kind: string }).kind === "page" ? "page" : "anchored",
+    awaitingReply: thread.status === "open" && (thread.comments.at(-1)?.author as { kind: string }).kind === "user",
+  });
   let conflict = false;
   let assetCounter = 0;
   function getEntry(n: Note) {
@@ -590,6 +597,28 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
     if (match) {
       const n = notes.get(match[1]);
       if (!n) return respond({}, 404);
+      const commentPath = match[2].match(/^\/comments(?:\/([^/]+)\/(replies|status|comments\/([^/]+)\/delete))?$/);
+      if (commentPath) {
+        const threads = comments.get(n.id) ?? [];
+        comments.set(n.id, threads);
+        const now = new Date().toISOString();
+        if (!commentPath[1] && method === "GET")
+          return respond({ noteId: n.id, title: n.title, path: n.path, revision: n.revision, threads: threads.map(threadView) });
+        if (!commentPath[1] && method === "POST") {
+          const thread = { id: crypto.randomUUID(), anchor: body.anchor, status: "open", createdAt: now, updatedAt: now, comments: [{ id: crypto.randomUUID(), author: body.author, body: body.body, createdAt: now }] };
+          threads.push(thread);
+          return respond(threadView(thread), 201);
+        }
+        const thread = threads.find((item) => item.id === commentPath[1]);
+        if (!thread) return respond({}, 404);
+        if (commentPath[2] === "replies") thread.comments.push({ id: crypto.randomUUID(), author: body.author, body: body.body, createdAt: now, linkedNote: body.linkedNote ?? null });
+        else if (commentPath[2] === "status") thread.status = String(body.status);
+        else if (commentPath[3]) {
+          thread.comments = thread.comments.filter((comment) => comment.id !== commentPath[3]);
+          return respond(null, 204);
+        }
+        return respond(threadView(thread));
+      }
       if (match[2] === "/links") {
         const target = notes.get(n.id === first ? second : first);
         return respond({
@@ -727,6 +756,7 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
   return {
     notes,
     folders,
+    comments,
     requests,
     askRequests,
     projectRequests,

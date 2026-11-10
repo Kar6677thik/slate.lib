@@ -136,6 +136,60 @@ public sealed class McpEndToEndTests
     }
 
     [Fact]
+    public async Task AgentFindsReaderQuestionsAndAnswersWithACommentOrALinkedPage()
+    {
+        using var library = new DisposableLibrary();
+        var canonicalToken = new ApiDeviceTokens(library.DeviceFile).Create("mcp-comments");
+        using var api = new DisposableApiFactory(library);
+        using var owner = api.CreateClient();
+        owner.DefaultRequestHeaders.Authorization = new("Bearer", canonicalToken);
+        using var canonicalHandler = api.Server.CreateHandler();
+        using var mcp = new DisposableMcpFactory(canonicalHandler, canonicalToken, library.LibraryId, "https://lib.example.test");
+        using var client = mcp.CreateClient();
+
+        // The owner, reading in the web app, highlights "WAL" and asks; later leaves a page-level question too.
+        var quick = await (await owner.PostAsJsonAsync($"/v1/notes/{library.SeedNoteId}/comments",
+            new CreateCommentThreadRequest(new(CommentAnchor.Text, "WAL", "PostgreSQL ", " records"), "What does WAL stand for?"))).Content.ReadFromJsonAsync<CommentThreadView>();
+        var deep = await (await owner.PostAsJsonAsync($"/v1/notes/{library.SeedNoteId}/comments",
+            new CreateCommentThreadRequest(new(CommentAnchor.Page), "How does crash recovery actually replay the log?"))).Content.ReadFromJsonAsync<CommentThreadView>();
+
+        var questions = await Call(client, "list_comment_questions", new { });
+        Assert.True(questions.GetProperty("success").GetBoolean(), questions.GetRawText());
+        var items = questions.GetProperty("data").GetProperty("items").EnumerateArray().ToArray();
+        Assert.Equal(2, items.Length);
+        var passage = items.Single(item => item.GetProperty("thread").GetProperty("id").GetGuid() == quick!.Id);
+        Assert.Equal($"https://lib.example.test/?note={library.SeedNoteId}", passage.GetProperty("url").GetString());
+        Assert.Equal(6, passage.GetProperty("thread").GetProperty("line").GetInt32());
+        Assert.Equal("WAL records durable changes.", passage.GetProperty("thread").GetProperty("context").GetString());
+
+        var reply = await Call(client, "reply_to_comment", new { noteId = library.SeedNoteId, threadId = quick!.Id, markdown = "Write-ahead log.", agentName = "Claude" });
+        Assert.True(reply.GetProperty("success").GetBoolean(), reply.GetRawText());
+        var agentComment = reply.GetProperty("data").GetProperty("comments")[1];
+        Assert.Equal("agent", agentComment.GetProperty("author").GetProperty("kind").GetString());
+        Assert.Equal("Claude", agentComment.GetProperty("author").GetProperty("name").GetString());
+
+        var page = await Call(client, "answer_comment_with_note", new { noteId = library.SeedNoteId, threadId = deep!.Id, title = "WAL crash recovery", markdown = "Recovery replays WAL records from the last checkpoint.", replyMarkdown = "This deserved a full page.", agentName = "ChatGPT" });
+        Assert.True(page.GetProperty("success").GetBoolean(), page.GetRawText());
+        var note = page.GetProperty("data").GetProperty("note");
+        var noteId = note.GetProperty("id").GetGuid();
+        Assert.Equal("Database/wal-crash-recovery.md", note.GetProperty("path").GetString());
+        var markdown = note.GetProperty("markdown").GetString()!;
+        Assert.Contains("# WAL crash recovery", markdown, StringComparison.Ordinal);
+        Assert.Contains($"[[id:{library.SeedNoteId:D}|PostgreSQL]]", markdown, StringComparison.Ordinal);
+        var linked = page.GetProperty("data").GetProperty("thread").GetProperty("comments")[1].GetProperty("linkedNote");
+        Assert.Equal(noteId, linked.GetProperty("noteId").GetGuid());
+        Assert.Equal($"https://lib.example.test/?note={noteId}", linked.GetProperty("url").GetString());
+
+        var remaining = await Call(client, "list_comment_questions", new { });
+        Assert.Empty(remaining.GetProperty("data").GetProperty("items").EnumerateArray());
+        var all = await Call(client, "get_note_comments", new { noteId = library.SeedNoteId });
+        Assert.All(all.GetProperty("data").GetProperty("threads").EnumerateArray(), thread => Assert.Equal("open", thread.GetProperty("status").GetString()));
+
+        var missing = await Call(client, "reply_to_comment", new { noteId = library.SeedNoteId, threadId = Guid.NewGuid(), markdown = "x" });
+        Assert.Equal("not_found", missing.GetProperty("error").GetProperty("code").GetString());
+    }
+
+    [Fact]
     public async Task OutputSchemasAllowTheAddedUrlField()
     {
         using var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));

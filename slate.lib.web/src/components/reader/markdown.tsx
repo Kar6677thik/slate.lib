@@ -200,9 +200,10 @@ export function MarkdownBody({
                 l.target + (l.heading ? "#" + l.heading : "") === target,
             );
             if (wiki || link) {
+              const byIdTarget = /^id:[0-9a-f-]{36}(?:#.*)?$/i.test(target ?? "");
               return (
                 <button
-                  className={`wiki-link ${link?.state === "resolved" ? "" : "unresolved"}`}
+                  className={`wiki-link ${link?.state === "resolved" || (!link && byIdTarget) ? "" : "unresolved"}`}
                   title={
                     link?.state === "resolved"
                       ? "Open note"
@@ -211,7 +212,9 @@ export function MarkdownBody({
                         : "Find this note"
                   }
                   onClick={() => {
+                    const byId = target?.match(/^id:([0-9a-f-]{36})(?:#.*)?$/i)?.[1];
                     if (link?.targetId) w.open(link.targetId);
+                    else if (byId) w.open(byId);
                     else {
                       w.setQuery(target ?? plain(children));
                       w.navigate("search");
@@ -219,7 +222,7 @@ export function MarkdownBody({
                   }}
                 >
                   {children}
-                  {link?.state !== "resolved" && (
+                  {link?.state !== "resolved" && !(!link && byIdTarget) && (
                     <small> {link?.state === "ambiguous" ? "?" : "↗"}</small>
                   )}
                 </button>

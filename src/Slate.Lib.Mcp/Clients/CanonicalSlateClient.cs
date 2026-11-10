@@ -44,6 +44,15 @@ public sealed class CanonicalSlateClient(HttpClient http, IOptions<SlateMcpOptio
     public async Task<LibraryNote> Restore(Guid id, RestoreNoteRequest request, CancellationToken token) => await Send<LibraryNote>(HttpMethod.Post, $"v1/notes/{id:D}/restore", request, null, token);
     public async Task<NoteTextPreview> PreviewLinkRepair(Guid id, LinkRepairRequest request, CancellationToken token) => await Send<NoteTextPreview>(HttpMethod.Post, $"v1/notes/{id:D}/link-repair/preview", request, null, token);
     public async Task<LibraryNote> ApplyLinkRepair(Guid id, LinkRepairRequest request, CancellationToken token) => await Send<LibraryNote>(HttpMethod.Post, $"v1/notes/{id:D}/link-repair/apply", request, null, token);
+    public async Task<CommentInboxPage> CommentInbox(string status, bool awaitingReply, int page, CancellationToken token) =>
+        await Get<CommentInboxPage>($"v1/comments?status={Uri.EscapeDataString(status)}&awaitingReply={(awaitingReply ? "true" : "false")}&page={page}", token);
+    public async Task<NoteCommentsView> Comments(Guid noteId, CancellationToken token) => await Get<NoteCommentsView>($"v1/notes/{noteId:D}/comments", token);
+    public async Task<CommentThreadView> CreateComment(Guid noteId, CreateCommentThreadRequest request, CancellationToken token) =>
+        await Send<CommentThreadView>(HttpMethod.Post, $"v1/notes/{noteId:D}/comments", request, null, token);
+    public async Task<CommentThreadView> ReplyToComment(Guid noteId, Guid threadId, ReplyToCommentRequest request, CancellationToken token) =>
+        await Send<CommentThreadView>(HttpMethod.Post, $"v1/notes/{noteId:D}/comments/{threadId:D}/replies", request, null, token);
+    public async Task<CommentThreadView> SetCommentStatus(Guid noteId, Guid threadId, string status, CancellationToken token) =>
+        await Send<CommentThreadView>(HttpMethod.Post, $"v1/notes/{noteId:D}/comments/{threadId:D}/status", new CommentThreadStatusRequest(status), null, token);
     public async Task<LibraryMutation> Delete(DeleteItemRequest request, CancellationToken token) => await Send<LibraryMutation>(HttpMethod.Post, "v1/library/delete", request, null, token);
 
     private async Task<T> Get<T>(string path, CancellationToken cancellationToken) => await Send<T>(HttpMethod.Get, path, null, null, cancellationToken);

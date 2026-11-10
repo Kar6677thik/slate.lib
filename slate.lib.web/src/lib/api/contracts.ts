@@ -284,3 +284,31 @@ export interface AssetDerivedText {
   error?: string | null;
   jobId?: string | null;
 }
+export type CommentAuthorKind = "user" | "agent";
+export interface CommentAuthor { kind: CommentAuthorKind; name: string }
+/** A W3C Web Annotation style text-quote anchor captured from rendered reading text, or the whole page. */
+export interface CommentAnchor { kind: "page" | "text"; exact?: string | null; prefix?: string | null; suffix?: string | null }
+export interface CommentLinkedNote { noteId: string; title?: string | null; path?: string | null }
+export interface NoteComment {
+  id: string;
+  author: CommentAuthor;
+  body: string;
+  createdAt: string;
+  linkedNote?: CommentLinkedNote | null;
+}
+export interface CommentThread {
+  id: string;
+  anchor: CommentAnchor;
+  status: "open" | "resolved";
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string | null;
+  comments: NoteComment[];
+  anchorState: "page" | "anchored" | "detached";
+  line?: number | null;
+  context?: string | null;
+  awaitingReply: boolean;
+}
+export interface NoteComments { noteId: string; title: string; path: string; revision: string; threads: CommentThread[] }
+export interface CommentInboxItem { noteId: string; noteTitle: string; notePath: string; thread: CommentThread }
+export interface CommentInboxPage { items: CommentInboxItem[]; total: number; nextPage: number | null }

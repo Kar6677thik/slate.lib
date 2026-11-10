@@ -19,6 +19,7 @@ library/
   .gitignore                 # includes /.assets/
   .gitattributes             # Markdown text normalized to LF
   .slate/library.json        # { "schemaVersion": 1, "libraryId": "<uuid>" }
+  .slate/comments/<uuid>.json # reader comment threads for one note; see COMMENTS.md
   inbox/
     .gitkeep
     why-vacuum.md

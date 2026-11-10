@@ -171,7 +171,8 @@ builder.Services.AddMcpServer()
     .WithTools<LibraryReadTools>()
     .WithTools<LibraryMutationTools>()
     .WithTools<IntelligenceTools>()
-    .WithTools<LearningTools>();
+    .WithTools<LearningTools>()
+    .WithTools<CommentTools>();
 
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 1024 * 1024);
 var app = builder.Build();

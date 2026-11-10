@@ -102,6 +102,7 @@ builder.Services.AddSingleton(provider => new AssetDerivatives(provider.GetRequi
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(gitOptions));
 builder.Services.AddSingleton<GitSyncService>();
 builder.Services.AddSingleton<LibraryStore>();
+builder.Services.AddSingleton(provider => new NoteCommentStore(provider.GetRequiredService<LibraryPaths>(), provider.GetRequiredService<LibraryStore>(), provider.GetRequiredService<GitSyncService>()));
 builder.Services.AddSingleton(tokens);
 builder.Services.AddSingleton(new OperationalHealth(paths.Root, assetRoot, authenticationFile, backupStatusFile));
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(updateOptions));
@@ -259,6 +260,16 @@ app.MapPost("/v1/workflows/daily", (LibraryStore library, DailyNoteRequest reque
 app.MapPost("/v1/notes/{id:guid}/answer", (LibraryStore library, Guid id, AnswerQuestionRequest request) => library.AnswerQuestion(id, request));
 app.MapGet("/v1/notes/{id:guid}/append-preview", (LibraryStore library, Guid id, Guid captureId) => library.PreviewCaptureAppend(id, captureId));
 app.MapPost("/v1/notes/{id:guid}/append-capture", (LibraryStore library, Guid id, AppendCaptureRequest request) => library.AppendCapture(id, request));
+app.MapGet("/v1/comments", (NoteCommentStore comments, string? status, bool? awaitingReply, int? page) => comments.Inbox(status, awaitingReply ?? false, page ?? 0));
+app.MapGet("/v1/notes/{id:guid}/comments", (NoteCommentStore comments, Guid id) => comments.Read(id));
+app.MapPost("/v1/notes/{id:guid}/comments", (NoteCommentStore comments, Guid id, CreateCommentThreadRequest request) =>
+    Results.Created($"/v1/notes/{id:D}/comments", comments.Create(id, request)));
+app.MapPost("/v1/notes/{id:guid}/comments/{threadId:guid}/replies", (NoteCommentStore comments, Guid id, Guid threadId, ReplyToCommentRequest request) => comments.Reply(id, threadId, request));
+app.MapPost("/v1/notes/{id:guid}/comments/{threadId:guid}/status", (NoteCommentStore comments, Guid id, Guid threadId, CommentThreadStatusRequest request) => comments.SetStatus(id, threadId, request));
+app.MapPost("/v1/notes/{id:guid}/comments/{threadId:guid}/comments/{commentId:guid}/delete", (NoteCommentStore comments, Guid id, Guid threadId, Guid commentId) =>
+{
+    comments.DeleteComment(id, threadId, commentId); return Results.NoContent();
+});
 app.MapPost("/v1/library/delete", (LibraryStore library, DeleteItemRequest request) => library.Delete(request));
 app.MapPost("/v1/library/refresh", (LibraryStore library) => { library.Refresh(); return Results.NoContent(); });
 app.MapGet("/v1/search", (LibraryStore library, string? q, int? page, int? pageSize) => library.Search(q ?? "", page ?? 0, pageSize ?? 20));
