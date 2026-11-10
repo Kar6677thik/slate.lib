@@ -165,7 +165,8 @@ All `/v1` endpoints require `Authorization: Bearer <device-token>`. Health probe
 | `POST /v1/sync` | Flush, fetch, fast-forward import or push; returns current Git state |
 | `GET /v1/comments?status=open&awaitingReply=true` | Library-wide reader comment threads, newest activity first (see [docs/COMMENTS.md](docs/COMMENTS.md)) |
 | `GET/POST /v1/notes/{uuid}/comments` | A note's passage and page comment threads; POST starts a thread |
-| `POST /v1/notes/{uuid}/comments/{thread}/replies`, `/status`, `/comments/{comment}/delete` | Reply (optionally linking an answer note), resolve/reopen, delete |
+| `POST /v1/notes/{uuid}/comments/{thread}/replies`, `/status`, `/visibility`, `/comments/{comment}/delete` | Reply (optionally linking an answer note), resolve/reopen, hide/unhide, delete |
+| `GET /v1/notifications`, `GET /v1/notifications/summary`, `POST /v1/notifications/read` | Activity feed of comments and bundled new pages from other devices and agents |
 | `GET /v1/notes/{uuid}/history` | Read-only Git commit history for the current note |
 | `GET /v1/notes/{uuid}/history/{commit}` | Historical Markdown for that stable note identity |
 

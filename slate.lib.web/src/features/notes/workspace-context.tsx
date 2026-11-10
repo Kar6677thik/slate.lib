@@ -195,6 +195,7 @@ export function WorkspaceProvider({
     setNav(
       view === "inbox" ||
         view === "recent" ||
+        view === "notifications" ||
         view === "search" ||
         view === "recovery" ||
         view === "rediscover" ||

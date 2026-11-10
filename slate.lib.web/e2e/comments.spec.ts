@@ -65,10 +65,17 @@ test("asks about a passage, sees an agent answer with a linked page, and resolve
   await expect(page.getByRole("tab", { name: "Reading list" })).toHaveAttribute("aria-selected", "true");
 
   await page.getByRole("tab", { name: "Library architecture" }).click();
-  await page.getByRole("button", { name: /open passage comment/ }).click();
+  await page.getByRole("button", { name: /passage comment/ }).click();
   await drawer.getByRole("button", { name: "Resolve" }).click();
-  await expect(drawer.getByText("No passage comments open.", { exact: false })).toBeVisible();
+  // Resolving keeps the thread and its highlight; only hiding removes it from view.
+  await expect(drawer.getByText("Resolved", { exact: true })).toBeVisible();
   expect(thread.status).toBe("resolved");
+  await expect(page.getByRole("button", { name: "1 comment on this paragraph" })).toBeVisible();
+  await drawer.getByRole("button", { name: "Hide" }).click();
+  await expect(page.getByRole("button", { name: "1 comment on this paragraph" })).toBeHidden();
+  await drawer.getByLabel(/Show hidden/).check();
+  await drawer.getByRole("button", { name: "Unhide" }).click();
+  expect(thread.hidden).toBe(false);
 });
 
 test("page discussion takes questions and replies, on desktop and phone", async ({ page }) => {

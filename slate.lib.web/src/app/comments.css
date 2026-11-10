@@ -505,3 +505,34 @@
     margin-left: 28px;
   }
 }
+
+/* Resolved threads stay visible, quieter; only hidden threads disappear. */
+::highlight(slate-comment-resolved) {
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in srgb, var(--muted) 70%, transparent);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+.comment-bubble.resolved {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--muted);
+}
+.thread-state-actions {
+  display: inline-flex;
+  gap: 2px;
+}
+.state-chip.hidden {
+  color: var(--muted);
+}
+.comment-thread.hidden-thread {
+  opacity: 0.6;
+}
+.comment-thread.focus-flash {
+  animation: thread-flash 1.6s ease;
+  border-radius: 10px;
+}
+@keyframes thread-flash {
+  0%, 30% { background: var(--accent-soft); box-shadow: 0 0 0 8px var(--accent-soft); }
+  100% { background: transparent; box-shadow: 0 0 0 8px transparent; }
+}

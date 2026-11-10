@@ -16,24 +16,27 @@ public sealed class DeviceTokens
 
     public DeviceTokens(string file) => this.file = Path.GetFullPath(file);
 
-    public bool Accepts(string token)
+    public bool Accepts(string token) => Identify(token) is not null;
+
+    /// <summary>The active device a token belongs to, or null when the token is unknown or revoked.</summary>
+    public DeviceSummary? Identify(string token)
     {
-        if (token.Length != 64) return false;
+        if (token.Length != 64) return null;
         byte[] digest;
         try { digest = SHA256.HashData(Encoding.UTF8.GetBytes(token)); }
-        catch { return false; }
+        catch { return null; }
         lock (gate)
         {
             var document = LoadDocument();
             var matched = document.Devices.FirstOrDefault(device => device.RevokedAt is null &&
                 IsHash(device.TokenHash) && CryptographicOperations.FixedTimeEquals(digest, Convert.FromHexString(device.TokenHash)));
-            if (matched is null) return false;
+            if (matched is null) return null;
             if (matched.LastUsedAt is null || DateTimeOffset.UtcNow - matched.LastUsedAt > TimeSpan.FromMinutes(1))
             {
                 var now = DateTimeOffset.UtcNow;
                 Write(document with { Devices = document.Devices.Select(device => device.Id == matched.Id ? device with { LastUsedAt = now } : device).ToArray() });
             }
-            return true;
+            return ToSummary(matched);
         }
     }
 

@@ -51,7 +51,8 @@ Optional real integration is **read-only** and skipped unless `SLATE_TEST_SERVER
 - The AI switch is a persistent browser preference. Turning it off hides intelligence commands and suggestions, uses keyword search, and skips automatic client analysis requests. It does not change server indexing or other clients.
 - Editing: CodeMirror, Write/Read/Split, formatting, paste/drop/file uploads, explicit revision-protected saves.
 - Reading: GFM, tables/tasks, syntax-highlighted code, callouts, math, diagrams, links and authenticated assets. Arbitrary HTML and external images are not loaded.
-- Comments: select text in Read mode and choose **Ask about this** to leave a question on that passage, or use the Discussion section under every note. Agents answer through MCP with a reply or a linked page. See `../docs/COMMENTS.md`.
+- Comments: select text in Read mode and choose **Ask about this** to leave a question on that passage, or use the Discussion section under every note. Agents answer through MCP with a reply or a linked page. Resolved threads stay visible; **Hide** tucks one away. See `../docs/COMMENTS.md`.
+- Notifications: the bell (Activity on phones) opens a history of replies and new pages from other devices and agents. Each comment is its own entry and bulk page creation is bundled; there are no pop-ups.
 - Library: lazy paged folders, create/rename/move/copy/duplicate/delete, search, Inbox and capped local Recent.
 - Search: Lucene Keyword mode plus optional pgvector Meaning and fused All modes, shared metadata syntax, graceful keyword fallback and server-only provider credentials.
 - Ask Slate: optional source-grounded research over library, note, folder/project, selected-note or selected-text scopes; strict evidence by default, streamed validated citations, and browser-local bounded follow-ups.

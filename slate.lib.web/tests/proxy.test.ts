@@ -189,6 +189,10 @@ it("allows the bounded parity API surface and rejects path-shaped lookalikes", (
     `v1/notes/${id}/comments/${id}/replies`,
     `v1/notes/${id}/comments/${id}/status`,
     `v1/notes/${id}/comments/${id}/comments/${id}/delete`,
+    `v1/notes/${id}/comments/${id}/visibility`,
+    "v1/notifications",
+    "v1/notifications/summary",
+    "v1/notifications/read",
   ])
     expect(isAllowedPath(path), path).toBe(true);
 
@@ -202,6 +206,7 @@ it("allows the bounded parity API surface and rejects path-shaped lookalikes", (
     `v1/notes/${id}/comments/${id}`,
     `v1/notes/${id}/comments/${id}/comments/${id}`,
     "v1/comments/extra",
+    "v1/notifications/other",
   ])
     expect(isAllowedPath(path), path).toBe(false);
 });

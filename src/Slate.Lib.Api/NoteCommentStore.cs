@@ -111,7 +111,9 @@ public sealed class NoteCommentStore(LibraryPaths paths, LibraryStore library, G
                 UpdatedAt = now,
                 // The owner replying again reopens a resolved thread; an agent reply never resolves on its own.
                 Status = author.Kind == CommentAuthor.User ? CommentThread.Open : thread.Status,
-                ResolvedAt = author.Kind == CommentAuthor.User ? null : thread.ResolvedAt
+                ResolvedAt = author.Kind == CommentAuthor.User ? null : thread.ResolvedAt,
+                Hidden = author.Kind == CommentAuthor.User ? false : thread.Hidden,
+                HiddenAt = author.Kind == CommentAuthor.User ? null : thread.HiddenAt
             };
             Save(Replace(file, updated));
             return View(note, updated);
@@ -129,6 +131,21 @@ public sealed class NoteCommentStore(LibraryPaths paths, LibraryStore library, G
             var thread = Find(file, threadId);
             var now = DateTimeOffset.UtcNow;
             var updated = thread with { Status = status, UpdatedAt = now, ResolvedAt = status == CommentThread.Resolved ? now : null };
+            Save(Replace(file, updated));
+            return View(note, updated);
+        }
+    }
+
+    /// <summary>Hides or shows a thread. Hiding is the owner's choice; resolving a thread never hides it.</summary>
+    public CommentThreadView SetHidden(Guid noteId, Guid threadId, CommentThreadVisibilityRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var note = library.Read(noteId);
+        lock (gate)
+        {
+            var file = Load(noteId);
+            var thread = Find(file, threadId);
+            var updated = thread with { Hidden = request.Hidden, HiddenAt = request.Hidden ? DateTimeOffset.UtcNow : null };
             Save(Replace(file, updated));
             return View(note, updated);
         }
@@ -187,8 +204,8 @@ public sealed class NoteCommentStore(LibraryPaths paths, LibraryStore library, G
         var location = thread.Anchor.Kind == CommentAnchor.Text ? CommentAnchors.Locate(note.Markdown, thread.Anchor) : null;
         var state = thread.Anchor.Kind == CommentAnchor.Page ? "page" : location is null ? "detached" : "anchored";
         var comments = thread.Comments.Select(RefreshLink).ToArray();
-        var awaiting = thread.Status == CommentThread.Open && comments[^1].Author.Kind == CommentAuthor.User;
-        return new(thread.Id, thread.Anchor, thread.Status, thread.CreatedAt, thread.UpdatedAt, thread.ResolvedAt, comments, state, location?.Line, location?.Context, awaiting);
+        var awaiting = thread.Status == CommentThread.Open && !thread.Hidden && comments[^1].Author.Kind == CommentAuthor.User;
+        return new(thread.Id, thread.Anchor, thread.Status, thread.CreatedAt, thread.UpdatedAt, thread.ResolvedAt, comments, state, location?.Line, location?.Context, awaiting, thread.Hidden);
     }
 
     /// <summary>Linked answer notes may have been renamed or moved since they were linked; show where they are now.</summary>

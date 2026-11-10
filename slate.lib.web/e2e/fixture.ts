@@ -53,6 +53,8 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
     anchorState: (thread.anchor as { kind: string }).kind === "page" ? "page" : "anchored",
     awaitingReply: thread.status === "open" && (thread.comments.at(-1)?.author as { kind: string }).kind === "user",
   });
+  // The activity feed, as the canonical /v1/notifications contract returns it for this browser's device.
+  const notifications: Array<{ notification: Record<string, unknown> & { id: string; readAt?: string | null }; fromThisDevice: boolean }> = [];
   let conflict = false;
   let assetCounter = 0;
   function getEntry(n: Note) {
@@ -593,11 +595,21 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
         body: asset.bytes,
       });
     }
+    if (path === "v1/notifications/summary") return respond({ unread: notifications.filter((item) => !item.notification.readAt).length });
+    if (path === "v1/notifications/read" && method === "POST") {
+      for (const item of notifications) item.notification.readAt ??= new Date().toISOString();
+      return respond({ unread: 0 });
+    }
+    if (path === "v1/notifications") {
+      const kind = url.searchParams.get("kind");
+      const items = notifications.filter((item) => !kind || item.notification.kind === kind).map((item) => ({ ...item, unread: !item.notification.readAt }));
+      return respond({ items, unread: items.filter((item) => item.unread).length, total: items.length, nextPage: null });
+    }
     const match = path.match(/^v1\/notes\/([^/]+)(.*)$/);
     if (match) {
       const n = notes.get(match[1]);
       if (!n) return respond({}, 404);
-      const commentPath = match[2].match(/^\/comments(?:\/([^/]+)\/(replies|status|comments\/([^/]+)\/delete))?$/);
+      const commentPath = match[2].match(/^\/comments(?:\/([^/]+)\/(replies|status|visibility|comments\/([^/]+)\/delete))?$/);
       if (commentPath) {
         const threads = comments.get(n.id) ?? [];
         comments.set(n.id, threads);
@@ -613,6 +625,7 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
         if (!thread) return respond({}, 404);
         if (commentPath[2] === "replies") thread.comments.push({ id: crypto.randomUUID(), author: body.author, body: body.body, createdAt: now, linkedNote: body.linkedNote ?? null });
         else if (commentPath[2] === "status") thread.status = String(body.status);
+        else if (commentPath[2] === "visibility") thread.hidden = Boolean(body.hidden);
         else if (commentPath[3]) {
           thread.comments = thread.comments.filter((comment) => comment.id !== commentPath[3]);
           return respond(null, 204);
@@ -757,6 +770,7 @@ export async function mockSlate(page: Page, options: { generationEnabled?: boole
     notes,
     folders,
     comments,
+    notifications,
     requests,
     askRequests,
     projectRequests,

@@ -62,7 +62,10 @@ The browser captures the quote from **rendered** text, where it can see exactly 
 | --- | --- |
 | `awaitingReply` | Open and the latest comment is the owner's. This is the agent's work queue. |
 | answered | Open and the latest comment is an agent's |
-| `resolved` | The owner closed it. Replying again as the owner reopens it. Agents never resolve on their own. |
+| `resolved` | The owner closed it. It stays visible with a quieter dotted underline and margin bubble. Replying again as the owner reopens it. Agents never resolve on their own. |
+| `hidden` | The owner chose **Hide**. The thread is kept but leaves highlights, bubbles and the discussion until **Show hidden** is turned on and it is unhidden. Hidden threads are never "awaiting reply". Replying as the owner unhides it. |
+
+Comments are never removed by resolving; only an explicit delete removes one.
 
 ## API
 
@@ -73,6 +76,7 @@ The browser captures the quote from **rendered** text, where it can see exactly 
 | `POST /v1/notes/{id}/comments` | Start a thread: `{ anchor, body, author? }` |
 | `POST /v1/notes/{id}/comments/{threadId}/replies` | Reply: `{ body, author?, linkedNoteId? }` |
 | `POST /v1/notes/{id}/comments/{threadId}/status` | `{ "status": "open" \| "resolved" }` |
+| `POST /v1/notes/{id}/comments/{threadId}/visibility` | `{ "hidden": true \| false }` |
 | `POST /v1/notes/{id}/comments/{threadId}/comments/{commentId}/delete` | Delete a reply, or the whole thread when it is the first comment |
 
 ## MCP workflow
@@ -89,6 +93,24 @@ Every note in a result carries the web-app `url`, including `linkedNote`, so the
 A prompt that works in Claude or ChatGPT:
 
 > Go through my open Slate reader questions. Answer short ones with a reply. If a question needs a real explanation, write a page with `answer_comment_with_note` and keep the reply to a two-sentence summary. Sign as Claude.
+
+## Notifications
+
+Slate keeps an activity feed so you can find replies and new pages without hunting for them. It is a page (the bell in the sidebar, **Activity** on phones), never a pop-up; the navigation shows an unread count.
+
+- **Every comment is its own entry.** It shows who wrote it, the note, the quoted passage and a preview. Clicking it opens the note in Read mode on that exact thread: the passage drawer for passage questions, or a scroll to the thread in the discussion. An attached answer page has its own card.
+- **New pages are bundled.** A bulk copy or duplicate is always one entry. Separate creations or captures from the same device or agent within 10 minutes are merged into one entry while it is unread, with up to 50 pages listed and a total count. A page is never announced twice.
+- **Your own activity is left out.** The feed hides what the requesting device itself did, so the web app doesn't notify you about your own comments. **Include this device** shows everything.
+- **Who did it.** MCP sends the agent's name with `X-Slate-Actor` when it writes an answer page, so the entry reads "Claude created a page"; other changes show the device label.
+- **Read state.** Opening the page marks everything read after a moment; entries that were new stay marked until you leave.
+
+The feed is server state, stored as `notifications.json` in the Git state directory (`Git:StatePath`) and capped at 1,000 entries. It is not Library content, so it is not committed or synchronized, and a damaged file is treated as empty. Recording a notification never changes whether the write it describes succeeded.
+
+| Route | Purpose |
+| --- | --- |
+| `GET /v1/notifications?kind=comment\|notes&includeOwn=false&page=0` | Newest first, 30 per page, with the unread count |
+| `GET /v1/notifications/summary` | `{ "unread": n }` for the navigation badge |
+| `POST /v1/notifications/read` | `{ "all": true }` or `{ "ids": [...] }` |
 
 ## Web client
 

@@ -180,6 +180,24 @@ public sealed partial class LibraryStore
         }
     }
 
+    /// <summary>The reviewed operation kind (move, copy, duplicate, delete, rename) of a journaled bulk operation.</summary>
+    public string BulkOperationKind(Guid operationId)
+    {
+        lock (gate) return ReadBulk(OperationDirectory(operationId)).Preview.Operation;
+    }
+
+    /// <summary>Every note at a path: the note itself, or all notes under a folder.</summary>
+    public IReadOnlyList<LibraryNote> NotesAt(string relative)
+    {
+        lock (gate)
+        {
+            var full = paths.Resolve(relative, true);
+            if (File.Exists(full)) return relative.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? [ReadPath(relative)] : [];
+            if (!Directory.Exists(full)) return [];
+            return Discover(paths, relative).Select(ReadPath).ToArray();
+        }
+    }
+
     public BulkOperationResult BulkStatus(Guid operationId)
     {
         lock (gate)

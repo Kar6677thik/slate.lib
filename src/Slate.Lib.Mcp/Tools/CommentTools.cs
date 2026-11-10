@@ -105,7 +105,7 @@ public sealed class CommentTools(CanonicalSlateClient canonical, IntelligenceCli
             body += $"\n\n---\n\n*Written by {author.Name} to answer a question on [[id:{noteId:D}|{source}]].*\n";
             if (body.Length > settings.MaximumMarkdownCharacters) throw new ArgumentException($"Markdown exceeds {settings.MaximumMarkdownCharacters} characters.");
 
-            var note = await canonical.Create(new(folder, fileName, title, InitialMarkdown: body), token);
+            var note = await canonical.Create(new(folder, fileName, title, InitialMarkdown: body), token, author.Name);
             await intelligence.Notify(new { kind = "upsert", noteId = note.Id }, token);
             try
             {

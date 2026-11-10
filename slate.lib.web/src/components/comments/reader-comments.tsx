@@ -9,6 +9,7 @@ import type { NoteCommentActions } from "./use-note-comments";
 const BLOCKS = "p, li, h1, h2, h3, h4, h5, h6, blockquote, td, th, pre, figure, .code-block";
 const HIGHLIGHT = "slate-comment";
 const ACTIVE = "slate-comment-active";
+const RESOLVED = "slate-comment-resolved";
 
 type Anchored = { thread: CommentThread; start: number; end: number; range: Range };
 type Bubble = { key: string; top: number; left: number; threads: CommentThread[] };
@@ -41,7 +42,10 @@ function articleIn(container: HTMLElement | null) {
   return container?.querySelector<HTMLElement>("article.markdown") ?? null;
 }
 
-/** One margin bubble per block that holds open passage threads, positioned in the article's right padding. */
+/**
+ * One margin bubble per block that holds visible passage threads, open or resolved, positioned in the article's right
+ * padding. Only threads the owner hid are left out.
+ */
 function bubblesFor(container: HTMLElement, items: Anchored[]): Bubble[] {
   const body = articleIn(container);
   if (!body) return [];
@@ -50,7 +54,7 @@ function bubblesFor(container: HTMLElement, items: Anchored[]): Bubble[] {
   const padding = parseFloat(getComputedStyle(body).paddingRight) || 0;
   const groups = new Map<Element, CommentThread[]>();
   for (const item of items) {
-    if (item.thread.status !== "open") continue;
+    if (item.thread.hidden) continue;
     const start = item.range.startContainer;
     const element = (start instanceof Element ? start : start.parentElement)?.closest(BLOCKS) ?? body;
     groups.set(element, [...(groups.get(element) ?? []), item.thread]);
@@ -87,7 +91,7 @@ export function ReaderComments({
   const [anchored, setAnchored] = useState<Anchored[]>([]);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [selection, setSelection] = useState<{ anchor: CommentAnchor; x: number; y: number } | null>(null);
-  const [showResolved, setShowResolved] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
   const [active, setActive] = useState<string | null>(null);
   const index = useRef<TextIndex | null>(null);
 
@@ -133,10 +137,22 @@ export function ReaderComments({
   }, [threads, renderKey, root]);
 
   useEffect(() => {
-    paint(HIGHLIGHT, anchored.filter((item) => item.thread.status === "open" && item.thread.id !== active).map((item) => item.range));
-    paint(ACTIVE, anchored.filter((item) => item.thread.id === active).map((item) => item.range));
-  }, [anchored, active]);
-  useEffect(() => () => { paint(HIGHLIGHT, []); paint(ACTIVE, []); }, []);
+    const shown = anchored.filter((item) => !item.thread.hidden && item.thread.id !== active);
+    paint(HIGHLIGHT, shown.filter((item) => item.thread.status === "open").map((item) => item.range));
+    paint(RESOLVED, shown.filter((item) => item.thread.status === "resolved").map((item) => item.range));
+    paint(ACTIVE, anchored.filter((item) => item.thread.id === active && (!item.thread.hidden || showHidden)).map((item) => item.range));
+  }, [anchored, active, showHidden]);
+  useEffect(() => () => { paint(HIGHLIGHT, []); paint(RESOLVED, []); paint(ACTIVE, []); }, []);
+  // A drawer opened for one thread (from a bubble, a highlight or a notification) brings its passage into view.
+  const focused = drawer?.focus?.length === 1 ? drawer.focus[0] : null;
+  useEffect(() => {
+    if (!focused) return;
+    const item = anchored.find((entry) => entry.thread.id === focused);
+    if (!item) return;
+    setActive(focused);
+    const start = item.range.startContainer;
+    (start instanceof Element ? start : start.parentElement)?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focused, anchored]);
   useEffect(() => {
     if (!drawer) {
       setActive(null);
@@ -189,7 +205,7 @@ export function ReaderComments({
       if ((event.target as Element | null)?.closest("button, a, input, textarea, .comment-layer")) return;
       const offset = caretOffset(index.current, event.clientX, event.clientY);
       if (offset === null) return;
-      const hits = anchored.filter((item) => item.thread.status === "open" && offset >= item.start && offset < item.end);
+      const hits = anchored.filter((item) => !item.thread.hidden && offset >= item.start && offset < item.end);
       if (!hits.length) return;
       setActive(hits[0].thread.id);
       setDrawer({ focus: hits.map((item) => item.thread.id), compose: null });
@@ -207,9 +223,10 @@ export function ReaderComments({
   };
 
   const listed = (() => {
-    const visible = showResolved ? threads : threads.filter((thread) => thread.status === "open");
-    const focused = drawer?.focus ? visible.filter((thread) => drawer.focus!.includes(thread.id)) : visible;
-    return [...focused].sort((a, b) => {
+    const visible = showHidden ? threads : threads.filter((thread) => !thread.hidden);
+    // An explicitly requested thread is shown even when hidden.
+    const chosen = drawer?.focus ? threads.filter((thread) => drawer.focus!.includes(thread.id)) : visible;
+    return [...chosen].sort((a, b) => {
       const ai = anchored.find((item) => item.thread.id === a.id)?.start ?? Number.MAX_SAFE_INTEGER;
       const bi = anchored.find((item) => item.thread.id === b.id)?.start ?? Number.MAX_SAFE_INTEGER;
       return ai - bi || a.createdAt.localeCompare(b.createdAt);
@@ -222,7 +239,7 @@ export function ReaderComments({
         <button
           key={bubble.key}
           type="button"
-          className="comment-bubble"
+          className={`comment-bubble ${bubble.threads.every((thread) => thread.status === "resolved") ? "resolved" : ""}`}
           style={{ top: bubble.top, left: bubble.left }}
           aria-label={`${bubble.threads.length} comment${bubble.threads.length === 1 ? "" : "s"} on this paragraph`}
           onClick={() => {
@@ -231,7 +248,7 @@ export function ReaderComments({
           }}
         >
           {bubble.threads.length}
-          {bubble.threads.some((thread) => !thread.awaitingReply) && <span className="bubble-answered" aria-hidden />}
+          {bubble.threads.some((thread) => thread.status === "open" && !thread.awaitingReply) && <span className="bubble-answered" aria-hidden />}
         </button>
       ))}
       {selection && !drawer?.compose && (
@@ -283,15 +300,17 @@ export function ReaderComments({
                     Show all passages
                   </button>
                 )}
-                <label className="discussion-toggle">
-                  <input type="checkbox" checked={showResolved} onChange={(event) => setShowResolved(event.target.checked)} />
-                  Show resolved
-                </label>
+                {threads.some((thread) => thread.hidden) && (
+                  <label className="discussion-toggle">
+                    <input type="checkbox" checked={showHidden} onChange={(event) => setShowHidden(event.target.checked)} />
+                    Show hidden ({threads.filter((thread) => thread.hidden).length})
+                  </label>
+                )}
               </div>
             )}
             {!drawer.compose && listed.length === 0 && (
               <p className="muted discussion-empty">
-                No passage comments{showResolved ? "" : " open"}. Select any text in the note and choose <strong>Ask about this</strong>.
+                No passage comments yet. Select any text in the note and choose <strong>Ask about this</strong>.
               </p>
             )}
             {!drawer.compose &&
