@@ -14,4 +14,5 @@ await cp(
 );
 process.env.HOSTNAME = process.env.SLATE_WEB_HOST ?? "127.0.0.1";
 process.env.PORT ??= "3000";
+await import("./observability/install.mjs");
 await import(pathToFileURL(path.join(standalone, "server.js")).href);

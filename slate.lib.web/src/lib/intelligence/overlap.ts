@@ -102,8 +102,35 @@ export function buildOverlapNote(note: Note): OverlapNote {
   return { noteId: note.id, revision: note.revision, path: note.path, title: note.title, contentHash: hash(normalizedContent), noteType: noteType(note.markdown), timestamp: timestamp(note.markdown), projectPath: projectPath(note.path), headings: sections.map((section) => section.heading), sections, claims, normalizedContent, wordCount: cleanWords(normalizedContent).length };
 }
 
-function jaccard(left: string[], right: string[]) { const a = new Set(left), b = new Set(right); if (!a.size || !b.size) return 0; let shared = 0; for (const item of a) if (b.has(item)) shared++; return shared / (a.size + b.size - shared); }
-function containment(left: string[], right: string[]) { const a = new Set(left), b = new Set(right); if (!a.size || !b.size) return 0; let shared = 0; for (const item of a) if (b.has(item)) shared++; return shared / Math.min(a.size, b.size); }
+function sharedCount(a: Set<string>, b: Set<string>) { let shared = 0; for (const item of a) if (b.has(item)) shared++; return shared; }
+function jaccardSets(a: Set<string>, b: Set<string>) { if (!a.size || !b.size) return 0; const shared = sharedCount(a, b); return shared / (a.size + b.size - shared); }
+function containmentSets(a: Set<string>, b: Set<string>) { if (!a.size || !b.size) return 0; return sharedCount(a, b) / Math.min(a.size, b.size); }
+
+/*
+ * Pair analysis compares each note with up to 20 neighbours, so tokenizing whole notes inside every comparison (and
+ * inside the candidate sort comparator) repeated the same regex work thousands of times and blocked the event loop
+ * for seconds. Token sets are derived once per note and per section; the values, and therefore findings, are unchanged.
+ */
+interface NoteTokens { content: Set<string>; headings: Set<string>; signature: Set<string>; }
+const noteTokens = new WeakMap<OverlapNote, NoteTokens>();
+function tokensOf(note: OverlapNote) {
+  let cached = noteTokens.get(note);
+  if (!cached) {
+    cached = {
+      content: new Set(cleanWords(note.normalizedContent)),
+      headings: new Set(note.headings.flatMap(cleanWords).filter((item) => !weakHeadings.has(item))),
+      signature: new Set(cleanWords(note.title + " " + note.headings.join(" "))),
+    };
+    noteTokens.set(note, cached);
+  }
+  return cached;
+}
+const sectionTokens = new WeakMap<OverlapSection, { content: Set<string>; heading: Set<string> }>();
+function sectionTokensOf(section: OverlapSection) {
+  let cached = sectionTokens.get(section);
+  if (!cached) { cached = { content: new Set(section.tokens), heading: new Set(cleanWords(section.heading)) }; sectionTokens.set(section, cached); }
+  return cached;
+}
 function intentSuppressed(a: OverlapNote, b: OverlapNote) {
   const types = new Set([a.noteType, b.noteType]);
   if (["template", "daily"].some((type) => types.has(type))) return true;
@@ -113,8 +140,9 @@ function intentSuppressed(a: OverlapNote, b: OverlapNote) {
 }
 function sectionMatch(a: OverlapSection, b: OverlapSection) {
   if (a.hash === b.hash) return 1;
-  const content = jaccard(a.tokens, b.tokens);
-  const heading = jaccard(cleanWords(a.heading), cleanWords(b.heading));
+  const left = sectionTokensOf(a), right = sectionTokensOf(b);
+  const content = jaccardSets(left.content, right.content);
+  const heading = jaccardSets(left.heading, right.heading);
   return content * .82 + heading * .18;
 }
 function newer(a: OverlapNote, b: OverlapNote) { if (!a.timestamp || !b.timestamp || a.timestamp === b.timestamp) return null; return Date.parse(a.timestamp) > Date.parse(b.timestamp) ? a : b; }
@@ -122,9 +150,9 @@ function label(kind: OverlapKind) { return ({ "exact-duplicate": "Exact duplicat
 
 function compare(a: OverlapNote, b: OverlapNote, now: string): KnowledgeOverlap | null {
   if (intentSuppressed(a, b)) return null;
-  const tokensA = cleanWords(a.normalizedContent), tokensB = cleanWords(b.normalizedContent);
-  const lexical = jaccard(tokensA, tokensB), contained = containment(tokensA, tokensB);
-  const headingSimilarity = jaccard(a.headings.flatMap(cleanWords).filter((item) => !weakHeadings.has(item)), b.headings.flatMap(cleanWords).filter((item) => !weakHeadings.has(item)));
+  const tokensA = tokensOf(a), tokensB = tokensOf(b);
+  const lexical = jaccardSets(tokensA.content, tokensB.content), contained = containmentSets(tokensA.content, tokensB.content);
+  const headingSimilarity = jaccardSets(tokensA.headings, tokensB.headings);
   const sharedClaims = a.claims.filter((claim) => b.claims.includes(claim));
   const matches: { a: OverlapSection; b: OverlapSection; score: number }[] = [];
   const usedB = new Set<string>();
@@ -165,9 +193,9 @@ export function analyzeOverlaps(notes: Note[], scope: OverlapSnapshot["scope"], 
   const boundedNotes = notes.slice(0, OVERLAP_LIMITS.maxNotes).map(buildOverlapNote);
   const exact = new Map<string, OverlapNote[]>(), byToken = new Map<string, OverlapNote[]>();
   for (const note of boundedNotes) {
-    exact.set(note.contentHash, [...(exact.get(note.contentHash) ?? []), note]);
+    const sameContent = exact.get(note.contentHash); if (sameContent) sameContent.push(note); else exact.set(note.contentHash, [note]);
     const keys = unique([...cleanWords(note.title), ...note.headings.flatMap(cleanWords)].filter((key) => !weakHeadings.has(key))).slice(0, 12);
-    for (const key of keys) byToken.set(key, [...(byToken.get(key) ?? []), note]);
+    for (const key of keys) { const bucket = byToken.get(key); if (bucket) bucket.push(note); else byToken.set(key, [note]); }
   }
   const findings: KnowledgeOverlap[] = [], seen = new Set<string>(), perNote = new Map<string, number>();
   let pairs = 0, bounded = notes.length > boundedNotes.length;
@@ -175,7 +203,9 @@ export function analyzeOverlaps(notes: Note[], scope: OverlapSnapshot["scope"], 
     const keys = unique([...cleanWords(note.title), ...note.headings.flatMap(cleanWords)].filter((key) => !weakHeadings.has(key))).slice(0, 12);
     const candidates = unique([...(exact.get(note.contentHash) ?? []), ...keys.flatMap((key) => byToken.get(key) ?? [])])
       .filter((other) => other.noteId !== note.noteId)
-      .sort((a, b) => containment(cleanWords(note.title + " " + note.headings.join(" ")), cleanWords(b.title + " " + b.headings.join(" "))) - containment(cleanWords(note.title + " " + note.headings.join(" ")), cleanWords(a.title + " " + a.headings.join(" "))));
+      .map((other) => ({ other, score: containmentSets(tokensOf(note).signature, tokensOf(other).signature) }))
+      .sort((a, b) => b.score - a.score)
+      .map((entry) => entry.other);
     if (candidates.length > OVERLAP_LIMITS.maxCandidateNeighbors) bounded = true;
     for (const other of candidates.slice(0, OVERLAP_LIMITS.maxCandidateNeighbors)) {
       if ((perNote.get(note.noteId) ?? 0) >= OVERLAP_LIMITS.maxPairsPerNote) { bounded = true; break; }

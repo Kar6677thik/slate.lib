@@ -59,6 +59,10 @@ spec:
             - name: http
               containerPort: 3000
               protocol: TCP
+            # Prometheus metrics for in-cluster scraping only; deliberately not published by the Service.
+            - name: metrics
+              containerPort: 9464
+              protocol: TCP
           readinessProbe:
             httpGet:
               path: /manifest.webmanifest
@@ -67,14 +71,16 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 2
             failureThreshold: 6
+          # Liveness uses an I/O-free route and tolerates about a minute of stall, so one slow request can't get the
+          # pod killed; a genuinely hung process still restarts.
           livenessProbe:
             httpGet:
-              path: /manifest.webmanifest
+              path: /api/health
               port: http
             initialDelaySeconds: 15
             periodSeconds: 15
-            timeoutSeconds: 2
-            failureThreshold: 3
+            timeoutSeconds: 3
+            failureThreshold: 4
           resources:
             requests:
               cpu: 100m

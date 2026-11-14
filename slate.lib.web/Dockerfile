@@ -17,6 +17,8 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
+COPY --from=build --chown=node:node /app/scripts/observability ./observability
+COPY --from=build --chown=node:node /app/scripts/instrumented-server.mjs ./instrumented-server.mjs
 USER node
-EXPOSE 3000
-CMD ["node", "server.js"]
+EXPOSE 3000 9464
+CMD ["node", "instrumented-server.mjs"]

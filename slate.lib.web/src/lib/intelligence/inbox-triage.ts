@@ -86,7 +86,7 @@ export function analyzeInboxCapture(input: { libraryId: string; capture: Note; n
   const linkByTarget = new Map(linkItems.map((item) => [item.target.noteId, item]));
   const conceptItems = (input.concepts ?? []).filter((concept) => concept.members.some((member) => member.noteId === capture.id) || words(concept.canonicalName).every((token) => captureWords.includes(token))).sort((a,b) => b.sourceCount-a.sourceCount).slice(0, INBOX_TRIAGE_LIMITS.concepts);
   const conceptTargets = new Map<string,string[]>();
-  for (const concept of conceptItems) for (const member of concept.members) if (member.noteId !== capture.id) conceptTargets.set(member.noteId, [...(conceptTargets.get(member.noteId) ?? []), concept.canonicalName]);
+  for (const concept of conceptItems) for (const member of concept.members) if (member.noteId !== capture.id) { const bucket = conceptTargets.get(member.noteId); if (bucket) bucket.push(concept.canonicalName); else conceptTargets.set(member.noteId, [concept.canonicalName]); }
   const related = input.notes.filter((note) => note.id !== capture.id && !isInbox(note)).map((note) => {
     const lexical = similarity(captureWords, words(`${note.title} ${prose(note.markdown).slice(0,4000)}`)); const overlap = overlapByTarget.get(note.id); const link = linkByTarget.get(note.id); const concepts = conceptTargets.get(note.id) ?? []; const semantic = input.semanticNoteIds?.includes(note.id) ?? false; let score = lexical * 60 + concepts.length * 12 + (link ? 25 : 0) + (overlap ? 40 : 0) + (semantic ? 28 : 0); const reasons: string[] = [];
     if (overlap) reasons.push(overlap.kind === "exact-duplicate" || overlap.kind === "duplicate-capture" ? "Possible duplicate" : overlap.kind === "near-duplicate" ? "Near duplicate" : "Partial overlap");

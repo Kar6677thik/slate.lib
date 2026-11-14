@@ -5,6 +5,7 @@ import { analyzeOverlaps } from "./overlap";
 import { analyzeSmartLinks } from "./smart-links";
 import { buildConceptPage, buildConceptSnapshot, CONCEPT_LIMITS, type ConceptIdentityReview } from "./concepts";
 import { PostgresDerivedStore } from "./postgres-store";
+import { yieldToEventLoop } from "./yield";
 
 export interface ConceptCanonical extends KnowledgeCanonical { links(id: string, signal: AbortSignal): Promise<Links>; }
 const store = new PostgresDerivedStore();
@@ -20,7 +21,9 @@ export async function conceptSnapshot(libraryId: string, canonical: ConceptCanon
   const notes = (await collectKnowledgeNotes(canonical, { kind: "library" }, signal)).slice(0, CONCEPT_LIMITS.maxNotes);
   const linkValues = await mapLimited(notes, 5, (note) => canonical.links(note.id, signal).catch(() => ({ noteId: note.id, outgoing: [], backlinks: [] })));
   const links = new Map(notes.map((note, index) => [note.id, linkValues[index]]));
+  await yieldToEventLoop();
   const knowledge = buildKnowledgeSnapshot(notes, { kind: "library" });
+  await yieldToEventLoop();
   const snapshot = buildConceptSnapshot(notes, { links, issues: knowledge.issues, reviews });
   session.set(libraryId, snapshot);
   try { await store.replaceConceptIndex(libraryId, snapshot.concepts); }
@@ -31,7 +34,9 @@ export async function conceptSnapshot(libraryId: string, canonical: ConceptCanon
 export async function conceptPage(libraryId: string, canonical: ConceptCanonical, identity: string, signal: AbortSignal, reviews: ConceptIdentityReview = {}) {
   const { snapshot, notes, links } = await conceptSnapshot(libraryId, canonical, signal, reviews);
   const knowledge = buildKnowledgeSnapshot(notes, { kind: "library" });
+  await yieldToEventLoop();
   const overlaps = analyzeOverlaps(notes, { kind: "library" }).findings;
+  await yieldToEventLoop();
   const linkOpportunities = analyzeSmartLinks(notes, { kind: "library" }, { links, issues: knowledge.issues, overlaps }).suggestions;
   return buildConceptPage(snapshot, identity, { issues: knowledge.issues, overlaps, linkOpportunities }) ;
 }

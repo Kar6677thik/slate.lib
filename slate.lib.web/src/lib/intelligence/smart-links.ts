@@ -87,7 +87,7 @@ export function analyzeSmartLinks(notes: Note[], scope: LinkOpportunitySnapshot[
   const names = new Map<string, IndexedNote[]>(), tokenIndex = new Map<string, IndexedNote[]>();
   for (const note of boundedNotes) {
     for (const name of [note.title, ...note.aliases, ...note.headings.filter((h) => words(h).length >= 2 && !weakHeadings.has(normalized(h)))]) { const key = normalized(name); const existing = names.get(key) ?? []; if (key.length >= 4 && !generic.has(key) && !existing.some((value) => value.noteId === note.noteId)) names.set(key, [...existing, note]); }
-    for (const token of [...words(note.title), ...note.headings.flatMap(words), ...note.claims.flatMap(words)].slice(0, 20)) tokenIndex.set(token, [...(tokenIndex.get(token) ?? []), note]);
+    for (const token of [...words(note.title), ...note.headings.flatMap(words), ...note.claims.flatMap(words)].slice(0, 20)) { const bucket = tokenIndex.get(token); if (bucket) bucket.push(note); else tokenIndex.set(token, [note]); }
   }
   // A term in many titles and headings (a project name, say) says little about why two particular notes belong together.
   const termFrequency = new Map<string, number>();
@@ -101,10 +101,24 @@ export function analyzeSmartLinks(notes: Note[], scope: LinkOpportunitySnapshot[
   const suggestions: LinkSuggestion[] = [], seen = new Set<string>(); let candidates = 0, bounded = notes.length > boundedNotes.length;
   const add = (item: LinkSuggestion) => { if (seen.has(item.fingerprint) || suggestions.filter((v) => v.sourceNoteId === item.sourceNoteId).length >= SMART_LINK_LIMITS.maxSuggestionsPerNote || suggestions.length >= SMART_LINK_LIMITS.maxSuggestions) { bounded = true; return; } seen.add(item.fingerprint); suggestions.push(item); };
   const sources = scope.kind === "note" ? boundedNotes.filter((note) => note.noteId === scope.noteId) : boundedNotes;
+  /*
+   * Each name's pattern is compiled once, not once per (note, name), and a note is only scanned for a name whose first
+   * word it contains. Recompiling and scanning every note for every name dominated link analysis on larger libraries.
+   */
+  const patterns = new Map<string, { pattern: RegExp; firstWord: string | null }>();
+  for (const [name] of names) {
+    const firstWord = name.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+    patterns.set(name, {
+      pattern: new RegExp(`(^|[^A-Za-z0-9])(${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")})(?=$|[^A-Za-z0-9])`, "ig"),
+      // The prefilter is only exact for ASCII, where toLowerCase and the regex's case-insensitive match agree.
+      firstWord: firstWord && /^[\x20-\x7e]+$/.test(firstWord) ? firstWord : null,
+    });
+  }
   for (const source of sources) {
-    if (source.noteType === "template") continue; const prose = maskedProse(source.markdown); let mentions = 0;
+    if (source.noteType === "template") continue; const prose = maskedProse(source.markdown); const lowerProse = prose.toLowerCase(); let mentions = 0;
     for (const [name, matches] of names) {
-      if (mentions >= SMART_LINK_LIMITS.maxMentionsPerNote) { bounded = true; break; } const pattern = new RegExp(`(^|[^A-Za-z0-9])(${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")})(?=$|[^A-Za-z0-9])`, "ig");
+      if (mentions >= SMART_LINK_LIMITS.maxMentionsPerNote) { bounded = true; break; }
+      const { pattern, firstWord } = patterns.get(name)!; if (firstWord && !lowerProse.includes(firstWord)) continue;
       for (const match of prose.matchAll(pattern)) {
         const from = match.index! + match[1].length, to = from + match[2].length; const viable = matches.filter((target) => target.noteId !== source.noteId && !exactExisting(source, target, links.get(source.noteId))).slice(0, SMART_LINK_LIMITS.maxTargetCandidatesPerMention); candidates += matches.length;
         if (!viable.length) continue; const target = viable.sort((a, b) => Number(b.projectPath === source.projectPath) - Number(a.projectPath === source.projectPath))[0]; const overlap = overlapByPair.get(pairKey(source.noteId, target.noteId));

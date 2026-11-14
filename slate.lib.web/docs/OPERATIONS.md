@@ -117,3 +117,14 @@ Inbox diagnostics expose item, analyzed, pending, and failed counts; strong proj
 Review state (`Unprocessed`, `Processed`, `Deferred`) and suggestion decisions (`Accepted`, `Dismissed`, `Not Relevant`) are browser-local and fingerprinted by capture content/evidence. A material capture edit invalidates the prior state. Semantic enrichment is capped at eight captures, eight neighbors, and concurrency two; failures fall back to deterministic evidence. Derived analyses may be rebuilt safely because canonical Markdown contains no triage metadata.
 
 Append is a two-stage operation: review/edit the proposed insertion, create a local target draft with the known revision, then use the normal editor Save. A newer target revision surfaces the editor recovery comparison. The capture remains until the user explicitly marks it processed or invokes the existing deletion flow.
+
+## Request logs, health and metrics
+
+The container starts through `instrumented-server.mjs`, which loads `observability/install.mjs` before the Next.js server.
+
+- **Request logs.** One JSON line per request: `method`, `route` (an allowlisted template such as `/api/slate/v1/notes/:param/links`; never the raw path or query), `status`, `durationMs` and a coarse `ua` family. Requests over 500 ms log at `warn` as `slow request`. Fast successful probe and static requests are not logged. Set `SLATE_WEB_REQUEST_LOG=off` to disable request lines.
+- **Blocked event loop.** If the event loop stalls for 1 s or more in a 10-second window, an `event loop blocked` warning is logged with the longest delay.
+- **Liveness.** `GET /api/health` does no I/O. Liveness probes it with a 3 s timeout and 4 failures, so only a sustained stall (about a minute) restarts the pod. Readiness still uses `/manifest.webmanifest`.
+- **Metrics.** `GET /metrics` on port 9464 (`SLATE_WEB_METRICS_PORT`; `off` disables it) exposes `slate_web_http_requests_total`, the `slate_web_http_request_duration_seconds` histogram by route, event-loop delay, and memory. The port is a named container port only; the Service doesn't publish it. Scrape the pod from inside the cluster.
+
+Whole-library analyses (health, knowledge gaps, concepts, overlap, link opportunities, inbox triage) are synchronous CPU work. They yield to the event loop between phases, and their pair searches cache tokenized text. `tests/perf` holds a synthetic-library reproduction: run `pnpm vitest run --config tests/perf/vitest.perf.config.ts --silent=false`.

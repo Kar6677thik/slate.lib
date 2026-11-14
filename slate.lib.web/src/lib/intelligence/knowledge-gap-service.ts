@@ -6,6 +6,7 @@ import { collectKnowledgeNotes, type KnowledgeCanonical } from "./knowledge-issu
 import { analyzeOverlaps } from "./overlap";
 import { PostgresDerivedStore } from "./postgres-store";
 import { analyzeSmartLinks } from "./smart-links";
+import { yieldToEventLoop } from "./yield";
 
 export interface GapCanonical extends KnowledgeCanonical { links(id: string, signal: AbortSignal): Promise<Links>; }
 const store = new PostgresDerivedStore();
@@ -27,16 +28,21 @@ export async function knowledgeGapSnapshot(libraryId: string, canonical: GapCano
   const notes = (await collectKnowledgeNotes(canonical, { kind: "library" }, signal)).slice(0, KNOWLEDGE_GAP_LIMITS.maxNotes);
   let postgresAvailable = true; let derived: Awaited<ReturnType<PostgresDerivedStore["readHealthDerived"]>> | null = null;
   try { derived = await store.readHealthDerived(libraryId); } catch { postgresAvailable = false; }
+  await yieldToEventLoop();
   const knowledge = buildKnowledgeSnapshot(notes, { kind: "library" });
   const issues = derived?.knowledgeIssues.length ? derived.knowledgeIssues : knowledge.issues;
+  await yieldToEventLoop();
   const overlaps = derived?.overlaps.length ? derived.overlaps : analyzeOverlaps(notes, { kind: "library" }).findings;
   let links = new Map<string, Links>(), suggestions = derived?.linkSuggestions ?? [];
   if (!suggestions.length) {
     const values = await mapLimited(notes, KNOWLEDGE_GAP_LIMITS.sourceConcurrency, (note) => canonical.links(note.id, signal).catch(() => ({ noteId: note.id, outgoing: [], backlinks: [] })));
     links = new Map(notes.map((note, index) => [note.id, values[index]]));
   }
+  await yieldToEventLoop();
   const concepts = derived?.concepts.length ? derived.concepts : buildConceptSnapshot(notes, { links, issues }).concepts;
+  await yieldToEventLoop();
   if (!suggestions.length) suggestions = analyzeSmartLinks(notes, { kind: "library" }, { links, issues, overlaps }).suggestions;
+  await yieldToEventLoop();
   let analysis: ReturnType<typeof analyzeKnowledgeGaps>;
   if (!options.rebuild && cached && hasDirtyScope) {
     const dirtyNoteIds = cached.dirtyNoteIds, affectedProjects = new Set(cached.dirtyPaths); for (const note of notes) if (dirtyNoteIds.has(note.id)) { const project = projectOf(note.path); if (project) affectedProjects.add(project); }
