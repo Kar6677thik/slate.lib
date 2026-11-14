@@ -4,6 +4,7 @@ import { buildKnowledgeSnapshot } from "./knowledge-issues";
 import { analyzeOverlaps } from "./overlap";
 import { analyzeSmartLinks, SMART_LINK_LIMITS, type LinkOpportunitySnapshot } from "./smart-links";
 import { PostgresDerivedStore } from "./postgres-store";
+import { yieldToEventLoop } from "./yield";
 
 export interface SmartLinkCanonical extends KnowledgeCanonical { links(id: string, signal: AbortSignal): Promise<Links>; semantic?(query: string, path: string): Promise<string[]>; }
 const store = new PostgresDerivedStore();
@@ -24,7 +25,9 @@ export async function smartLinkSnapshot(libraryId: string, canonical: SmartLinkC
     const values = await mapLimited(sources, 3, async (note) => canonical.semantic!(`${note.title}\n${note.markdown.slice(0, 700)}`, note.path.split("/").slice(0, -1).join("/")).catch(() => []));
     sources.forEach((note, index) => semantic.set(note.id, values[index].filter((id) => id !== note.id).slice(0, SMART_LINK_LIMITS.maxSemanticNeighbors)));
   }
+  await yieldToEventLoop();
   const knowledge = buildKnowledgeSnapshot(notes, scope); const overlaps = analyzeOverlaps(notes, scope).findings;
+  await yieldToEventLoop();
   const snapshot = analyzeSmartLinks(notes, scope, { links, issues: knowledge.issues, overlaps, semantic });
   try { await store.replaceLinkSuggestions(libraryId, notes.map((note) => note.id), snapshot.suggestions); }
   catch { if (process.env.SLATE_INTELLIGENCE_DATABASE_URL) snapshot.degraded = "Link discovery is available for this session, but the derived database is unavailable."; }

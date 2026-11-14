@@ -64,7 +64,22 @@ const kindRules: Array<[RegExp, ConceptKind]> = [
   [/\b(lucene(?:\.net)?|react query|codemirror)\b/i, "Library"],
 ];
 export function conceptHash(value: string) { let h = 2166136261; for (let i = 0; i < value.length; i++) { h ^= value.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
+/*
+ * Concept and gap analysis normalize the same titles, aliases and claim texts many times per request. Short values are
+ * memoized (bounded) because repeating the Unicode normalization and regex passes dominated whole-library analysis time.
+ */
+const normalizedConcepts = new Map<string, string>();
 export function normalizeConcept(value: string) {
+  if (value.length > 2_000) return normalizeConceptValue(value);
+  let cached = normalizedConcepts.get(value);
+  if (cached === undefined) {
+    if (normalizedConcepts.size >= 20_000) normalizedConcepts.clear();
+    cached = normalizeConceptValue(value);
+    normalizedConcepts.set(value, cached);
+  }
+  return cached;
+}
+function normalizeConceptValue(value: string) {
   const normalized = value.normalize("NFKC").trim().replace(/\.md$/i, "").replace(/[–—]/g, "-").replace(/[_/]+/g, " ").replace(/\s+/g, " ");
   const key = normalized.toLowerCase().replace(/[^a-z0-9.+#-]+/g, " ").trim().replace(/\s+/g, " ");
   return key === "opc-ua" ? "opc ua" : key;
@@ -182,7 +197,7 @@ export function buildConceptSnapshot(notes: Note[], evidence: ConceptEvidence = 
     const importanceSignals = [...(members.some((member) => member.reasons.includes("Dedicated note title")) ? ["Dedicated note"] : []), ...(projects.length > 1 ? [`Appears across ${projects.length} projects`] : []), ...(members.reduce((sum, member) => sum + member.decisions.length, 0) ? [`Contains ${members.reduce((sum, member) => sum + member.decisions.length, 0)} decisions`] : []), ...(openQuestionCount ? [`Has ${openQuestionCount} open question${openQuestionCount === 1 ? "" : "s"}`] : []), ...(knowledgeIssueCount ? [`Has ${knowledgeIssueCount} knowledge issue${knowledgeIssueCount === 1 ? "" : "s"}`] : []), ...(members.length > 1 ? [`Referenced in ${members.length} notes`] : [])];
     return { id: `concept-${conceptHash(identity)}`, canonicalName: bucket.name, normalizedName: identity, aliases, kind: classify(bucket.name, bucket.kinds), sourceCount: members.length, currentSourceCount: members.length, firstSeen: dates[0] ?? null, lastSeen: dates.at(-1) ?? null, projectPaths: projects, tags: [...new Set(members.flatMap((member) => member.tags))].slice(0, 20), importanceSignals, openQuestionCount, knowledgeIssueCount, contentHash: conceptHash(members.map((member) => `${member.noteId}:${member.revision}`).join("|")), schemaVersion: CONCEPT_SCHEMA_VERSION, members, relationships: [] };
   });
-  const byNote = new Map<string, KnowledgeConcept[]>(); for (const concept of concepts) for (const member of concept.members) byNote.set(member.noteId, [...(byNote.get(member.noteId) ?? []), concept]);
+  const byNote = new Map<string, KnowledgeConcept[]>(); for (const concept of concepts) for (const member of concept.members) { const bucket = byNote.get(member.noteId); if (bucket) bucket.push(concept); else byNote.set(member.noteId, [concept]); }
   const relationshipEvidence = new Map<string, { notes: Set<string>; projects: Set<string>; signals: Set<string>; text: string }>();
   for (const [noteId, noteConcepts] of byNote) {
     const limited = noteConcepts.sort((a, b) => (b.members.find((m) => m.noteId === noteId)?.score ?? 0) - (a.members.find((m) => m.noteId === noteId)?.score ?? 0)).slice(0, 8);
@@ -191,10 +206,14 @@ export function buildConceptSnapshot(notes: Note[], evidence: ConceptEvidence = 
       state.notes.add(noteId); const member = left.members.find((item) => item.noteId === noteId); if (member?.projectPath) state.projects.add(member.projectPath); state.signals.add("Named together in a source note"); state.text += ` ${member?.excerpt ?? ""}`; relationshipEvidence.set(key, state);
     }
   }
+  // Index relationship evidence by concept once instead of scanning every pair for every concept (quadratic).
+  const conceptById = new Map<string, KnowledgeConcept>(); for (const concept of concepts) if (!conceptById.has(concept.id)) conceptById.set(concept.id, concept);
+  const evidenceByConcept = new Map<string, [string, typeof relationshipEvidence extends Map<string, infer V> ? V : never][]>();
+  for (const entry of relationshipEvidence) for (const id of new Set(entry[0].split("|"))) { const bucket = evidenceByConcept.get(id); if (bucket) bucket.push(entry); else evidenceByConcept.set(id, [entry]); }
   for (const concept of concepts) {
     const candidates: ConceptRelationship[] = [];
-    for (const [key, state] of relationshipEvidence) {
-      const ids = key.split("|"); if (!ids.includes(concept.id)) continue; const targetId = ids.find((id) => id !== concept.id)!; const target = concepts.find((item) => item.id === targetId); if (!target) continue;
+    for (const [key, state] of evidenceByConcept.get(concept.id) ?? []) {
+      const ids = key.split("|"); const targetId = ids.find((id) => id !== concept.id)!; const target = targetId === undefined ? undefined : conceptById.get(targetId); if (!target) continue;
       const explicit = [...state.notes].some((noteId) => evidence.links?.get(noteId)?.outgoing.some((link) => target.members.some((member) => member.noteId === link.targetId)));
       const signals = [...state.signals, ...(explicit ? ["Connected by an authored note link"] : []), ...(state.projects.size > 1 ? [`Used across ${state.projects.size} shared projects`] : [])];
       if (state.notes.size < 2 && !explicit) continue;

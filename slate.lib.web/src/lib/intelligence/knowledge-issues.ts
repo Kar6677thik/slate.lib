@@ -186,8 +186,23 @@ export function extractKnowledgeClaims(note: Note, options: { current?: boolean;
   return result;
 }
 
+/*
+ * Tokenizing runs four regex passes, and pair analysis compares the same subjects thousands of times, so word sets are
+ * memoized. Re-tokenizing inside the candidate sort comparator blocked the event loop for over ten seconds on a
+ * 240-note library. The memo is bounded and cleared after each analysis.
+ */
+const wordSets = new Map<string, Set<string>>();
+function wordSet(value: string) {
+  let cached = wordSets.get(value);
+  if (!cached) {
+    if (wordSets.size >= 50_000) wordSets.clear();
+    cached = new Set(words(value));
+    wordSets.set(value, cached);
+  }
+  return cached;
+}
 function tokenOverlap(a: string, b: string) {
-  const x = new Set(words(a)); const y = new Set(words(b));
+  const x = wordSet(a); const y = wordSet(b);
   if (!x.size || !y.size) return 0;
   let shared = 0; for (const item of x) if (y.has(item)) shared++;
   return shared / Math.min(x.size, y.size);
@@ -243,18 +258,29 @@ function classify(a: KnowledgeClaim, b: KnowledgeClaim): Omit<KnowledgeIssue, "i
 }
 
 export function analyzeKnowledgeClaims(claims: KnowledgeClaim[], reviews: Record<string, KnowledgeReview> = {}, now = new Date().toISOString()) {
+  try { return analyzeClaimPairs(claims, reviews, now); }
+  finally { wordSets.clear(); }
+}
+
+function analyzeClaimPairs(claims: KnowledgeClaim[], reviews: Record<string, KnowledgeReview>, now: string) {
   const bySubject = new Map<string, KnowledgeClaim[]>();
   for (const claim of claims) {
     const keys = [...new Set(words(claim.normalizedSubject).slice(0, 5))];
-    for (const key of keys) bySubject.set(key, [...(bySubject.get(key) ?? []), claim]);
+    for (const key of keys) {
+      const bucket = bySubject.get(key);
+      if (bucket) bucket.push(claim); else bySubject.set(key, [claim]);
+    }
   }
   let pairsChecked = 0; let bounded = false;
   const seen = new Set<string>(); const issues: KnowledgeIssue[] = [];
   const counts = new Map<string, number>();
   for (const claim of claims) {
+    // Scores are computed once per candidate; the stable sort keeps the previous order for equal scores.
     const candidates = [...new Set(words(claim.normalizedSubject).flatMap((key) => bySubject.get(key) ?? []))]
       .filter((other) => other.claimId !== claim.claimId)
-      .sort((a, b) => tokenOverlap(claim.normalizedSubject, b.normalizedSubject) - tokenOverlap(claim.normalizedSubject, a.normalizedSubject));
+      .map((other) => ({ other, score: tokenOverlap(claim.normalizedSubject, other.normalizedSubject) }))
+      .sort((a, b) => b.score - a.score)
+      .map((entry) => entry.other);
     if (candidates.length > KNOWLEDGE_LIMITS.maxCandidateNeighbors) bounded = true;
     for (const other of candidates.slice(0, KNOWLEDGE_LIMITS.maxCandidateNeighbors)) {
       if ((counts.get(claim.noteId) ?? 0) >= KNOWLEDGE_LIMITS.maxPairsPerNote) { bounded = true; break; }

@@ -5,11 +5,13 @@ import { buildKnowledgeSnapshot } from "./knowledge-issues";
 import { classifyOverlapFindings } from "./overlap-classifier";
 import { getGenerationProvider } from "./generation-provider";
 import { PostgresDerivedStore } from "./postgres-store";
+import { yieldToEventLoop } from "./yield";
 
 const store = new PostgresDerivedStore();
 
 export async function overlapSnapshot(libraryId: string, canonical: KnowledgeCanonical, scope: OverlapSnapshot["scope"], signal: AbortSignal) {
   const notes = await collectKnowledgeNotes(canonical, scope, signal);
+  await yieldToEventLoop();
   const snapshot = analyzeOverlaps(notes.slice(0, OVERLAP_LIMITS.maxNotes), scope);
   const model = await classifyOverlapFindings(libraryId, snapshot.findings, getGenerationProvider(), signal);
   snapshot.findings = model.findings;
@@ -17,9 +19,11 @@ export async function overlapSnapshot(libraryId: string, canonical: KnowledgeCan
   snapshot.diagnostics.cacheHits = model.cached;
   snapshot.diagnostics.failedJobs = model.failed;
   snapshot.degraded = model.unavailable ? "Deterministic overlap analysis is active. Optional model classification is unavailable." : model.failed ? "Deterministic overlap analysis is active. Some optional classifications could not be validated." : undefined;
+  await yieldToEventLoop();
   const knowledge = buildKnowledgeSnapshot(notes, scope);
   const conflictPairs = new Set(knowledge.issues.map((issue) => [issue.sourceA.noteId, issue.sourceB.noteId].sort().join("|")));
   snapshot.findings = snapshot.findings.map((item) => ({ ...item, hasKnowledgeIssue: conflictPairs.has([item.noteA.noteId, item.noteB.noteId].sort().join("|")) }));
+  await yieldToEventLoop();
   const signatures = notes.map(buildOverlapNote);
   try {
     await store.replaceOverlapNotes(libraryId, notes.map((note) => note.id), signatures);

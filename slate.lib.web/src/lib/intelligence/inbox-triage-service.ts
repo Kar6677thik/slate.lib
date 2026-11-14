@@ -8,6 +8,7 @@ import { analyzeSmartLinks } from "./smart-links";
 import type { SmartLinkCanonical } from "./smart-links-service";
 import { analyzeInboxCapture, INBOX_TRIAGE_LIMITS, INBOX_TRIAGE_SCHEMA_VERSION, inboxTriageHash, orderInboxTriage, type InboxTriageAnalysis, type InboxTriageSnapshot } from "./inbox-triage";
 import { PostgresDerivedStore } from "./postgres-store";
+import { yieldToEventLoop } from "./yield";
 
 const cache = new Map<string, { key: string; value: InboxTriageAnalysis; expires: number }>();
 const store = new PostgresDerivedStore();
@@ -21,9 +22,13 @@ async function mapLimited<T, R>(values: T[], concurrency: number, operation: (va
 export async function inboxTriageSnapshot(libraryId: string, canonical: KnowledgeCanonical & Partial<Pick<SmartLinkCanonical,"semantic">>, signal: AbortSignal): Promise<InboxTriageSnapshot> {
   const notes = (await collectKnowledgeNotes(canonical, { kind: "library" }, signal)).slice(0, INBOX_TRIAGE_LIMITS.candidateNotes);
   const captures = notes.filter((note) => /(^|\/)inbox\//i.test(note.path.replace(/\\/g, "/"))).slice(0, INBOX_TRIAGE_LIMITS.capturesPerPass);
+  await yieldToEventLoop();
   const knowledge = buildKnowledgeSnapshot(notes, { kind: "library" });
+  await yieldToEventLoop();
   const overlaps = analyzeOverlaps(notes, { kind: "project", path: "inbox" }).findings;
+  await yieldToEventLoop();
   const concepts = buildConceptSnapshot(notes, { issues: knowledge.issues, overlaps }).concepts;
+  await yieldToEventLoop();
   const links = analyzeSmartLinks(notes, { kind: "project", path: "inbox" }, { issues: knowledge.issues, overlaps }).suggestions;
   const semantic = new Map<string,string[]>();
   if (canonical.semantic) {
@@ -32,8 +37,10 @@ export async function inboxTriageSnapshot(libraryId: string, canonical: Knowledg
     sources.forEach((capture,index) => semantic.set(capture.id,values[index].filter((id) => id !== capture.id).slice(0,INBOX_TRIAGE_LIMITS.semanticNeighbors)));
   }
   const semanticAvailable=[...semantic.values()].some((ids) => ids.length > 0);
+  await yieldToEventLoop();
   const gaps = analyzeKnowledgeGaps({ libraryId, notes, concepts, issues: knowledge.issues, overlaps, linkSuggestions: links, semanticAvailable, postgresAvailable: false }).gaps;
   let cacheHits = 0;
+  await yieldToEventLoop();
   const items = captures.map((capture: Note) => {
     const neighborhood = [
       ...overlaps.filter((item) => item.noteA.noteId === capture.id || item.noteB.noteId === capture.id).map((item) => item.fingerprint),

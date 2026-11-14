@@ -3,6 +3,7 @@ import { buildKnowledgeSnapshot, extractKnowledgeClaims, KNOWLEDGE_LIMITS, type 
 import { PostgresDerivedStore } from "./postgres-store";
 import { getGenerationProvider } from "./generation-provider";
 import { classifyKnowledgePairs } from "./knowledge-classifier";
+import { yieldToEventLoop } from "./yield";
 
 export interface KnowledgeCanonical {
   list(path: string, page: number, signal: AbortSignal): Promise<FolderPage>;
@@ -34,6 +35,7 @@ export async function collectKnowledgeNotes(canonical: KnowledgeCanonical, scope
 
 export async function knowledgeSnapshot(libraryId: string, canonical: KnowledgeCanonical, scope: KnowledgeSnapshot["scope"], signal: AbortSignal) {
   const notes = await collectKnowledgeNotes(canonical, scope, signal);
+  await yieldToEventLoop();
   const snapshot = buildKnowledgeSnapshot(notes, scope);
   const claims = notes.flatMap((note) => extractKnowledgeClaims(note));
   const model = await classifyKnowledgePairs(libraryId, claims, snapshot.issues, getGenerationProvider(), signal);
