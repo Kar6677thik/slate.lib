@@ -64,7 +64,7 @@ sed "s|ghcr.io/kar6677thik/slate.lib-web:replace-me|$image|" "$template" | \
 
 k3s kubectl -n slate-web rollout status deployment/slate-web --timeout=180s
 
-# A completed rollout can precede the node's NodePort rule becoming reachable
+# A completed rollout can precede the Service's ClusterIP rule becoming reachable
 # by a few seconds. Retry only connection and transient gateway failures; an
 # unexpected application response still fails immediately.
 attempt=1
@@ -78,7 +78,7 @@ while [ "$attempt" -le "$max_attempts" ]; do
     -H 'Authorization: Bearer deliberately-invalid-verification-token' \
     -H 'Content-Type: application/json' \
     --data '{}' \
-    http://127.0.0.1:30519/api/slate/v1/sync) || status=000
+    http://10.43.0.108:3000/api/slate/v1/sync) || status=000
 
   [ "$status" = 401 ] && break
   case "$status" in

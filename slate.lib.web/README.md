@@ -70,7 +70,7 @@ The PWA caches static assets only. It does **not** cache authenticated API respo
 
 ## Deployment templates
 
-`Dockerfile` uses this folder as build context. `deploy/k3s/web.yaml` is the root-owned production template for the separate `slate-web` namespace. It runs as a non-root user with a read-only root filesystem, fixed resources, health probes, private-registry credentials and NodePort `30519` for the local Cloudflare tunnel.
+`Dockerfile` uses this folder as build context. `deploy/k3s/web.yaml` is the root-owned production template for the separate `slate-web` namespace. It runs as a non-root user with a read-only root filesystem, fixed resources, health probes, private-registry credentials, an ingress NetworkPolicy and a fixed ClusterIP (`10.43.0.108:3000`) that the node's Cloudflare tunnel proxies to. There is no NodePort.
 
 The manifest optionally reads a `slate-web-intelligence` Secret. If that Secret is absent, the deployment remains in keyword-only mode. See `docs/OPERATIONS.md` for the exact pgvector and embedding-provider variables; never place their values in the ConfigMap or image.
 

@@ -93,7 +93,10 @@ metadata:
   name: slate
   namespace: slate
 spec:
-  type: NodePort
+  # A fixed ClusterIP, never a NodePort: kube-proxy NodePorts bypass the host firewall and answer on the LAN.
+  # tailscale serve on the node proxies to this address.
+  type: ClusterIP
+  clusterIP: 10.43.0.107
   selector:
     app.kubernetes.io/name: slate
     app.kubernetes.io/component: api
@@ -101,4 +104,49 @@ spec:
     - name: http
       port: 8080
       targetPort: http
-      nodePort: 30518
+---
+# Ingress allowlist for the API. Egress stays open for now. Node-originated traffic (tailscale serve, kubelet probes)
+# reaches pods from the node's cni0 address, 10.42.0.1 on k3s.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: slate
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: slate-api
+  namespace: slate
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: slate
+      app.kubernetes.io/component: api
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 10.42.0.1/32
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: slate-web
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: slate-web
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: slate-mcp
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: slate-mcp
+      ports:
+        - protocol: TCP
+          port: 8080

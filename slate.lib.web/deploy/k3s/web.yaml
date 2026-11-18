@@ -111,7 +111,10 @@ metadata:
   labels:
     app.kubernetes.io/name: slate-web
 spec:
-  type: NodePort
+  # A fixed ClusterIP, never a NodePort: kube-proxy NodePorts bypass the host firewall and answer on the LAN.
+  # The node's cloudflared tunnel proxies lib.karthiksurkanti.in to this address.
+  type: ClusterIP
+  clusterIP: 10.43.0.108
   selector:
     app.kubernetes.io/name: slate-web
   ports:
@@ -119,11 +122,10 @@ spec:
       protocol: TCP
       port: 3000
       targetPort: http
-      nodePort: 30519
 ---
 # Ingress allowlist for slate-web. Egress stays open: the app calls the Slate API, PostgreSQL and the AI provider.
-# Policies see post-kube-proxy addresses, so node-originated traffic (tailscale serve, NodePort, kubelet probes, a
-# node-level cloudflared) arrives from the node's cni0 address, 10.42.0.1 on k3s. kube-router also always accepts
+# Policies see post-kube-proxy addresses, so node-originated traffic (the node's cloudflared tunnel, kubelet probes)
+# arrives from the node's cni0 address, 10.42.0.1 on k3s. kube-router also always accepts
 # traffic from the pod's own node; what this removes is reachability from every other pod.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -145,18 +147,10 @@ spec:
       app.kubernetes.io/name: slate-web
   policyTypes: ["Ingress"]
   ingress:
-    # The node: tailscale serve, the NodePort, kubelet probes.
+    # The node: the cloudflared tunnel for the public origin, and kubelet probes.
     - from:
         - ipBlock:
             cidr: 10.42.0.1/32
-      ports:
-        - protocol: TCP
-          port: 3000
-    # The in-cluster Cloudflare tunnel, which serves the public web origin.
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: cloudflare
       ports:
         - protocol: TCP
           port: 3000
