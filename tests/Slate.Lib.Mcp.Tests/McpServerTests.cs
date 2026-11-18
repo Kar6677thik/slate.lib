@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
@@ -229,10 +230,10 @@ public sealed class ProposalProtectorTests
 
 public sealed class SubjectAccessPolicyTests
 {
-    private const string ApprovedSubject = "auth0|approved-user";
+    private const string ApprovedSubject = "approved-user";
 
     [Fact]
-    public void ExplicitlyApprovedAuth0UserIsAllowed()
+    public void ExplicitlyApprovedUserIsAllowed()
     {
         var principal = Principal(new Claim("sub", ApprovedSubject));
 
@@ -240,9 +241,9 @@ public sealed class SubjectAccessPolicyTests
     }
 
     [Fact]
-    public void UnlistedAuth0UserIsRejected()
+    public void UnlistedUserIsRejected()
     {
-        var principal = Principal(new Claim("sub", "auth0|different-user"));
+        var principal = Principal(new Claim("sub", "different-user"));
 
         Assert.False(SubjectAccessPolicy.IsAllowed(principal, [ApprovedSubject]));
     }
@@ -263,8 +264,8 @@ public sealed class SubjectAccessPolicyTests
 
     [Theory]
     [InlineData("client-id@clients", null)]
-    [InlineData("auth0|approved-user", "client-credentials")]
-    [InlineData("auth0|approved-user", "client_credentials")]
+    [InlineData("approved-user", "client-credentials")]
+    [InlineData("approved-user", "client_credentials")]
     public void MachineIdentityIsRejectedEvenWhenItsSubjectIsAllowlisted(string subject, string? grantType)
     {
         var claims = new List<Claim> { new("sub", subject) };
@@ -300,7 +301,7 @@ public sealed class SubjectAccessPolicyTests
     {
         var settings = ProductionSettings();
         settings.AllowedSubjectIds = [ApprovedSubject];
-        settings.AuthorizationServers = ["https://tenant.us.auth0.com"];
+        settings.AuthorizationServers = ["https://auth.example.test"];
 
         var error = Assert.Throws<InvalidOperationException>(() => SubjectAccessPolicy.ValidateProductionConfiguration(settings));
 
@@ -308,7 +309,7 @@ public sealed class SubjectAccessPolicyTests
     }
 
     [Fact]
-    public void CompleteAuth0ProductionConfigurationIsAccepted()
+    public void CompleteProductionConfigurationIsAccepted()
     {
         var settings = ProductionSettings();
         settings.AllowedSubjectIds = [ApprovedSubject];
@@ -320,36 +321,36 @@ public sealed class SubjectAccessPolicyTests
 
     private static OAuthOptions ProductionSettings() => new()
     {
-        Authority = "https://tenant.us.auth0.com/",
-        AuthorizationServers = ["https://tenant.us.auth0.com/"],
-        Audience = "https://mcp.lib.karthiksurkanti.in/mcp",
-        Resource = "https://mcp.lib.karthiksurkanti.in/mcp"
+        Authority = "https://auth.example.test/",
+        AuthorizationServers = ["https://auth.example.test/"],
+        Audience = "https://mcp.example.test/mcp",
+        Resource = "https://mcp.example.test/mcp"
     };
 }
 
-public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
+public sealed class OrbitJwtAuthenticationTests : IClassFixture<OrbitMcpFactory>
 {
     private readonly HttpClient client;
 
-    public Auth0JwtAuthenticationTests(Auth0McpFactory factory) => client = factory.CreateClient();
+    public OrbitJwtAuthenticationTests(OrbitMcpFactory factory) => client = factory.CreateClient();
 
     [Fact]
     public async Task ApprovedUserTokenIsAccepted()
     {
-        using var response = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject));
+        using var response = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject));
 
         Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
-    public async Task PublicEndpointCanDifferFromRegisteredAuth0ApiIdentifier()
+    public async Task PublicEndpointCanDifferFromTheTokenAudience()
     {
         using var anonymous = await client.PostAsJsonAsync("/mcp", new { jsonrpc = "2.0", id = 1, method = "tools/list", @params = new { } });
         var metadata = await client.GetFromJsonAsync<JsonElement>("/.well-known/oauth-protected-resource");
 
         Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
         Assert.Equal("Bearer resource_metadata=\"https://mcp.karthiksurkanti.in/.well-known/oauth-protected-resource\", scope=\"slate.read slate.analyze\"", anonymous.Headers.WwwAuthenticate.ToString());
-        Assert.Equal(Auth0McpFactory.Audience, metadata.GetProperty("resource").GetString());
+        Assert.Equal(OrbitMcpFactory.Audience, metadata.GetProperty("resource").GetString());
     }
 
     [Fact]
@@ -383,17 +384,17 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
     [Fact]
     public async Task UnapprovedUserTokenIsRejected()
     {
-        using var response = await Send(Auth0McpFactory.Token("auth0|unapproved-user"));
+        using var response = await Send(OrbitMcpFactory.Token("unapproved-user"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Theory]
     [InlineData("machine-client@clients", null)]
-    [InlineData("auth0|approved-machine-grant", "client-credentials")]
+    [InlineData("approved-machine-grant", "client-credentials")]
     public async Task MachineTokenIsRejectedEvenWhenSubjectIsAllowlisted(string subject, string? grantType)
     {
-        using var response = await Send(Auth0McpFactory.Token(subject, grantType: grantType));
+        using var response = await Send(OrbitMcpFactory.Token(subject, grantType: grantType));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -401,7 +402,7 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
     [Fact]
     public async Task WrongAudienceIsRejected()
     {
-        using var response = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, audience: "https://wrong.example/mcp"));
+        using var response = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, audience: "https://wrong.example/mcp"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -409,7 +410,36 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
     [Fact]
     public async Task WrongIssuerIsRejected()
     {
-        using var response = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, issuer: "https://wrong.us.auth0.com/"));
+        using var response = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, issuer: "https://wrong.example.test/"));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("JWT")]
+    [InlineData("jwt")]
+    [InlineData("id_token+jwt")]
+    public async Task TokenThatIsNotAnAccessTokenIsRejected(string tokenType)
+    {
+        using var response = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, tokenType: tokenType));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(SecurityAlgorithms.HmacSha256)]
+    [InlineData(SecurityAlgorithms.RsaSha256)]
+    public async Task TokenSignedWithAnotherAlgorithmIsRejectedEvenByATrustedKey(string algorithm)
+    {
+        using var response = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, algorithm: algorithm));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task TokenWithoutExpiryIsRejected()
+    {
+        using var response = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, expires: false));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -421,7 +451,7 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
     [InlineData("slate.readonly")]
     public async Task ApprovedTokenWithoutSlateScopesDiscoversNoTools(string? scope)
     {
-        using var response = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: scope));
+        using var response = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: scope));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Empty(await DiscoveredTools(response));
     }
@@ -431,7 +461,7 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
     [InlineData("scp")]
     public async Task ReadScopeDiscoversOnlyReadTools(string claimType)
     {
-        using var response = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: "slate.read", scopeClaimType: claimType));
+        using var response = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: "slate.read", scopeClaimType: claimType));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var tools = await DiscoveredTools(response);
         Assert.Contains(tools, tool => tool.GetProperty("name").GetString() == "get_library_status");
@@ -440,14 +470,14 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
     }
 
     [Fact]
-    public async Task RbacPermissionsDoNotExpandClientRequestedScopes()
+    public async Task PermissionsClaimsDoNotExpandRequestedScopes()
     {
-        using var response = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: "slate.read", permissions: ["slate.read", "slate.write", "slate.organize"]));
+        using var response = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: "slate.read", permissions: ["slate.read", "slate.write", "slate.organize"]));
         var tools = await DiscoveredTools(response);
         Assert.NotEmpty(tools);
         Assert.DoesNotContain(tools, tool => tool.GetProperty("name").GetString() == "apply_note_edit");
 
-        using var permissionsOnly = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: null, permissions: ["slate.read", "slate.write"]));
+        using var permissionsOnly = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: null, permissions: ["slate.read", "slate.write"]));
         Assert.Equal(HttpStatusCode.OK, permissionsOnly.StatusCode);
         Assert.Empty(await DiscoveredTools(permissionsOnly));
     }
@@ -456,11 +486,11 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
     public async Task OrganizationGrantDiscoversRequestedToolsWithoutDeleteOrAdmin()
     {
         string[] organizationTools = ["create_folder", "move_library_item", "rename_library_item", "preview_bulk_operation", "apply_bulk_operation", "preview_link_repair", "apply_link_repair", "restore_note", "sync_library"];
-        using var writeOnly = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: "slate.read slate.analyze slate.write"));
+        using var writeOnly = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: "slate.read slate.analyze slate.write"));
         var writeNames = (await DiscoveredTools(writeOnly)).Select(tool => tool.GetProperty("name").GetString()).ToArray();
         Assert.All(organizationTools, name => Assert.DoesNotContain(name, writeNames));
 
-        using var organized = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: "slate.read slate.analyze slate.write slate.organize"));
+        using var organized = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: "slate.read slate.analyze slate.write slate.organize"));
         var tools = await DiscoveredTools(organized);
         Assert.All(organizationTools, name => Assert.Contains(tools, tool => tool.GetProperty("name").GetString() == name));
         Assert.Contains(tools, tool => tool.GetProperty("name").GetString() == "get_bulk_operation_status");
@@ -471,16 +501,61 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
     [Fact]
     public async Task EmptyDiscoveryLogsClaimTypesWithoutPrivateValues()
     {
-        using var factory = new Auth0McpFactory();
+        using var factory = new OrbitMcpFactory();
         using var diagnosticClient = factory.CreateClient();
-        using var response = await Send(Auth0McpFactory.Token(Auth0McpFactory.ApprovedSubject, scope: null, permissions: ["private-permission-value"]), diagnosticClient);
+        using var response = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: null, permissions: ["private-permission-value"]), diagnosticClient);
         Assert.Empty(await DiscoveredTools(response));
         var entry = Assert.Single(factory.DiscoveryLogs.Entries, entry => entry.Level == LogLevel.Warning);
         Assert.Contains("no authorized tools", entry.Message);
         Assert.Contains("sub", entry.Message);
         Assert.Contains("permissions", entry.Message);
-        Assert.DoesNotContain(Auth0McpFactory.ApprovedSubject, entry.Message);
+        Assert.DoesNotContain(OrbitMcpFactory.ApprovedSubject, entry.Message);
         Assert.DoesNotContain("private-permission-value", entry.Message);
+    }
+
+    [Fact]
+    public async Task ReadScopeListsTheWorkflowPrompts()
+    {
+        using var response = await SendRpc(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: "slate.read"), "prompts/list");
+        var names = (await RpcResult(response)).GetProperty("prompts").EnumerateArray().Select(prompt => prompt.GetProperty("name").GetString()).ToArray();
+        Assert.Equal(["capture_and_file", "link_note", "process_inbox", "write_note"], names.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task TokenWithoutSlateScopesListsNoPrompts()
+    {
+        using var response = await SendRpc(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: "openid profile"), "prompts/list");
+        Assert.Empty((await RpcResult(response)).GetProperty("prompts").EnumerateArray());
+    }
+
+    [Theory]
+    [InlineData("capture_and_file", "thought", "Redis evicts keys with LRU by default")]
+    [InlineData("process_inbox", null, null)]
+    [InlineData("link_note", "note", "Kubernetes")]
+    [InlineData("write_note", "topic", "Raft leader election")]
+    public async Task PromptsOnlyNameToolsTheServerHas(string prompt, string? argument, string? value)
+    {
+        var token = OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: "slate.read slate.analyze slate.write slate.organize");
+        using var toolsResponse = await Send(token);
+        var tools = (await DiscoveredTools(toolsResponse)).Select(tool => tool.GetProperty("name").GetString()!).ToHashSet(StringComparer.Ordinal);
+        var arguments = argument is null ? new Dictionary<string, object?>() : new Dictionary<string, object?> { [argument] = value };
+        using var response = await SendRpc(token, "prompts/get", new() { ["name"] = prompt, ["arguments"] = arguments });
+        var text = string.Join("\n", (await RpcResult(response)).GetProperty("messages").EnumerateArray().Select(message => message.GetProperty("content").GetProperty("text").GetString()));
+        if (value is not null) Assert.Contains(value, text);
+        var named = System.Text.RegularExpressions.Regex.Matches(text, @"\b[a-z]+(?:_[a-z]+)+\b").Select(match => match.Value).Distinct().ToArray();
+        Assert.NotEmpty(named);
+        Assert.All(named, name => Assert.Contains(name, tools));
+    }
+
+    private static async Task<JsonElement> RpcResult(HttpResponseMessage response)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.True(response.IsSuccessStatusCode, body);
+        if (body.StartsWith("event:", StringComparison.Ordinal))
+            body = body.Split('\n', StringSplitOptions.RemoveEmptyEntries).First(line => line.StartsWith("data:", StringComparison.Ordinal))[5..].Trim();
+        using var document = JsonDocument.Parse(body);
+        Assert.False(document.RootElement.TryGetProperty("error", out var error), error.ToString());
+        return document.RootElement.GetProperty("result").Clone();
     }
 
     private static async Task<JsonElement[]> DiscoveredTools(HttpResponseMessage response)
@@ -492,28 +567,26 @@ public sealed class Auth0JwtAuthenticationTests : IClassFixture<Auth0McpFactory>
         return document.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray().Select(tool => tool.Clone()).ToArray();
     }
 
-    private async Task<HttpResponseMessage> Send(string token, HttpClient? target = null)
+    private Task<HttpResponseMessage> Send(string token, HttpClient? target = null) => SendRpc(token, "tools/list", target: target);
+
+    private async Task<HttpResponseMessage> SendRpc(string token, string method, Dictionary<string, object?>? parameters = null, HttpClient? target = null)
     {
+        var body = new Dictionary<string, object?>(parameters ?? [])
+        {
+            ["_meta"] = new Dictionary<string, object?>
+            {
+                ["io.modelcontextprotocol/protocolVersion"] = "2026-07-28",
+                ["io.modelcontextprotocol/clientCapabilities"] = new Dictionary<string, object?>()
+            }
+        };
         var request = new HttpRequestMessage(HttpMethod.Post, "/mcp")
         {
-            Content = JsonContent.Create(new Dictionary<string, object?>
-            {
-                ["jsonrpc"] = "2.0",
-                ["id"] = 1,
-                ["method"] = "tools/list",
-                ["params"] = new Dictionary<string, object?>
-                {
-                    ["_meta"] = new Dictionary<string, object?>
-                    {
-                        ["io.modelcontextprotocol/protocolVersion"] = "2026-07-28",
-                        ["io.modelcontextprotocol/clientCapabilities"] = new Dictionary<string, object?>()
-                    }
-                }
-            })
+            Content = JsonContent.Create(new Dictionary<string, object?> { ["jsonrpc"] = "2.0", ["id"] = 1, ["method"] = method, ["params"] = body })
         };
         request.Headers.Authorization = new("Bearer", token);
         request.Headers.TryAddWithoutValidation("MCP-Protocol-Version", "2026-07-28");
-        request.Headers.TryAddWithoutValidation("Mcp-Method", "tools/list");
+        request.Headers.TryAddWithoutValidation("Mcp-Method", method);
+        if (parameters?.GetValueOrDefault("name") is string name) request.Headers.TryAddWithoutValidation("Mcp-Name", name);
         request.Headers.Accept.ParseAdd("application/json");
         request.Headers.Accept.ParseAdd("text/event-stream");
         return await (target ?? client).SendAsync(request);
@@ -755,16 +828,21 @@ public sealed class McpFactory : WebApplicationFactory<Program>
     }
 }
 
-public sealed class Auth0McpFactory : WebApplicationFactory<Program>
+/// <summary>Hosts the MCP server against an Orbit Identity-shaped issuer that signs ES256 <c>at+jwt</c> access tokens.</summary>
+public sealed class OrbitMcpFactory : WebApplicationFactory<Program>
 {
-    public const string Issuer = "https://tenant.us.auth0.com/";
-    public const string Audience = "https://mcp.lib.karthiksurkanti.in/mcp";
-    public const string ApprovedSubject = "auth0|approved-user";
-    private static readonly SymmetricSecurityKey SigningKey = new(Encoding.UTF8.GetBytes("slate-auth0-test-signing-key-32-bytes-minimum"));
+    public const string Issuer = "https://auth.example.test/";
+    public const string Audience = "https://mcp.example.test/mcp";
+    public const string ApprovedSubject = "approved-user";
+    private static readonly ECDsaSecurityKey SigningKey = new(ECDsa.Create(ECCurve.NamedCurves.nistP256)) { KeyId = "orbit-test-es256" };
+    // Also trusted by the test issuer, so a rejection proves the algorithm rule rather than an unknown key.
+    private static readonly SymmetricSecurityKey HmacKey = new(Encoding.UTF8.GetBytes("slate-orbit-test-hmac-key-with-32-bytes")) { KeyId = "orbit-test-hs256" };
+    private static readonly RsaSecurityKey RsaKey = new(RSA.Create(2048)) { KeyId = "orbit-test-rs256" };
     public DiscoveryLogProvider DiscoveryLogs { get; } = new();
 
     public static string Token(string subject, string audience = Audience, string issuer = Issuer, string? grantType = null,
-        string? scope = "slate.read slate.analyze slate.write slate.organize", string scopeClaimType = "scope", IReadOnlyCollection<string>? permissions = null)
+        string? scope = "slate.read slate.analyze slate.write slate.organize", string scopeClaimType = "scope", IReadOnlyCollection<string>? permissions = null,
+        string tokenType = "at+jwt", string algorithm = SecurityAlgorithms.EcdsaSha256, bool expires = true)
     {
         var claims = new List<Claim>
         {
@@ -774,15 +852,23 @@ public sealed class Auth0McpFactory : WebApplicationFactory<Program>
         if (permissions is not null) claims.AddRange(permissions.Select(permission => new Claim("permissions", permission)));
         if (grantType is not null) claims.Add(new("gty", grantType));
 
-        return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
+        SecurityKey key = algorithm switch
+        {
+            SecurityAlgorithms.EcdsaSha256 => SigningKey,
+            SecurityAlgorithms.HmacSha256 => HmacKey,
+            SecurityAlgorithms.RsaSha256 => RsaKey,
+            _ => throw new ArgumentOutOfRangeException(nameof(algorithm))
+        };
+        return new JsonWebTokenHandler { SetDefaultTimesOnTokenCreation = expires }.CreateToken(new SecurityTokenDescriptor
         {
             Issuer = issuer,
             Audience = audience,
             Subject = new ClaimsIdentity(claims),
+            TokenType = tokenType,
             IssuedAt = DateTime.UtcNow.AddSeconds(-5),
             NotBefore = DateTime.UtcNow.AddSeconds(-5),
-            Expires = DateTime.UtcNow.AddMinutes(5),
-            SigningCredentials = new SigningCredentials(SigningKey, SecurityAlgorithms.HmacSha256)
+            Expires = expires ? DateTime.UtcNow.AddMinutes(5) : null,
+            SigningCredentials = new SigningCredentials(key, algorithm)
         });
     }
 
@@ -802,7 +888,7 @@ public sealed class Auth0McpFactory : WebApplicationFactory<Program>
         builder.UseSetting("OAuth:AuthorizationServers:0", Issuer);
         builder.UseSetting("OAuth:AllowedSubjectIds:0", ApprovedSubject);
         builder.UseSetting("OAuth:AllowedSubjectIds:1", "machine-client@clients");
-        builder.UseSetting("OAuth:AllowedSubjectIds:2", "auth0|approved-machine-grant");
+        builder.UseSetting("OAuth:AllowedSubjectIds:2", "approved-machine-grant");
         builder.UseSetting("Secrets:CanonicalDeviceToken", "not-returned");
         builder.UseSetting("Secrets:ProposalSigningKey", "test-proposal-signing-key-with-enough-entropy");
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(new Dictionary<string, string?>
@@ -819,7 +905,7 @@ public sealed class Auth0McpFactory : WebApplicationFactory<Program>
             ["OAuth:AuthorizationServers:0"] = Issuer,
             ["OAuth:AllowedSubjectIds:0"] = ApprovedSubject,
             ["OAuth:AllowedSubjectIds:1"] = "machine-client@clients",
-            ["OAuth:AllowedSubjectIds:2"] = "auth0|approved-machine-grant",
+            ["OAuth:AllowedSubjectIds:2"] = "approved-machine-grant",
             ["Secrets:CanonicalDeviceToken"] = "not-returned",
             ["Secrets:ProposalSigningKey"] = "test-proposal-signing-key-with-enough-entropy"
         }));
@@ -829,6 +915,8 @@ public sealed class Auth0McpFactory : WebApplicationFactory<Program>
             services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
             var oidc = new OpenIdConnectConfiguration { Issuer = Issuer };
             oidc.SigningKeys.Add(SigningKey);
+            oidc.SigningKeys.Add(HmacKey);
+            oidc.SigningKeys.Add(RsaKey);
             services.PostConfigure<JwtBearerOptions>("SlateBearer", options =>
             {
                 options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(oidc);

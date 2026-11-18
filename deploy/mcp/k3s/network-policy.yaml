@@ -9,10 +9,10 @@ spec:
       app.kubernetes.io/name: slate-mcp
   policyTypes: ["Ingress", "Egress"]
   ingress:
+    # The node's cloudflared tunnel reaches the ClusterIP; node-originated traffic arrives from cni0, 10.42.0.1 on k3s.
     - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: cloudflare
+        - ipBlock:
+            cidr: 10.42.0.1/32
       ports:
         - protocol: TCP
           port: 8080

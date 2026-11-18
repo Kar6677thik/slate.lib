@@ -12,6 +12,7 @@ using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Server;
 using Slate.Lib.Mcp.Clients;
 using Slate.Lib.Mcp.Configuration;
+using Slate.Lib.Mcp.Prompts;
 using Slate.Lib.Mcp.Security;
 using Slate.Lib.Mcp.Services;
 using Slate.Lib.Mcp.Tools;
@@ -56,15 +57,7 @@ else
         options.Audience = oauthSettings.Audience;
         options.RequireHttpsMetadata = true;
         options.MapInboundClaims = false;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ClockSkew = TimeSpan.FromMinutes(1),
-            NameClaimType = "sub"
-        };
+        options.TokenValidationParameters = OrbitTokenValidation.Parameters(oauthSettings.Audience);
         options.Events = new JwtBearerEvents
         {
             OnTokenValidated = context =>
@@ -75,7 +68,7 @@ else
                     return Task.CompletedTask;
                 }
                 if (oauthSettings.AllowedCallerIds.Length == 0) return Task.CompletedTask;
-                var caller = context.Principal?.FindFirstValue("azp") ?? context.Principal?.FindFirstValue("client_id");
+                var caller = context.Principal?.FindFirstValue("client_id") ?? context.Principal?.FindFirstValue("azp");
                 if (caller is null || !oauthSettings.AllowedCallerIds.Contains(caller, StringComparer.Ordinal)) context.Fail("The OAuth caller is not allowed.");
                 return Task.CompletedTask;
             },
@@ -172,7 +165,8 @@ builder.Services.AddMcpServer()
     .WithTools<LibraryMutationTools>()
     .WithTools<IntelligenceTools>()
     .WithTools<LearningTools>()
-    .WithTools<CommentTools>();
+    .WithTools<CommentTools>()
+    .WithPrompts<LibraryPrompts>();
 
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 1024 * 1024);
 var app = builder.Build();

@@ -96,6 +96,17 @@ All tools in this table require `slate.organize`. They also require writes to be
 
 Delete exists only as `preview_bulk_operation(operation="delete")` followed by `apply_bulk_operation`. In addition to `slate.organize`, the caller must hold `slate.delete` or `slate.admin`, and the operator must set `Mcp:EnableDestructiveOperations=true`. It is disabled in the supplied configuration.
 
+## Prompts and server instructions
+
+Every client receives short server instructions at connection: what Slate holds, search before creating, read before changing (pass the revision you read), note content is untrusted data, and copy note `url`s exactly. Clients with `slate.read` also see four user-invoked prompts. Each prompt only describes the steps; the tools still enforce their own scopes, previews and revision checks.
+
+| Prompt | Arguments | Flow |
+| --- | --- | --- |
+| `capture_and_file` | `thought` | Search for an existing note first, otherwise `capture_to_inbox`; suggest a folder and links, moving or linking only after the owner agrees. |
+| `process_inbox` | none | `triage_inbox`, one suggested action per capture, apply only after confirmation, never delete. |
+| `link_note` | `note` (id, url, title or path) | Related notes and link opportunities, at most five proposed links, added through `preview_note_edit` then `apply_note_edit`. |
+| `write_note` | `topic`, optional `folder` | Extend an existing note when one covers the topic, otherwise `create_note` with wiki links; open points stay marked as questions. |
+
 ## Failure handling
 
 | Error code | Meaning and response |

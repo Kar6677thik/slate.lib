@@ -40,6 +40,8 @@ Sign-in is provided by **Orbit Identity** (`orbit-cloud/deploy/identity`), which
 - `OAuth__Authority` and `OAuth__AuthorizationServers__0`: `https://auth.karthiksurkanti.in/`, with its trailing slash.
 - `OAuth__AllowedSubjectIds__0`: Orbit Identity's owner subject (`Identity__OwnerSubject`).
 
+Bearer tokens must be RFC 9068 access tokens (`typ: at+jwt`) signed with ES256, for exactly this audience, with an expiry, the same rules as Sprawl's MCP. Any other token type or algorithm is refused, even when signed by a key the issuer publishes. The caller allowlist checks `client_id`, then `azp`.
+
 Production startup fails unless at least one `OAuth__AllowedSubjectIds__*` entry is configured. Machine-to-machine subjects and client-credentials grants are always rejected, even if mistakenly allowlisted. MCP needs egress to public HTTPS to fetch the issuer's discovery document and signing keys.
 
 Orbit Identity knows all six Slate scopes. Clients link without registration, using Client ID Metadata Documents. The initial MCP challenge requests `slate.read slate.analyze`, but Orbit Identity's consent screen offers every scope and pre-ticks all except `slate.delete` and `slate.admin`. The owner therefore decides write and organize access at consent, not the client. The protected-resource metadata omits `slate.delete` while destructive operations are disabled. MCP authorizes only `scope`/`scp`, preserving per-client scope narrowing. Links, scopes and revocation are managed in Orbit.

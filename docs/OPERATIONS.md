@@ -92,14 +92,14 @@ The deployment uses one replica, `Recreate`, a retained host-path volume, and a 
 
 ## Private HTTPS
 
-The NodePort listens on the home server. Tailscale Serve terminates tailnet-trusted HTTPS and proxies only the loopback NodePort:
+The API Service has a fixed ClusterIP, `10.43.0.107:8080`, and no NodePort. kube-proxy NodePorts bypass the host firewall and answer on the LAN, so none are used. Tailscale Serve on the node terminates tailnet-trusted HTTPS and proxies to the ClusterIP:
 
 ```bash
-sudo tailscale serve --bg http://127.0.0.1:30518
+sudo tailscale serve --bg http://10.43.0.107:8080
 tailscale serve status
 ```
 
-Use the reported `https://<machine>.<tailnet>.ts.net` URL in each client. Do not expose the NodePort on the public router. Slate accepts forwarded HTTPS only from a loopback proxy; non-loopback clients require HTTPS.
+Use the reported `https://<machine>.<tailnet>.ts.net` URL in each client. A ClusterIP is reachable only from the node and the cluster; the `slate` NetworkPolicy further limits ingress to the node and to slate-web and slate-mcp. Changing a Service's ClusterIP requires deleting and recreating the Service. Slate accepts forwarded HTTPS only from a loopback proxy; non-loopback clients require HTTPS.
 
 ## Device credentials
 
