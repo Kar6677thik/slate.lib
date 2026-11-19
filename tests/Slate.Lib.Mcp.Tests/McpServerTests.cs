@@ -514,6 +514,22 @@ public sealed class OrbitJwtAuthenticationTests : IClassFixture<OrbitMcpFactory>
     }
 
     [Fact]
+    public async Task ToolDescriptionsBacktickEveryToolTheyMention()
+    {
+        // The Orbit Hub rewrites backticked tool names inside descriptions too (`read_note` -> `slate_read_note`).
+        using var response = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: "slate.read slate.analyze slate.write slate.organize slate.delete slate.admin"));
+        var tools = await DiscoveredTools(response);
+        var names = tools.Select(tool => tool.GetProperty("name").GetString()!).ToArray();
+        var bare = tools.SelectMany(tool =>
+        {
+            var description = tool.GetProperty("description").GetString() ?? "";
+            return names.Where(name => System.Text.RegularExpressions.Regex.IsMatch(description, $@"(?<![`\w]){name}(?![`\w])")).Select(name => $"{tool.GetProperty("name").GetString()}: {name}");
+        }).ToArray();
+        Assert.True(names.Length >= 45, $"Expected the full toolset, got {names.Length}.");
+        Assert.Empty(bare);
+    }
+
+    [Fact]
     public async Task ReadScopeListsTheWorkflowPrompts()
     {
         using var response = await SendRpc(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: "slate.read"), "prompts/list");

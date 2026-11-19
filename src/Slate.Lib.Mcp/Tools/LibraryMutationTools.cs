@@ -34,7 +34,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
     [McpServerTool(Name = "update_note", Title = "Update note", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Write)]
     [Authorize(Policy = "scope:slate.write")]
-    [Description("Replace a note only when the supplied canonical revision still matches. Prefer preview_note_edit then apply_note_edit for substantial edits.")]
+    [Description("Replace a note only when the supplied canonical revision still matches. Prefer `preview_note_edit` then `apply_note_edit` for substantial edits.")]
     public Task<McpResult<LibraryNote>> UpdateNote(Guid noteId, string markdown, string revision, CancellationToken token = default) =>
         executor.Run<LibraryNote>("update_note", async libraryId =>
         {
@@ -215,7 +215,7 @@ public sealed class LibraryMutationTools(CanonicalSlateClient canonical, Intelli
     [McpServerTool(Name = "sync_library", Title = "Synchronize library Git history", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
     [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Organize)]
     [Authorize(Policy = "scope:slate.organize")]
-    [Description("Request canonical Git synchronization: commit pending library changes and safely pull or push the configured remote. Returns the actual Git state and heads; conflicts and failures are not reported as success. Never resets or force-pushes history. After a timeout or pending result, check get_library_status before retrying.")]
+    [Description("Request canonical Git synchronization: commit pending library changes and safely pull or push the configured remote. Returns the actual Git state and heads; conflicts and failures are not reported as success. Never resets or force-pushes history. After a timeout or pending result, check `get_library_status` before retrying.")]
     public Task<McpResult<GitSyncState>> SyncLibrary(CancellationToken token = default) =>
         executor.Run<GitSyncState>("sync_library", async libraryId =>
         {
