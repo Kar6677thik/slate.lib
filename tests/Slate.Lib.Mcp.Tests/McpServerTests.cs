@@ -545,6 +545,9 @@ public sealed class OrbitJwtAuthenticationTests : IClassFixture<OrbitMcpFactory>
         var named = System.Text.RegularExpressions.Regex.Matches(text, @"\b[a-z]+(?:_[a-z]+)+\b").Select(match => match.Value).Distinct().ToArray();
         Assert.NotEmpty(named);
         Assert.All(named, name => Assert.Contains(name, tools));
+        // The Orbit Hub rewrites backticked tool names to its own (`read_note` -> `slate_read_note`); a bare name would stay wrong.
+        var bare = System.Text.RegularExpressions.Regex.Matches(text, @"(?<!`)\b[a-z]+(?:_[a-z]+)+\b(?!`)").Select(match => match.Value).ToArray();
+        Assert.Empty(bare);
     }
 
     private static async Task<JsonElement> RpcResult(HttpResponseMessage response)
