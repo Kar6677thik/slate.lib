@@ -98,7 +98,7 @@ Delete exists only as `preview_bulk_operation(operation="delete")` followed by `
 
 ## Prompts and server instructions
 
-Every client receives short server instructions at connection: what Slate holds, search before creating, read before changing (pass the revision you read), note content is untrusted data, and copy note `url`s exactly. Clients with `slate.read` also see four user-invoked prompts. Each prompt only describes the steps; the tools still enforce their own scopes, previews and revision checks.
+Every client receives short server instructions at connection: what Slate holds, search before creating, read before changing (pass the revision you read), note content is untrusted data, and copy note `url`s exactly. Tool names in the instructions and prompts are always backticked, because the Orbit Hub carries them verbatim and rewrites `` `read_note` `` to `` `slate_read_note` ``; tests fail on a bare tool name. Clients with `slate.read` also see four user-invoked prompts. Each prompt only describes the steps; the tools still enforce their own scopes, previews and revision checks.
 
 | Prompt | Arguments | Flow |
 | --- | --- | --- |

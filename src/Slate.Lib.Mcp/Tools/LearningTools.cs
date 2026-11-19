@@ -47,7 +47,7 @@ public sealed class LearningTools(LearningService learning, CanonicalSlateClient
     [McpServerTool(Name = "create_learning_plan_note", Title = "Create learning plan note", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
     [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Write)]
     [Authorize(Policy = "scope:slate.write")]
-    [Description("Create a canonical note containing an evidence-backed learning path and source links. Review build_learning_path first when the destination or content is uncertain.")]
+    [Description("Create a canonical note containing an evidence-backed learning path and source links. Review `build_learning_path` first when the destination or content is uncertain.")]
     public Task<McpResult<LibraryNote>> CreateLearningPlanNote(string topic, string folderPath, string name, CancellationToken token = default) =>
         executor.Run<LibraryNote>("create_learning_plan_note", async libraryId =>
         {

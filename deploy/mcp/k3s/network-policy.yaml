@@ -16,6 +16,17 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # The Orbit Hub gateway calls Slate MCP in-cluster with Host: mcp.karthiksurkanti.in and an exchanged Orbit token.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: hub
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: orbit-hub
+      ports:
+        - protocol: TCP
+          port: 8080
   egress:
     - to:
         - namespaceSelector:

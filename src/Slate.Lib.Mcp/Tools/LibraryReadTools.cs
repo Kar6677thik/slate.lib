@@ -171,7 +171,7 @@ public sealed class LibraryReadTools(CanonicalSlateClient canonical, Intelligenc
     [McpServerTool(Name = "get_library_views", Title = "Get library view", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [McpMeta("securitySchemes", JsonValue = SlateToolSecurity.Read)]
     [Authorize(Policy = "scope:slate.read")]
-    [Description("Return one canonical smart view such as recent, unanswered, bookmarks, or inbox. Use get_library_status and browse_library when a view is unavailable.")]
+    [Description("Return one canonical smart view such as recent, unanswered, bookmarks, or inbox. Use `get_library_status` and `browse_library` when a view is unavailable.")]
     public Task<McpResult<SearchPage>> GetLibraryViews(string view, int page = 0, int pageSize = 20, CancellationToken token = default) =>
         executor.Run<SearchPage>("get_library_views", async libraryId =>
         {
