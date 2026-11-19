@@ -514,6 +514,42 @@ public sealed class OrbitJwtAuthenticationTests : IClassFixture<OrbitMcpFactory>
     }
 
     [Fact]
+    public async Task EverySchemaNodeIsAJsonSchemaObject()
+    {
+        // Strict clients (the official TypeScript SDK's ToolSchema) reject a whole tools/list when any subschema is a
+        // boolean such as `true`; every schema position must hold an object (`{}` means "anything").
+        using var response = await Send(OrbitMcpFactory.Token(OrbitMcpFactory.ApprovedSubject, scope: "slate.read slate.analyze slate.write slate.organize slate.delete slate.admin"));
+        var problems = new List<string>();
+        foreach (var tool in await DiscoveredTools(response))
+        {
+            var name = tool.GetProperty("name").GetString();
+            foreach (var key in new[] { "inputSchema", "outputSchema" })
+                if (tool.TryGetProperty(key, out var schema)) CollectNonObjectSchemas(schema, $"{name}.{key}", problems);
+        }
+        Assert.Empty(problems);
+    }
+
+    private static readonly string[] SchemaMaps = ["properties", "patternProperties", "$defs", "definitions", "dependentSchemas"];
+    private static readonly string[] SchemaSingles = ["items", "additionalProperties", "additionalItems", "unevaluatedProperties", "unevaluatedItems", "contains", "propertyNames", "not", "if", "then", "else"];
+    private static readonly string[] SchemaLists = ["anyOf", "oneOf", "allOf", "prefixItems", "items"];
+
+    private static void CollectNonObjectSchemas(JsonElement schema, string path, List<string> problems)
+    {
+        if (schema.ValueKind != JsonValueKind.Object) { problems.Add($"{path} is {schema.ValueKind}"); return; }
+        foreach (var map in SchemaMaps)
+            if (schema.TryGetProperty(map, out var children) && children.ValueKind == JsonValueKind.Object)
+                foreach (var child in children.EnumerateObject()) CollectNonObjectSchemas(child.Value, $"{path}.{map}.{child.Name}", problems);
+        foreach (var single in SchemaSingles)
+            if (schema.TryGetProperty(single, out var child) && child.ValueKind != JsonValueKind.Array) CollectNonObjectSchemas(child, $"{path}.{single}", problems);
+        foreach (var list in SchemaLists)
+            if (schema.TryGetProperty(list, out var children) && children.ValueKind == JsonValueKind.Array)
+            {
+                var index = 0;
+                foreach (var child in children.EnumerateArray()) CollectNonObjectSchemas(child, $"{path}.{list}[{index++}]", problems);
+            }
+    }
+
+    [Fact]
     public async Task ToolDescriptionsBacktickEveryToolTheyMention()
     {
         // The Orbit Hub rewrites backticked tool names inside descriptions too (`read_note` -> `slate_read_note`).

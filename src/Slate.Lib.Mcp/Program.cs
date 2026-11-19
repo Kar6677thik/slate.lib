@@ -143,6 +143,11 @@ builder.Services.AddMcpServer()
     .WithRequestFilters(filters => filters.AddListToolsFilter(next => async (context, cancellationToken) =>
     {
         var result = await next(context, cancellationToken);
+        foreach (var tool in result.Tools)
+        {
+            tool.InputSchema = SchemaNormalizer.Normalize(tool.InputSchema);
+            if (tool.OutputSchema is { } output) tool.OutputSchema = SchemaNormalizer.Normalize(output);
+        }
         if (context.User?.Identity?.IsAuthenticated == true)
         {
             var logger = context.Services!.GetRequiredService<ILoggerFactory>().CreateLogger("Slate.Lib.Mcp.Discovery");
